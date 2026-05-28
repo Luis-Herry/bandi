@@ -12,10 +12,11 @@
 
 ## 下载使用
 
-在仓库的 [Releases](https://github.com/Luis-Herry/anime-tracker-desktop/releases) 页面下载桌面版分发包：
+在仓库的 [Releases](https://github.com/Luis-Herry/anime-tracker-desktop/releases) 页面下载桌面版分发包。Release 页面里的资产名称为：
 
-- `追番中心-Setup-0.1.0-x64.exe`：安装版，适合日常使用。
-- `追番中心-0.1.0-x64-portable.exe`：便携版，适合免安装试用。
+- `Windows installer`（`anime-tracker-desktop-setup-v0.1.0-x64.exe`）：安装版，适合日常使用。
+- `Windows portable`（`anime-tracker-desktop-portable-v0.1.0-x64.exe`）：便携版，适合免安装试用。
+- `Desktop readme`（`README-desktop.txt`）：桌面版使用说明。
 
 首次启动时，桌面应用会启动内置服务，并尝试拉起内置 qBittorrent。若连接失败，进入下载管理页或设置中心，点击“不会设置看这里”按截图检查 Web UI 设置。
 
