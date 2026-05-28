@@ -1,0 +1,358 @@
+import { notFound } from "next/navigation";
+import Link from "next/link";
+import type { CSSProperties } from "react";
+import { Calendar, Download, ExternalLink, Star } from "lucide-react";
+import { GlassPanel, Tag } from "@/components/ui";
+import { AnimeCreditsTabs } from "@/components/features/AnimeCreditsTabs";
+import { BackButton } from "@/components/features/BackButton";
+import { EpisodeGrid } from "@/components/features/EpisodeGrid";
+import { EpisodeProgressControl } from "@/components/features/EpisodeProgressControl";
+import { PlayButton } from "@/components/features/PlayButton";
+import { RatingNotes } from "@/components/features/RatingNotes";
+import { RelatedResourcesPanel } from "@/components/features/RelatedResourcesPanel";
+import { WatchStatusMenu } from "@/components/features/WatchStatusMenu";
+import { deriveAnimeVisualVars } from "@/lib/anime-visuals";
+import { getSubjectRelations } from "@/lib/bangumi";
+import { selectRelatedResourceViews } from "@/lib/bangumi-relations";
+import { getAnimeDetail } from "@/lib/db-helpers/library";
+import { getCurrentUser } from "@/lib/session";
+
+interface PageProps {
+  params: Promise<{ id: string }>;
+}
+
+const WEEKDAYS = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
+const TYPE_LABEL: Record<string, string> = {
+  TV: "TV 动画",
+  Movie: "剧场版",
+  OVA: "OVA",
+  Web: "Web",
+};
+const STATUS_LABEL: Record<string, string> = {
+  airing: "连载中",
+  completed: "已完结",
+  upcoming: "即将放送",
+};
+export const dynamic = "force-dynamic";
+
+export default async function AnimeDetailPage({ params }: PageProps) {
+  const { id } = await params;
+  const animeId = Number(id);
+  if (!Number.isFinite(animeId)) notFound();
+
+  const user = await getCurrentUser();
+  if (!user) notFound();
+
+  const detail = getAnimeDetail(animeId, user.id);
+  if (!detail) notFound();
+
+  const { anime, userAnime, episodes, completedDownloads, totalDownloads } =
+    detail;
+  const visualVars = deriveAnimeVisualVars(anime.accentColor);
+
+  const watchedCount = userAnime?.currentEpisode ?? 0;
+  const totalLabel = anime.totalEpisodes
+    ? `共 ${anime.totalEpisodes} 集`
+    : `共 ${episodes.length} 集`;
+  // 最大集号（不是集数）— S2 番剧 episodes 可能是 13..24，这里要取 24 作上限
+  const maxEpisodeNumber =
+    episodes.length > 0
+      ? Math.max(...episodes.map((e) => e.number))
+      : anime.totalEpisodes ?? null;
+  const nextAiring = episodes.find(
+    (e) => e.airedAt && e.airedAt.getTime() > Date.now(),
+  );
+  const relatedResources = anime.bangumiId
+    ? selectRelatedResourceViews(
+        await getSubjectRelations(anime.bangumiId),
+        anime.bangumiId,
+      )
+    : [];
+
+  return (
+    <div
+      className="anime-detail-scope relative isolate"
+      style={visualVars as CSSProperties}
+    >
+      {/* ========== Hero ========== */}
+      <section className="relative h-[460px] w-full overflow-hidden">
+        {anime.coverUrl && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={anime.coverUrl}
+            alt={anime.title}
+            className="absolute inset-0 w-full h-full object-cover"
+          />
+        )}
+        {/* 多层渐变遮罩，让左侧字够看 */}
+        <div
+          aria-hidden
+          className="absolute inset-0"
+          style={{
+            background:
+              "linear-gradient(90deg, rgba(10,10,11,0.95) 0%, rgba(10,10,11,0.75) 35%, rgba(10,10,11,0.15) 65%, rgba(10,10,11,0) 100%)",
+          }}
+        />
+        <div
+          aria-hidden
+          className="absolute inset-x-0 bottom-0 h-40"
+          style={{
+            background:
+              "linear-gradient(180deg, rgba(10,10,11,0) 0%, rgba(10,10,11,1) 100%)",
+          }}
+        />
+        <div
+          aria-hidden
+          className="absolute inset-0"
+          style={{
+            background:
+              "radial-gradient(ellipse at 25% 60%, rgb(var(--anime-accent-rgb) / var(--anime-halo-intensity)) 0%, transparent 55%)",
+          }}
+        />
+
+        {/* 返回按钮：浮在封面左上角 */}
+        <div className="fixed top-20 left-8 z-40">
+          <BackButton />
+        </div>
+
+        <div className="relative mx-auto max-w-[1440px] h-full px-8 flex flex-col justify-end pb-12">
+          <div className="flex items-center gap-2 mb-3 text-[12px] text-[color:var(--text-secondary)]">
+            <span data-tabular>{anime.year ?? "—"}</span>
+            <span>·</span>
+            <span>{TYPE_LABEL[anime.type] ?? anime.type}</span>
+            <span>·</span>
+            <span>{STATUS_LABEL[anime.status] ?? anime.status}</span>
+            {anime.airingDay !== null && anime.airingDay !== undefined && (
+              <>
+                <span>·</span>
+                <span>
+                  {WEEKDAYS[anime.airingDay]}更新
+                  {anime.airingTime ? ` ${anime.airingTime}` : ""}
+                </span>
+              </>
+            )}
+          </div>
+          <h1
+            className="text-[56px] font-extrabold tracking-[-0.03em] leading-[1.05] text-[color:var(--text-primary)]"
+            style={{ textShadow: "0 4px 24px rgba(0,0,0,0.6)" }}
+          >
+            {anime.title}
+          </h1>
+          {anime.titleJa && (
+            <p className="mt-1 text-[14px] text-[color:var(--text-secondary)]">
+              {anime.titleJa}
+            </p>
+          )}
+
+          <div className="mt-4 flex items-center gap-5">
+            <div className="flex items-center gap-1.5">
+              <Star
+                size={16}
+                className="text-[color:var(--accent)]"
+                style={{ fill: "var(--accent)" }}
+              />
+              <span
+                data-tabular
+                className="text-[18px] font-semibold tracking-tight text-[color:var(--text-primary)]"
+              >
+                9.2
+              </span>
+              <span className="text-[11px] text-[color:var(--text-muted)]">
+                (1,287 评分)
+              </span>
+            </div>
+            <span className="text-[12px] text-[color:var(--text-muted)]">
+              {totalLabel}
+              {userAnime && (
+                <>
+                  {" · "}
+                  已看 {watchedCount} 集
+                </>
+              )}
+            </span>
+          </div>
+
+          {anime.tags && anime.tags.length > 0 && (
+            <div className="mt-4 flex flex-wrap gap-1.5 max-w-[640px]">
+              {anime.tags.slice(0, 6).map((t) => (
+                <Tag key={t} variant="outline">
+                  {t}
+                </Tag>
+              ))}
+            </div>
+          )}
+
+          <div className="mt-6 flex items-center gap-3">
+            {/* 继续观看：仅在已追番 + 下载队列有 completed 条目时显示。
+                "纯查看详情"链路（userAnime 为 null）和"还没下完"场景都不显示。 */}
+            {userAnime && completedDownloads > 0 && (() => {
+              const playEp = watchedCount > 0 ? watchedCount : 1;
+              return (
+                <PlayButton
+                  animeId={anime.id}
+                  episode={playEp}
+                  label={`继续观看 EP.${String(playEp).padStart(2, "0")}`}
+                  variant="primary"
+                  size="md"
+                />
+              );
+            })()}
+            <WatchStatusMenu
+              animeId={anime.id}
+              current={userAnime?.watchStatus ?? null}
+            />
+            {/* 下载管理：仅在该番剧在 downloadQueue 有任意记录时显示，
+                没下过的番剧跳过去也看不到对应资源。 */}
+            {userAnime && totalDownloads > 0 && (
+              <Link
+                href="/admin/downloads"
+                className="inline-flex items-center gap-2 h-10 px-4 rounded-[6px] border border-[color:var(--border-default)] bg-[color:var(--bg-surface)] text-[13px] text-[color:var(--text-primary)] hover:bg-[color:var(--bg-surface-hover)] transition-colors backdrop-blur-[12px]"
+              >
+                <Download size={15} />
+                下载管理
+              </Link>
+            )}
+            {anime.bangumiId && (
+              <a
+                href={`https://bangumi.tv/subject/${anime.bangumiId}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 h-10 px-4 rounded-[6px] border border-[color:var(--border-default)] bg-[color:var(--bg-surface)] text-[13px] text-[color:var(--text-primary)] hover:bg-[color:var(--bg-surface-hover)] transition-colors backdrop-blur-[12px]"
+              >
+                <ExternalLink size={15} />
+                Bangumi
+              </a>
+            )}
+          </div>
+        </div>
+      </section>
+
+      {/* ========== Body ========== */}
+      <section className="relative mx-auto max-w-[1440px] px-8 py-8 grid grid-cols-12 gap-6">
+        {/* 左主区 */}
+        <div className="col-span-8 space-y-6">
+          <AnimeCreditsTabs
+            animeId={anime.id}
+            synopsis={anime.synopsis}
+            tags={anime.tags ?? null}
+            hasBangumi={!!anime.bangumiId}
+          />
+
+          {/* 剧集列表 */}
+          <div>
+            <div className="flex items-center justify-between mb-4 gap-4">
+              <div className="flex items-baseline gap-3">
+                <h2 className="text-[18px] font-semibold tracking-[-0.01em] text-[color:var(--text-primary)]">
+                  剧集列表
+                </h2>
+                <span
+                  data-tabular
+                  className="text-[12px] text-[color:var(--text-muted)]"
+                >
+                  {episodes.length > 0
+                    ? `${episodes.length} 集`
+                    : "暂无剧集数据"}
+                </span>
+              </div>
+              <EpisodeProgressControl
+                animeId={anime.id}
+                initialCurrent={watchedCount}
+                maxEpisode={maxEpisodeNumber}
+                enabled={!!userAnime}
+              />
+            </div>
+            {episodes.length > 0 ? (
+              <EpisodeGrid
+                animeId={anime.id}
+                animeTitle={anime.title}
+                episodes={episodes}
+                currentEpisode={watchedCount}
+              />
+            ) : (
+              <GlassPanel className="p-6 text-center text-[13px] text-[color:var(--text-muted)]">
+                未拉取到剧集，加入追番后可同步
+              </GlassPanel>
+            )}
+            {nextAiring && (
+              <p className="mt-3 text-[12px] text-[color:var(--text-muted)] flex items-center gap-1.5">
+                <Calendar size={12} />
+                EP.{String(nextAiring.number).padStart(2, "0")} 预计{" "}
+                {nextAiring.airedAt!.toLocaleDateString("zh-CN", {
+                  month: "long",
+                  day: "numeric",
+                })}{" "}
+                播出
+              </p>
+            )}
+          </div>
+        </div>
+
+        {/* 右栏 */}
+        <aside className="col-span-4 space-y-4">
+          <GlassPanel variant="elevated" className="p-5">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-[14px] font-semibold tracking-tight text-[color:var(--text-primary)]">
+                我的评分 · 笔记
+              </h3>
+              {!userAnime && (
+                <span className="text-[11px] text-[color:var(--text-muted)]">
+                  追番后可记录
+                </span>
+              )}
+            </div>
+            <RatingNotes
+              animeId={anime.id}
+              initialRating={userAnime?.rating}
+              initialNotes={userAnime?.notes}
+              disabled={!userAnime}
+            />
+          </GlassPanel>
+
+          <GlassPanel className="p-5">
+            <h3 className="text-[14px] font-semibold tracking-tight text-[color:var(--text-primary)] mb-3">
+              基本信息
+            </h3>
+            <dl className="text-[12px] space-y-2">
+              {[
+                ["原名", anime.titleJa ?? "—"],
+                ["类型", TYPE_LABEL[anime.type] ?? anime.type],
+                ["状态", STATUS_LABEL[anime.status] ?? anime.status],
+                ["集数", anime.totalEpisodes ? `${anime.totalEpisodes} 集` : "—"],
+                [
+                  "首播",
+                  anime.year
+                    ? `${anime.year}${anime.season ? " 年" : ""}`
+                    : "—",
+                ],
+                [
+                  "更新时间",
+                  anime.airingDay !== null && anime.airingDay !== undefined
+                    ? `${WEEKDAYS[anime.airingDay]}${anime.airingTime ? ` ${anime.airingTime}` : ""}`
+                    : "—",
+                ],
+              ].map(([k, v]) => (
+                <div
+                  key={k}
+                  className="flex items-baseline justify-between gap-3"
+                >
+                  <dt className="text-[color:var(--text-muted)] shrink-0">
+                    {k}
+                  </dt>
+                  <dd className="text-[color:var(--text-primary)] text-right truncate">
+                    {v}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          </GlassPanel>
+
+          <RelatedResourcesPanel
+            bangumiId={anime.bangumiId}
+            anilistId={anime.anilistId}
+            resources={relatedResources}
+          />
+        </aside>
+      </section>
+    </div>
+  );
+}

@@ -1,0 +1,15 @@
+qBittorrent vendor copy
+
+This folder contains an unmodified Windows copy of qBittorrent v5.0.3 from:
+E:\Program Files\qBittorrent
+
+Included files:
+- qbittorrent.exe
+- qt.conf
+- translations/
+
+Project: https://www.qbittorrent.org/
+Source code: https://github.com/qbittorrent/qBittorrent
+License: GNU General Public License v2.0 or later, with the OpenSSL linking exception stated by the qBittorrent project.
+
+Do not edit the binary in this project. For broader redistribution, keep this notice with the app and provide the matching qBittorrent source/license information.

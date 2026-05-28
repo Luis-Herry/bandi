@@ -1,0 +1,445 @@
+@import "tailwindcss";
+
+/* ===================================================================
+   设计令牌：全部用 CSS 变量驱动；Tailwind 通过 @theme 映射到工具类
+   =================================================================== */
+
+@theme {
+  --color-bg-base: #0a0a0b;
+  --color-bg-elevated: #141416;
+  --color-bg-surface: rgba(255, 255, 255, 0.04);
+  --color-bg-surface-hover: rgba(255, 255, 255, 0.08);
+
+  --color-border-subtle: rgba(255, 255, 255, 0.06);
+  --color-border-default: rgba(255, 255, 255, 0.10);
+  --color-border-strong: rgba(255, 255, 255, 0.16);
+
+  --color-text-primary: #e8e8e8;
+  --color-text-secondary: #888888;
+  --color-text-muted: #555555;
+
+  --color-status-success: #4ade80;
+  --color-status-warning: #fbbf24;
+  --color-status-error: #ef4444;
+  --color-status-info: #94a3b8;
+
+  --color-accent: #d4a853;
+  --color-accent-muted: rgb(212 168 83 / 0.2);
+  --color-accent-subtle: rgb(212 168 83 / 0.1);
+
+  --font-sans: "Inter", "Noto Sans SC", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", "Cascadia Code", ui-monospace, monospace;
+
+  --radius-btn: 6px;
+  --radius-card: 8px;
+  --radius-panel: 12px;
+
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.2);
+  --shadow-md: 0 8px 32px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.4);
+
+  --ease-default: cubic-bezier(0.25, 0.1, 0.25, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-out: cubic-bezier(0, 0, 0.2, 1);
+
+  --spacing-12: 48px;
+  --spacing-16: 64px;
+}
+
+/* 同时暴露成 :root 变量，便于直接在 CSS 里以 var(--x) 用 */
+:root,
+[data-theme="default"] {
+  --bg-base: #0a0a0b;
+  --bg-elevated: #141416;
+  --bg-surface: rgba(255, 255, 255, 0.04);
+  --bg-surface-hover: rgba(255, 255, 255, 0.08);
+
+  --border-subtle: rgba(255, 255, 255, 0.06);
+  --border-default: rgba(255, 255, 255, 0.10);
+  --border-strong: rgba(255, 255, 255, 0.16);
+
+  --text-primary: #e8e8e8;
+  --text-secondary: #888888;
+  --text-muted: #555555;
+
+  --status-success: #4ade80;
+  --status-warning: #fbbf24;
+  --status-error: #ef4444;
+  --status-info: #94a3b8;
+
+  /* 强调色：默认主题琥珀金。主题切换通过 data-theme block 覆盖整组 token。 */
+  --accent: #d4a853;
+  --accent-rgb: 212 168 83;
+  --accent-muted: rgb(212 168 83 / 0.2);
+  --accent-subtle: rgb(212 168 83 / 0.1);
+  --accent-contrast: #1a1408;
+  --surface-noise-opacity: 0.025;
+
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.2);
+  --shadow-md: 0 8px 32px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.4);
+
+  --ease-default: cubic-bezier(0.25, 0.1, 0.25, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-out: cubic-bezier(0, 0, 0.2, 1);
+
+  color-scheme: dark;
+}
+
+[data-theme="trend"] {
+  --bg-base: #0c0808;
+  --bg-elevated: #171111;
+  --bg-surface: rgba(255, 244, 236, 0.045);
+  --bg-surface-hover: rgba(255, 244, 236, 0.085);
+  --border-subtle: rgba(255, 232, 215, 0.065);
+  --border-default: rgba(255, 232, 215, 0.11);
+  --border-strong: rgba(255, 232, 215, 0.18);
+  --accent: #e4575c;
+  --accent-rgb: 228 87 92;
+  --accent-muted: rgb(228 87 92 / 0.2);
+  --accent-subtle: rgb(228 87 92 / 0.1);
+  --accent-contrast: #1b0908;
+  --surface-noise-opacity: 0.03;
+}
+
+[data-theme="healing"] {
+  --bg-base: #0d0c08;
+  --bg-elevated: #18160f;
+  --bg-surface: rgba(255, 250, 224, 0.045);
+  --bg-surface-hover: rgba(255, 250, 224, 0.085);
+  --border-subtle: rgba(255, 246, 206, 0.065);
+  --border-default: rgba(255, 246, 206, 0.11);
+  --border-strong: rgba(255, 246, 206, 0.18);
+  --accent: #9dbd7f;
+  --accent-rgb: 157 189 127;
+  --accent-muted: rgb(157 189 127 / 0.2);
+  --accent-subtle: rgb(157 189 127 / 0.1);
+  --accent-contrast: #081307;
+  --surface-noise-opacity: 0.028;
+}
+
+[data-theme="retro"] {
+  --bg-base: #0c0710;
+  --bg-elevated: #17101a;
+  --bg-surface: rgba(250, 232, 255, 0.045);
+  --bg-surface-hover: rgba(250, 232, 255, 0.085);
+  --border-subtle: rgba(235, 205, 255, 0.065);
+  --border-default: rgba(235, 205, 255, 0.11);
+  --border-strong: rgba(235, 205, 255, 0.18);
+  --accent: #d184d9;
+  --accent-rgb: 209 132 217;
+  --accent-muted: rgb(209 132 217 / 0.2);
+  --accent-subtle: rgb(209 132 217 / 0.1);
+  --accent-contrast: #19051a;
+  --surface-noise-opacity: 0.032;
+}
+
+[data-theme="peach"] {
+  --bg-base: #0d0809;
+  --bg-elevated: #181013;
+  --bg-surface: rgba(255, 238, 241, 0.045);
+  --bg-surface-hover: rgba(255, 238, 241, 0.085);
+  --border-subtle: rgba(255, 218, 224, 0.065);
+  --border-default: rgba(255, 218, 224, 0.11);
+  --border-strong: rgba(255, 218, 224, 0.18);
+  --accent: #f29aa2;
+  --accent-rgb: 242 154 162;
+  --accent-muted: rgb(242 154 162 / 0.2);
+  --accent-subtle: rgb(242 154 162 / 0.1);
+  --accent-contrast: #1d080a;
+  --surface-noise-opacity: 0.03;
+}
+
+[data-theme="sci-fi"] {
+  --bg-base: #060a0c;
+  --bg-elevated: #0c1213;
+  --bg-surface: rgba(226, 255, 250, 0.04);
+  --bg-surface-hover: rgba(226, 255, 250, 0.075);
+  --border-subtle: rgba(218, 255, 248, 0.055);
+  --border-default: rgba(218, 255, 248, 0.095);
+  --border-strong: rgba(218, 255, 248, 0.15);
+  --accent: #5fc9c8;
+  --accent-rgb: 95 201 200;
+  --accent-muted: rgb(95 201 200 / 0.2);
+  --accent-subtle: rgb(95 201 200 / 0.1);
+  --accent-contrast: #031514;
+  --surface-noise-opacity: 0.024;
+}
+
+/* ===================================================================
+   基础元素
+   =================================================================== */
+
+html {
+  /* 永久显示滚动条，配合 scrollbar-gutter 兜底，防止 Radix Dialog/Dropdown
+     锁滚时滚动条消失导致页面横向位移 / 抖动。
+     overflow-y:scroll 是最稳的招（旧 Chrome 也吃这套），scrollbar-gutter
+     是新规范，留着双保险。 */
+  overflow-y: scroll;
+  scrollbar-gutter: stable;
+}
+
+html,
+body {
+  background: var(--bg-base);
+  color: var(--text-primary);
+}
+
+/* Radix 锁滚时会给 body 加 inline padding-right 抵消滚动条宽度；html 已经永
+   久占着滚动条槽，body 再补 padding 就成双倍内缩。强制清掉。 */
+body[data-scroll-locked] {
+  padding-right: 0 !important;
+  margin-right: 0 !important;
+  /* react-remove-scroll 还会把 body 设成 overflow:hidden，
+     但 html 的 overflow-y:scroll 保证滚动条槽位仍在。 */
+}
+
+body {
+  font-family: var(--font-sans);
+  font-feature-settings: "ss01", "cv11";
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* 数字用等宽 */
+.tabular,
+[data-tabular] {
+  font-variant-numeric: tabular-nums;
+}
+
+/* 选中色：低饱和 accent */
+::selection {
+  background: rgb(var(--accent-rgb) / 0.35);
+  color: var(--text-primary);
+}
+
+/* 焦点环：仅作用于真正交互元素，避免应用到 Dialog/容器导致外溢。
+   outline-offset 改 1px，并彻底移除 border-radius 强制（原写法会把焦点元素
+   的实际圆角覆盖成 4px，与设计 token 冲突）。 */
+button:not([data-no-focus-ring]):focus-visible,
+a:not([data-no-focus-ring]):focus-visible,
+input:not([data-no-focus-ring]):focus-visible,
+textarea:not([data-no-focus-ring]):focus-visible,
+select:not([data-no-focus-ring]):focus-visible,
+[role="button"]:not([data-no-focus-ring]):focus-visible,
+[role="option"]:not([data-no-focus-ring]):focus-visible,
+[role="link"]:not([data-no-focus-ring]):focus-visible,
+[role="menuitem"]:not([data-no-focus-ring]):focus-visible,
+[role="tab"]:not([data-no-focus-ring]):focus-visible,
+[tabindex]:not([tabindex="-1"]):not([data-no-focus-ring]):focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* ===================================================================
+   滚动条：窄、半透明灰，hover 微亮
+   =================================================================== */
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.16);
+  background-clip: content-box;
+  border: 2px solid transparent;
+}
+
+/* ===================================================================
+   质感层：噪点 / 玻璃 / 微光
+   =================================================================== */
+
+.noise {
+  position: relative;
+}
+.noise::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background-image: url("/noise.svg");
+  background-repeat: repeat;
+  opacity: var(--surface-noise-opacity, 0.025);
+  mix-blend-mode: overlay;
+  pointer-events: none;
+  z-index: 9999;
+}
+
+.glass-panel {
+  background: var(--bg-surface);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-card, 8px);
+}
+
+.glass-panel-elevated {
+  background: var(--bg-surface-hover);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-panel, 12px);
+  box-shadow: var(--shadow-md);
+}
+
+.glass-panel-inset {
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-card, 8px);
+}
+
+.anime-detail-scope {
+  min-height: calc(100vh - 56px);
+}
+
+.anime-detail-scope::before,
+.anime-detail-scope::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.anime-detail-scope::before {
+  z-index: -1;
+  background: var(--anime-bg-tint, transparent);
+}
+
+.anime-detail-scope::after {
+  z-index: 30;
+  background-image: url("/noise.svg");
+  background-repeat: repeat;
+  opacity: var(
+    --anime-surface-noise-opacity,
+    var(--surface-noise-opacity, 0.025)
+  );
+  mix-blend-mode: overlay;
+}
+
+/* 精制微光：低透明度 halo */
+.accent-halo {
+  box-shadow: 0 0 40px rgb(var(--accent-rgb) / 0.15);
+}
+
+.hero-glow {
+  background: radial-gradient(
+    ellipse at 30% 50%,
+    rgb(var(--accent-rgb) / 0.08) 0%,
+    transparent 70%
+  );
+}
+
+/* ===================================================================
+   anime-card-glow：进场扫一圈 1px 环 + 悬停时鼠标跟随的边缘描边。
+   动效来自 radesign-style-skeleton 作品集，主题色保持 --accent。
+   通过 IntersectionObserver 加 .is-revealed 触发一次性环绕动画。
+   =================================================================== */
+
+@property --glow-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+
+.anime-card-glow {
+  position: relative;
+  isolation: isolate;
+  transition: transform 220ms var(--ease-out);
+}
+
+.anime-card-glow:hover {
+  transform: translateY(-4px);
+}
+
+.anime-card-glow::before,
+.anime-card-glow::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  padding: 1px;
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  z-index: 12;
+}
+
+.anime-card-glow::before {
+  background: conic-gradient(
+    from var(--glow-angle, 0deg),
+    transparent 0deg,
+    var(--accent) 24deg,
+    transparent 64deg,
+    transparent 360deg
+  );
+  opacity: 0;
+}
+
+@keyframes anime-card-glow-orbit-once {
+  0% {
+    opacity: 0;
+    --glow-angle: -10deg;
+  }
+  10% {
+    opacity: 0.95;
+    --glow-angle: 30deg;
+  }
+  85% {
+    opacity: 0.95;
+    --glow-angle: 320deg;
+  }
+  100% {
+    opacity: 0;
+    --glow-angle: 370deg;
+  }
+}
+
+.anime-card-glow.is-revealed::before {
+  animation: anime-card-glow-orbit-once 2.2s cubic-bezier(0.25, 0.7, 0.3, 1)
+    forwards;
+}
+
+.anime-card-glow::after {
+  background: radial-gradient(
+    180px circle at var(--mx, 50%) var(--my, 50%),
+    rgb(var(--accent-rgb) / 1) 0%,
+    rgb(var(--accent-rgb) / 0.55) 30%,
+    transparent 65%
+  );
+  opacity: 0;
+  transition: opacity 220ms var(--ease-out);
+}
+
+.anime-card-glow:hover::after {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .anime-card-glow {
+    transition: none;
+  }
+  .anime-card-glow:hover {
+    transform: none;
+  }
+  .anime-card-glow.is-revealed::before {
+    animation: none;
+    opacity: 0;
+  }
+  .anime-card-glow:hover::after {
+    opacity: 0;
+  }
+}

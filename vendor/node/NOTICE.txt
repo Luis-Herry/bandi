@@ -1,0 +1,11 @@
+Node.js vendor copy
+
+This folder contains node.exe v24.14.1 copied from:
+C:\Program Files\nodejs\node.exe
+
+The desktop app uses this runtime to run the bundled Next.js standalone server with the same Node ABI used during local verification.
+
+Project: https://nodejs.org/
+License: MIT license and bundled third-party notices from the Node.js project.
+
+For broader redistribution, keep the matching Node.js license information with the app.

@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 320" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1a1a1c"/>
+      <stop offset="1" stop-color="#0e0e10"/>
+    </linearGradient>
+  </defs>
+  <rect width="240" height="320" fill="url(#bg)"/>
+  <g opacity="0.45" stroke="#4a4a50" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="96" y="138" width="48" height="44" rx="3"/>
+    <circle cx="110" cy="152" r="2.8" fill="#4a4a50"/>
+    <path d="M100 174 L116 160 L126 168 L140 178"/>
+  </g>
+  <text x="120" y="206" text-anchor="middle" fill="#3a3a40" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="10" letter-spacing="0.5">cover unavailable</text>
+</svg>
