@@ -9,6 +9,8 @@ import {
   CalendarClock,
   CheckCheck,
   CheckCircle2,
+  Download,
+  WifiOff,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import type {
@@ -24,7 +26,18 @@ const TONE_CLASS: Record<NavNotificationItem["tone"], string> = {
   alert: "text-[color:var(--status-warning)] bg-[rgba(245,158,11,0.12)]",
   accent: "text-[color:var(--accent)] bg-[color:var(--accent-subtle)]",
   muted: "text-[color:var(--text-muted)] bg-[color:var(--bg-surface-hover)]",
+  success: "text-[color:var(--status-success)] bg-[rgba(74,222,128,0.12)]",
+  danger: "text-[color:var(--status-error)] bg-[rgba(239,68,68,0.12)]",
 };
+
+function NotificationItemIcon({ item }: { item: NavNotificationItem }) {
+  if (item.isRead) return <CheckCircle2 size={13} />;
+  if (item.icon === "calendar") return <CalendarClock size={13} />;
+  if (item.icon === "download") return <Download size={13} />;
+  if (item.icon === "offline") return <WifiOff size={13} />;
+  if (item.icon === "success") return <CheckCircle2 size={13} />;
+  return <AlertCircle size={13} />;
+}
 
 export function NotificationMenu({ notifications }: NotificationMenuProps) {
   const [summary, setSummary] = useState(notifications);
@@ -172,13 +185,7 @@ export function NotificationMenu({ notifications }: NotificationMenuProps) {
                           : TONE_CLASS[item.tone],
                       )}
                     >
-                      {item.isRead ? (
-                        <CheckCircle2 size={13} />
-                      ) : item.tone === "muted" ? (
-                        <CalendarClock size={13} />
-                      ) : (
-                        <AlertCircle size={13} />
-                      )}
+                      <NotificationItemIcon item={item} />
                     </span>
                     <span className="min-w-0">
                       <span

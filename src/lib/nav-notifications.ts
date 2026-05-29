@@ -3,15 +3,27 @@ import {
   getTodayUpdates,
   getUpcomingEpisodes,
 } from "@/lib/db-helpers/library";
-import { eq, sql } from "drizzle-orm";
+import { desc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { appSettings } from "@/db/schema";
+import { anime, appSettings, downloadQueue } from "@/db/schema";
 
-export type NavNotificationTone = "alert" | "accent" | "muted";
+export type NavNotificationTone =
+  | "alert"
+  | "accent"
+  | "muted"
+  | "success"
+  | "danger";
+export type NavNotificationIcon =
+  | "alert"
+  | "calendar"
+  | "download"
+  | "offline"
+  | "success";
 
 export interface NavNotificationItem {
   id: string;
   tone: NavNotificationTone;
+  icon: NavNotificationIcon;
   countsAsUnread: boolean;
   isRead: boolean;
   title: string;
@@ -38,6 +50,10 @@ interface NavNotificationReadStore {
 const READ_STORE_PREFIX = "nav_notifications_read:";
 const MAX_READ_IDS = 500;
 const MAX_ID_LENGTH = 120;
+const DOWNLOADS_HREF = "/admin/downloads";
+const DOWNLOAD_NOTIFICATION_LIMIT = 3;
+
+type DownloadStatus = "pending" | "downloading" | "completed" | "failed";
 
 function ep(number: number) {
   return `EP.${String(number).padStart(2, "0")}`;
@@ -107,8 +123,16 @@ function buildNavNotificationItems(userId: string): NavNotificationItem[] {
   const missed = getMissedUpdates(userId, 20);
   const today = getTodayUpdates(userId).filter((item) => !item.watched);
   const upcoming = getUpcomingEpisodes(userId, 7);
+  const downloadItems = getDownloadNotificationItems();
+  const downloadAlerts = downloadItems.filter((item) => item.tone === "danger");
+  const downloadCompleted = downloadItems.filter(
+    (item) => item.title === "下载完成",
+  );
+  const downloadPassive = downloadItems.filter(
+    (item) => item.tone !== "danger" && item.title !== "下载完成",
+  );
   const seen = new Set<string>();
-  const items: NavNotificationItem[] = [];
+  const items: NavNotificationItem[] = [...downloadAlerts];
 
   for (const item of missed) {
     const key = `${item.anime.id}-${item.latestAiredEpisode}`;
@@ -116,6 +140,7 @@ function buildNavNotificationItems(userId: string): NavNotificationItem[] {
     items.push({
       id: `missed-${key}`,
       tone: "alert",
+      icon: "alert",
       countsAsUnread: true,
       isRead: false,
       title: "有新集待看",
@@ -132,6 +157,7 @@ function buildNavNotificationItems(userId: string): NavNotificationItem[] {
     items.push({
       id: `today-${key}`,
       tone: "accent",
+      icon: "download",
       countsAsUnread: true,
       isRead: false,
       title: "今日更新",
@@ -141,12 +167,15 @@ function buildNavNotificationItems(userId: string): NavNotificationItem[] {
     });
   }
 
+  items.push(...downloadCompleted);
+
   for (const item of upcoming) {
     const key = `${item.anime.id}-${item.episode.number}`;
     if (seen.has(key)) continue;
     items.push({
       id: `upcoming-${key}`,
       tone: "muted",
+      icon: "calendar",
       countsAsUnread: false,
       isRead: false,
       title: "即将更新",
@@ -156,7 +185,138 @@ function buildNavNotificationItems(userId: string): NavNotificationItem[] {
     });
   }
 
+  items.push(...downloadPassive);
+
   return items;
+}
+
+function getDownloadNotificationItems(): NavNotificationItem[] {
+  const rows = db
+    .select({
+      id: downloadQueue.id,
+      title: downloadQueue.title,
+      status: downloadQueue.status,
+      progress: downloadQueue.progress,
+      errorMessage: downloadQueue.errorMessage,
+      updatedAt: downloadQueue.updatedAt,
+      animeTitle: anime.title,
+    })
+    .from(downloadQueue)
+    .leftJoin(anime, eq(downloadQueue.animeId, anime.id))
+    .orderBy(desc(downloadQueue.updatedAt))
+    .limit(8)
+    .all();
+
+  return rows
+    .map((row) =>
+      downloadRowToNotification({
+        ...row,
+        status: row.status as DownloadStatus,
+      }),
+    )
+    .filter((item): item is NavNotificationItem => item !== null)
+    .slice(0, DOWNLOAD_NOTIFICATION_LIMIT);
+}
+
+function downloadRowToNotification(row: {
+  id: number;
+  title: string;
+  status: DownloadStatus;
+  progress: number;
+  errorMessage: string | null;
+  updatedAt: Date | number | null;
+  animeTitle: string | null;
+}): NavNotificationItem | null {
+  const subject = row.animeTitle ? `《${row.animeTitle}》` : row.title;
+  const release = row.animeTitle ? `：${row.title}` : "";
+  const timeKey = notificationTimeKey(row.updatedAt);
+
+  if (row.status === "completed") {
+    return {
+      id: `download-completed-${row.id}-${timeKey}`,
+      tone: "success",
+      icon: "success",
+      countsAsUnread: true,
+      isRead: false,
+      title: "下载完成",
+      description: `${subject} 下载完成${release}`,
+      href: DOWNLOADS_HREF,
+      actionLabel: "查看下载",
+    };
+  }
+
+  if (row.status === "failed") {
+    const interrupted = isQbitConnectionError(row.errorMessage);
+    return {
+      id: `download-failed-${row.id}-${timeKey}`,
+      tone: "danger",
+      icon: interrupted ? "offline" : "alert",
+      countsAsUnread: true,
+      isRead: false,
+      title: interrupted ? "下载连接中断" : "下载失败",
+      description: `${subject} ${interrupted ? "连接 qBittorrent 失败" : "下载失败"}${row.errorMessage ? `：${qbitErrorLabel(row.errorMessage)}` : ""}`,
+      href: DOWNLOADS_HREF,
+      actionLabel: "查看下载",
+    };
+  }
+
+  if (row.status === "downloading") {
+    return {
+      id: `download-active-${row.id}`,
+      tone: "accent",
+      icon: "download",
+      countsAsUnread: false,
+      isRead: false,
+      title: "下载中",
+      description: `${subject} 下载进度 ${row.progress}%`,
+      href: DOWNLOADS_HREF,
+      actionLabel: "查看进度",
+    };
+  }
+
+  if (row.status === "pending") {
+    return {
+      id: `download-pending-${row.id}`,
+      tone: "muted",
+      icon: "download",
+      countsAsUnread: false,
+      isRead: false,
+      title: "等待下载",
+      description: `${subject} 正在等待推送到 qBittorrent`,
+      href: DOWNLOADS_HREF,
+      actionLabel: "查看队列",
+    };
+  }
+
+  return null;
+}
+
+function isQbitConnectionError(error: string | null): boolean {
+  if (!error) return false;
+  return (
+    error === "webui_unreachable" ||
+    error === "qbit_add_failed" ||
+    error.startsWith("auth_") ||
+    error.startsWith("auth_http_") ||
+    error.startsWith("http_")
+  );
+}
+
+function qbitErrorLabel(error: string): string {
+  if (error === "webui_unreachable") return "Web UI 无法连接";
+  if (error === "auth_failed" || error === "auth_cookie_missing") {
+    return "认证失败";
+  }
+  if (error.startsWith("auth_http_")) return "认证接口异常";
+  if (error.startsWith("http_")) return "接口异常";
+  if (error === "qbit_add_failed") return "推送失败";
+  return error;
+}
+
+function notificationTimeKey(value: Date | number | null | undefined): number {
+  if (value instanceof Date) return value.getTime();
+  if (typeof value === "number") return value;
+  return 0;
 }
 
 function readStoreFor(userId: string): NavNotificationReadStore {

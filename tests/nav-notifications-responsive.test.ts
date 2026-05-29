@@ -62,6 +62,20 @@ test("notification menu can mark one item or every item as read", () => {
   assert.match(notificationReadRouteSource, /markNavNotificationsRead/);
 });
 
+test("notifications include download queue status and qbit interruption signals", () => {
+  assert.match(notificationHelperSource, /downloadQueue/);
+  assert.match(notificationHelperSource, /getDownloadNotificationItems/);
+  assert.match(notificationHelperSource, /下载完成/);
+  assert.match(notificationHelperSource, /下载失败/);
+  assert.match(notificationHelperSource, /下载连接中断/);
+  assert.match(notificationHelperSource, /\/admin\/downloads/);
+  assert.match(notificationHelperSource, /download-completed-/);
+  assert.match(notificationHelperSource, /download-failed-/);
+  assert.match(notificationMenuSource, /Download/);
+  assert.match(notificationMenuSource, /WifiOff/);
+  assert.match(notificationReadRouteSource, /getCurrentNavNotificationIds/);
+});
+
 test("home responsive layout collapses dense grids before they overflow", () => {
   assert.doesNotMatch(globalsSource, /min-width:\s*1280px/);
   assert.doesNotMatch(heroSource, /break-words/);
