@@ -4,6 +4,7 @@ import { GlassPanel } from "@/components/ui";
 import { AnimeCover } from "@/components/features/AnimeCover";
 import { StatsBarChart } from "@/components/features/StatsBarChart";
 import { getStatsReport } from "@/lib/db-helpers/stats";
+import { formatStarRatingLabel } from "@/lib/rating";
 import { getCurrentUser } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -87,7 +88,7 @@ export default async function StatsPage() {
             {report.ratingDistribution.map((item) => (
               <DistributionRow
                 key={item.rating}
-                label={`${item.rating} 星`}
+                label={formatStarRatingLabel(item.rating)}
                 value={item.count}
                 max={Math.max(
                   ...report.ratingDistribution.map((it) => it.count),

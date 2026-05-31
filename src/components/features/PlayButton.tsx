@@ -4,6 +4,7 @@ import { useEffect, useState, useTransition } from "react";
 import { AlertCircle, Loader2, Play } from "lucide-react";
 import { Button, type ButtonProps } from "@/components/ui";
 import { cn } from "@/lib/cn";
+import { showToast } from "@/components/features/ToastHost";
 
 interface PlayButtonProps {
   animeId: number;
@@ -62,10 +63,26 @@ export function PlayButton({
           error?: string;
         } | null;
         if (!res.ok) {
-          setErr(data?.message ?? data?.error ?? "无法播放");
+          const message = data?.message ?? data?.error ?? "无法播放";
+          setErr(message);
+          showToast({
+            title: "播放失败",
+            description: message,
+            tone: "error",
+          });
+        } else {
+          showToast({
+            title: "正在启动本地播放器",
+            tone: "play",
+          });
         }
       } catch {
         setErr("无法播放（网络错误）");
+        showToast({
+          title: "播放失败",
+          description: "网络连接异常",
+          tone: "error",
+        });
       }
     });
   };

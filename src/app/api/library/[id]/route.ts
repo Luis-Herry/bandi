@@ -9,6 +9,7 @@ import {
   resolveProgressWatchStatus,
 } from "@/lib/watch-progress";
 import type { WatchStatus } from "@/lib/watch-progress";
+import { normalizeRatingInput } from "@/lib/rating";
 
 export const dynamic = "force-dynamic";
 
@@ -70,8 +71,10 @@ export async function PATCH(
     updates.currentEpisode = nextEp;
   }
   if (body.rating === null) updates.rating = null;
-  else if (typeof body.rating === "number")
-    updates.rating = Math.max(1, Math.min(5, Math.floor(body.rating)));
+  else if (typeof body.rating === "number") {
+    const normalizedRating = normalizeRatingInput(body.rating);
+    if (normalizedRating != null) updates.rating = normalizedRating;
+  }
   if (body.notes === null) updates.notes = null;
   else if (typeof body.notes === "string") updates.notes = body.notes;
 

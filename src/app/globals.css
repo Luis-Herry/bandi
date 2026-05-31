@@ -337,6 +337,17 @@ select:not([data-no-focus-ring]):focus-visible,
   );
 }
 
+@keyframes toast-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
 /* ===================================================================
    anime-card-glow：进场扫一圈 1px 环 + 悬停时鼠标跟随的边缘描边。
    动效来自 radesign-style-skeleton 作品集，主题色保持 --accent。

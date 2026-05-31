@@ -12,7 +12,10 @@ import { getSeasonalBrowse } from "@/lib/db-helpers/browse";
 import { currentSeason } from "@/lib/bangumi";
 import { Button, GlassPanel, Tag } from "@/components/ui";
 import { HomeHero, type HeroSlide } from "@/components/features/HomeHero";
-import { SeasonalBrowseWeekday } from "@/components/features/SeasonalBrowseWeekday";
+import { EmberBackground } from "@/components/features/EmberBackground";
+import {
+  SeasonalBrowseWeekday,
+} from "@/components/features/SeasonalBrowseWeekday";
 import { AnimeRowItem } from "@/components/features/AnimeRowItem";
 import { PlayButton } from "@/components/features/PlayButton";
 import { MissedUpdateActions } from "@/components/features/MissedUpdateActions";
@@ -55,7 +58,11 @@ export default async function HomePage() {
 
   // 空库状态
   if (heroItems.length === 0 && continueItems.length === 0) {
-    return <EmptyHome username={user.username} />;
+    return (
+      <HomeShell>
+        <EmptyHome username={user.username} />
+      </HomeShell>
+    );
   }
 
   const slides: HeroSlide[] = heroItems.map((it) => ({
@@ -100,7 +107,7 @@ export default async function HomePage() {
   const seasonalTotal = seasonalAll.filter((it) => it.date).length;
 
   return (
-    <div className="relative">
+    <HomeShell>
       {/* Hero 区 */}
       {slides.length > 0 && <HomeHero slides={slides} />}
 
@@ -232,6 +239,17 @@ export default async function HomePage() {
           <SeasonalBrowseWeekday groups={seasonalGroups} />
         </Section>
       </section>
+    </HomeShell>
+  );
+}
+
+function HomeShell({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="relative isolate">
+      <EmberBackground />
+      <div className="relative z-10">
+        {children}
+      </div>
     </div>
   );
 }

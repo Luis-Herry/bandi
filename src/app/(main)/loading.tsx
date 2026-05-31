@@ -119,16 +119,23 @@ export default function HomeLoading() {
         {/* 本季新番（仿 weekday 分组） */}
         <div>
           <SectionHeader />
-          <div className="space-y-6">
-            {Array.from({ length: 2 }).map((_, row) => (
-              <div key={row}>
-                <ShimmerBlock className="h-4 w-24 mb-3" />
-                <div className="grid grid-flow-col gap-3 overflow-x-auto pb-1 [grid-auto-columns:max(156px,calc((100%-60px)/6))] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                  {Array.from({ length: 6 }).map((_, i) => (
-                    <CardSkel key={i} />
-                  ))}
-                </div>
-              </div>
+          <div className="rounded-[8px] border border-[color:var(--border-subtle)] bg-[color:var(--bg-surface)] p-1">
+            <div className="grid grid-cols-7 gap-1">
+              {Array.from({ length: 7 }).map((_, i) => (
+                <ShimmerBlock key={i} className="h-10 rounded-[6px]" />
+              ))}
+            </div>
+          </div>
+          <div className="mt-4 flex items-center justify-between">
+            <ShimmerBlock className="h-4 w-32" />
+            <div className="flex gap-1">
+              <ShimmerBlock className="h-7 w-7" />
+              <ShimmerBlock className="h-7 w-7" />
+            </div>
+          </div>
+          <div className="mt-3 grid grid-flow-col gap-3 overflow-x-auto pb-1 [grid-auto-columns:max(156px,calc((100%-60px)/6))] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <CardSkel key={i} />
             ))}
           </div>
         </div>

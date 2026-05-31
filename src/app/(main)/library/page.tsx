@@ -31,7 +31,7 @@ export default async function LibraryPage() {
     { label: "在看", value: stats.watching, color: "var(--accent)" },
     { label: "想看", value: stats.planning, color: "#94a3b8" },
     { label: "看完", value: stats.completed, color: "#4ade80" },
-    { label: "搁置", value: stats.onhold, color: "#e5772e" },
+    { label: "搁置", value: stats.onhold, color: "#c084fc" },
     { label: "弃番", value: stats.dropped, color: "#b85a4a" },
   ];
 

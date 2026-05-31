@@ -15,6 +15,10 @@ const seasonalSource = readFileSync(
   "src/components/features/SeasonalBrowseWeekday.tsx",
   "utf8",
 );
+const browseCardSource = readFileSync(
+  "src/components/features/BrowseCard.tsx",
+  "utf8",
+);
 const rowItemSource = readFileSync(
   "src/components/features/AnimeRowItem.tsx",
   "utf8",
@@ -90,4 +94,14 @@ test("home responsive layout collapses dense grids before they overflow", () => 
   assert.match(rowItemSource, /flex-wrap sm:flex-nowrap/);
   assert.match(loadingSource, /grid-cols-1 sm:grid-cols-2 xl:grid-cols-4/);
   assert.match(loadingSource, /grid-cols-1 lg:grid-cols-12/);
+});
+
+test("seasonal update state belongs to each anime card", () => {
+  assert.doesNotMatch(homeSource, /SeasonalUpdateLegend/);
+  assert.doesNotMatch(seasonalSource, /SeasonalUpdateLegend/);
+  assert.match(seasonalSource, /updateState=\{getUpdateState\(it\.date\)\}/);
+  assert.match(browseCardSource, /updateState\?: CardUpdateState/);
+  assert.match(browseCardSource, /已更新/);
+  assert.match(browseCardSource, /今天更新/);
+  assert.match(browseCardSource, /未更新/);
 });

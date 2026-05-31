@@ -1,8 +1,11 @@
 import { and, asc, eq, gte, inArray, lt, sql } from "drizzle-orm";
 import { db } from "../../db";
 import { anime, episodes, userAnime, watchEvents } from "../../db/schema";
-
-type RatingValue = 1 | 2 | 3 | 4 | 5;
+import {
+  normalizeRatingInput,
+  RATING_STEPS,
+  type RatingValue,
+} from "../rating";
 
 export interface StatsReportOptions {
   year?: number;
@@ -277,7 +280,7 @@ function getMonthlyWatchHoursFromRows(
 
 function getRatingDistribution(userId: string): StatsReport["ratingDistribution"] {
   const counts = new Map<RatingValue, number>(
-    ([1, 2, 3, 4, 5] as RatingValue[]).map((rating) => [rating, 0]),
+    RATING_STEPS.map((rating) => [rating, 0]),
   );
   const rows = db
     .select({ rating: userAnime.rating })
@@ -286,13 +289,13 @@ function getRatingDistribution(userId: string): StatsReport["ratingDistribution"
     .all();
 
   for (const row of rows) {
-    if (row.rating && row.rating >= 1 && row.rating <= 5) {
-      const rating = row.rating as RatingValue;
+    const rating = normalizeRatingInput(row.rating);
+    if (rating != null) {
       counts.set(rating, (counts.get(rating) ?? 0) + 1);
     }
   }
 
-  return ([1, 2, 3, 4, 5] as RatingValue[]).map((rating) => ({
+  return RATING_STEPS.map((rating) => ({
     rating,
     count: counts.get(rating) ?? 0,
   }));

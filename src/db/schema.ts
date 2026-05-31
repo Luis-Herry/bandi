@@ -71,7 +71,7 @@ export const userAnime = sqliteTable(
       .notNull()
       .default("watching"),
     currentEpisode: integer("current_episode").notNull().default(0),
-    rating: integer("rating"), // 1..5
+    rating: integer("rating"), // 0.5..5
     notes: text("notes"),
     updatedAt: integer("updated_at", { mode: "timestamp" })
       .notNull()

@@ -7,6 +7,7 @@ import { Button, StatusBadge } from "@/components/ui";
 import type { WatchStatus } from "@/components/ui";
 import { Check } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { showToast } from "@/components/features/ToastHost";
 
 const ALL_STATUSES: { value: WatchStatus; label: string }[] = [
   { value: "watching", label: "在看" },
@@ -25,7 +26,7 @@ const BUTTON_TONE: Record<WatchStatus, { bg: string; fg: string }> = {
   watching:  { bg: "var(--accent)", fg: "var(--accent-contrast)" },
   planning:  { bg: "#94a3b8", fg: "#0f172a" },
   completed: { bg: "#4ade80", fg: "#052e16" },
-  onhold:    { bg: "#e5772e", fg: "#3a1808" },
+  onhold:    { bg: "#c084fc", fg: "#2e1048" },
   dropped:   { bg: "#b85a4a", fg: "#3f1a13" },
 };
 
@@ -62,28 +63,43 @@ export function WatchStatusMenu({ animeId, current }: WatchStatusMenuProps) {
     setStatus(next);
     startTransition(async () => {
       const isAdd = prev === null;
-      const res = await fetch(
-        isAdd ? "/api/library" : `/api/library/${animeId}`,
-        {
-          method: isAdd ? "POST" : "PATCH",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify(
-            isAdd
-              ? { animeId, watchStatus: next }
-              : { watchStatus: next },
-          ),
-        },
-      );
-      if (!res.ok) {
-        setStatus(prev);
-        return;
-      }
+      try {
+        const res = await fetch(
+          isAdd ? "/api/library" : `/api/library/${animeId}`,
+          {
+            method: isAdd ? "POST" : "PATCH",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify(
+              isAdd
+                ? { animeId, watchStatus: next }
+                : { watchStatus: next },
+            ),
+          },
+        );
+        if (!res.ok) {
+          setStatus(prev);
+          showToast({ title: "追番状态保存失败", tone: "error" });
+          return;
+        }
 
-      window.dispatchEvent(
-        new CustomEvent("anime-library-status-change", {
-          detail: { animeId, inLibrary: true },
-        }),
-      );
+        showToast({
+          title: isAdd ? "已加入追番" : "追番状态已更新",
+          description: ALL_STATUSES.find((s) => s.value === next)?.label,
+          tone: "success",
+        });
+        window.dispatchEvent(
+          new CustomEvent("anime-library-status-change", {
+            detail: { animeId, inLibrary: true },
+          }),
+        );
+      } catch {
+        setStatus(prev);
+        showToast({
+          title: "追番状态保存失败",
+          description: "网络连接异常",
+          tone: "error",
+        });
+      }
     });
   };
 

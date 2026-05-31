@@ -76,6 +76,11 @@ export function EpisodeProgressControl({
           setDraft(String(prev));
           setFlash("err");
         } else {
+          window.dispatchEvent(
+            new CustomEvent("anime-progress-change", {
+              detail: { animeId, currentEpisode: next },
+            }),
+          );
           if (data?.watchStatus) {
             window.dispatchEvent(
               new CustomEvent("anime-watch-status-change", {

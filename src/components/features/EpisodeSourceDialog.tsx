@@ -15,6 +15,7 @@ import { BookmarkPlus, Download, Loader2, RefreshCw, Search, X } from "lucide-re
 import { cn } from "@/lib/cn";
 import { Tag } from "@/components/ui";
 import type { DownloadDuplicateReason } from "@/lib/download-dedupe";
+import { showToast } from "@/components/features/ToastHost";
 
 interface Candidate {
   sourceId: number;
@@ -201,6 +202,11 @@ export function EpisodeSourceDialog({
           ...s,
           [key]: { kind: "skipped", label: duplicateLabel(j.reason) },
         }));
+        showToast({
+          title: duplicateLabel(j.reason),
+          description: "下载队列已存在对应任务",
+          tone: "info",
+        });
         return;
       }
       if (j.qbit === false) {
@@ -208,9 +214,19 @@ export function EpisodeSourceDialog({
           ...s,
           [key]: { kind: "fail", msg: j.error ?? "qBit 推送失败" },
         }));
+        showToast({
+          title: "下载入队失败",
+          description: j.error ?? "qBittorrent 暂时不可用",
+          tone: "error",
+        });
         return;
       }
       setPushById((s) => ({ ...s, [key]: { kind: "ok" } }));
+      showToast({
+        title: "已加入下载队列",
+        description: sourceScope === "season" ? "全集资源已推送" : "本集资源已推送",
+        tone: "download",
+      });
     } catch (e) {
       setPushById((s) => ({
         ...s,
@@ -219,6 +235,11 @@ export function EpisodeSourceDialog({
           msg: e instanceof Error ? e.message : "推送失败",
         },
       }));
+      showToast({
+        title: "下载入队失败",
+        description: e instanceof Error ? e.message : "推送失败",
+        tone: "error",
+      });
     }
   };
 

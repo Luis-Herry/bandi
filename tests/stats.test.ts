@@ -154,6 +154,14 @@ before(() => {
     rating: 4,
     updatedAt: toUnixSeconds(new Date(2026, 3, 4)),
   });
+  insertUserAnime.run({
+    userId: "report-user",
+    animeId: 1,
+    watchStatus: "planning",
+    currentEpisode: 0,
+    rating: 4.5,
+    updatedAt: toUnixSeconds(new Date(2026, 3, 6)),
+  });
 
   const insertEpisode = sqlite.prepare(`
     insert into episodes (anime_id, number, title, aired_at, is_downloaded)
@@ -252,10 +260,15 @@ test("getStatsReport returns fixed annual report sections from watch events", as
     averageMinutesPerActiveDay: 19,
   });
   assert.deepEqual(report.ratingDistribution, [
+    { rating: 0.5, count: 0 },
     { rating: 1, count: 0 },
+    { rating: 1.5, count: 0 },
     { rating: 2, count: 0 },
+    { rating: 2.5, count: 0 },
     { rating: 3, count: 1 },
+    { rating: 3.5, count: 0 },
     { rating: 4, count: 1 },
+    { rating: 4.5, count: 1 },
     { rating: 5, count: 1 },
   ]);
   assert.equal(report.tagDistribution[0]?.tag, "奇幻");
@@ -284,7 +297,7 @@ test("getStatsReport returns stable empty shapes", async () => {
   assert.equal(report.monthlyHours.length, 12);
   assert.deepEqual(
     report.ratingDistribution.map((item) => item.count),
-    [0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
   );
   assert.deepEqual(report.tagDistribution, []);
   assert.deepEqual(report.completedTop, []);

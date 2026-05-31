@@ -12,6 +12,35 @@ test("episode grid keeps RSS search and adds local playback for downloaded episo
   assert.match(source, /播放 EP/);
 });
 
+test("episode progress edits update the episode grid without a manual refresh", () => {
+  const gridSource = readFileSync("src/components/features/EpisodeGrid.tsx", "utf8");
+  const progressSource = readFileSync(
+    "src/components/features/EpisodeProgressControl.tsx",
+    "utf8",
+  );
+
+  assert.match(progressSource, /anime-progress-change/);
+  assert.match(progressSource, /currentEpisode: next/);
+  assert.match(gridSource, /anime-progress-change/);
+  assert.match(gridSource, /displayCurrentEpisode/);
+  assert.match(gridSource, /setDisplayCurrentEpisode/);
+  assert.match(gridSource, /displayCurrentEpisode > 0 && ep\.number < displayCurrentEpisode/);
+  assert.match(gridSource, /ep\.number === displayCurrentEpisode/);
+});
+
+test("desktop downloads page keeps qbit setup guide and 8080 default copy", () => {
+  const downloadsSource = readFileSync(
+    "src/app/(main)/admin/downloads/Client.tsx",
+    "utf8",
+  );
+
+  assert.match(downloadsSource, /QbitSetupGuideDialog/);
+  assert.match(downloadsSource, /不会设置看这里/);
+  assert.match(downloadsSource, /默认 127\.0\.0\.1:8080/);
+  assert.match(downloadsSource, /qbitPort/);
+  assert.doesNotMatch(downloadsSource, /端口优先用 18080/);
+});
+
 test("today update cards expose RSS search and downloaded playback actions", () => {
   const sectionSource = readFileSync(
     "src/components/features/TodayOrUpcomingSection.tsx",

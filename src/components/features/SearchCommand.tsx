@@ -1,11 +1,11 @@
 "use client";
 
 /**
- * 全局搜索 Cmd+K 对话框。
+ * 顶部搜索对话框。
  *
  * 打开方式：
  *   - 全局 keydown 监听 cmd/ctrl + K
- *   - Nav 顶部触发按钮派发同样的合成事件
+ *   - Nav 顶部搜索框派发同样的合成事件
  *
  * 搜索后端：GET /api/anime/search?q=...
  *   - 本地 SQLite 优先（命中 ≥ 5 条则不走外网）
@@ -31,6 +31,7 @@ import { useRouter } from "next/navigation";
 import * as Dialog from "@radix-ui/react-dialog";
 import { Loader2, Search } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { showToast } from "@/components/features/ToastHost";
 
 interface SearchHit {
   source: "local" | "bangumi";
@@ -41,6 +42,13 @@ interface SearchHit {
   year: number | null;
   coverUrl: string | null;
   inLibrary?: boolean;
+  meta?: string;
+}
+
+interface SearchRecommendations {
+  continueWatching: SearchHit[];
+  todayUpdates: SearchHit[];
+  popular: SearchHit[];
 }
 
 const DEBOUNCE_MS = 220;
@@ -52,7 +60,10 @@ export default function SearchCommand() {
   const [q, setQ] = useState("");
   const [debouncedQ, setDebouncedQ] = useState("");
   const [hits, setHits] = useState<SearchHit[]>([]);
+  const [recommendations, setRecommendations] =
+    useState<SearchRecommendations | null>(null);
   const [loading, setLoading] = useState(false);
+  const [recommendationsLoading, setRecommendationsLoading] = useState(false);
   const [active, setActive] = useState(0);
   const [adding, setAdding] = useState(false);
 
@@ -116,6 +127,43 @@ export default function SearchCommand() {
       });
   }, [debouncedQ, open]);
 
+  useEffect(() => {
+    if (!open || debouncedQ) return;
+    let cancelled = false;
+    setRecommendationsLoading(true);
+    fetch("/api/anime/search/recommendations", { cache: "no-store" })
+      .then((r) =>
+        r.ok
+          ? r.json()
+          : { continueWatching: [], todayUpdates: [], popular: [] },
+      )
+      .then((data: SearchRecommendations) => {
+        if (cancelled) return;
+        setRecommendations({
+          continueWatching: data.continueWatching ?? [],
+          todayUpdates: data.todayUpdates ?? [],
+          popular: data.popular ?? [],
+        });
+        setActive(0);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setRecommendations({
+            continueWatching: [],
+            todayUpdates: [],
+            popular: [],
+          });
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setRecommendationsLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [debouncedQ, open]);
+
   /* ── navigation handler ─────────────────────────────────────── */
   const go = useCallback(
     async (hit: SearchHit) => {
@@ -141,6 +189,11 @@ export default function SearchCommand() {
           }
         } catch (e) {
           console.error("[search] sync from bangumi failed:", e);
+          showToast({
+            title: "番剧同步失败",
+            description: "Bangumi 数据暂时不可用",
+            tone: "error",
+          });
         } finally {
           setAdding(false);
         }
@@ -151,16 +204,17 @@ export default function SearchCommand() {
 
   /* ── keyboard nav within input ──────────────────────────────── */
   function onInputKey(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (hits.length === 0) return;
+    const rows = debouncedQ ? hits : flattenRecommendations(recommendations);
+    if (rows.length === 0) return;
     if (e.key === "ArrowDown") {
       e.preventDefault();
-      setActive((a) => Math.min(a + 1, hits.length - 1));
+      setActive((a) => Math.min(a + 1, rows.length - 1));
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
       setActive((a) => Math.max(a - 1, 0));
     } else if (e.key === "Enter") {
       e.preventDefault();
-      const hit = hits[active];
+      const hit = rows[active];
       if (hit) void go(hit);
     }
   }
@@ -178,6 +232,10 @@ export default function SearchCommand() {
   const showEmpty = useMemo(
     () => !loading && debouncedQ.length > 0 && hits.length === 0,
     [loading, debouncedQ, hits.length],
+  );
+  const suggestionRows = useMemo(
+    () => flattenRecommendations(recommendations),
+    [recommendations],
   );
 
   return (
@@ -270,13 +328,31 @@ export default function SearchCommand() {
             )}
 
             {!debouncedQ && (
-              <div className="px-6 py-8 text-center">
-                <p className="text-[13px] text-[color:var(--text-muted)]">
-                  输入关键字开始搜索
-                </p>
-                <p className="mt-1 text-[11px] text-[color:var(--text-muted)]">
-                  本地未命中时自动联网查 Bangumi
-                </p>
+              <div className="p-2">
+                {recommendationsLoading && suggestionRows.length === 0 ? (
+                  <div className="px-6 py-8 text-center">
+                    <p className="text-[13px] text-[color:var(--text-muted)]">
+                      正在整理推荐
+                    </p>
+                  </div>
+                ) : suggestionRows.length > 0 ? (
+                  <RecommendationSections
+                    recommendations={recommendations}
+                    active={active}
+                    busy={adding}
+                    onHover={setActive}
+                    onSelect={(hit) => void go(hit)}
+                  />
+                ) : (
+                  <div className="px-6 py-8 text-center">
+                    <p className="text-[13px] text-[color:var(--text-muted)]">
+                      输入关键字开始搜索
+                    </p>
+                    <p className="mt-1 text-[11px] text-[color:var(--text-muted)]">
+                      本地未命中时自动联网查 Bangumi
+                    </p>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -288,6 +364,80 @@ export default function SearchCommand() {
 }
 
 /* ─────────── Row ─────────── */
+
+function flattenRecommendations(
+  recommendations: SearchRecommendations | null,
+): SearchHit[] {
+  if (!recommendations) return [];
+  return [
+    ...recommendations.continueWatching,
+    ...recommendations.todayUpdates,
+    ...recommendations.popular,
+  ];
+}
+
+function RecommendationSections({
+  recommendations,
+  active,
+  busy,
+  onHover,
+  onSelect,
+}: {
+  recommendations: SearchRecommendations | null;
+  active: number;
+  busy: boolean;
+  onHover: (index: number) => void;
+  onSelect: (hit: SearchHit) => void;
+}) {
+  if (!recommendations) return null;
+  let offset = 0;
+  const sections = [
+    {
+      title: "最近在看",
+      items: recommendations.continueWatching,
+    },
+    {
+      title: "今日更新",
+      items: recommendations.todayUpdates,
+    },
+    {
+      title: "Bangumi 热门",
+      items: recommendations.popular,
+    },
+  ].filter((section) => section.items.length > 0);
+
+  return (
+    <div className="space-y-3">
+      {sections.map((section) => {
+        const start = offset;
+        offset += section.items.length;
+        return (
+          <section key={section.title}>
+            <h3 className="px-2.5 pb-1 text-[11px] font-medium text-[color:var(--text-muted)]">
+              {section.title}
+            </h3>
+            <ul className="space-y-1">
+              {section.items.map((hit, index) => {
+                const rowIndex = start + index;
+                return (
+                  <Row
+                    key={`${section.title}-${hit.source}-${hit.id ?? hit.bangumiId}-${index}`}
+                    hit={hit}
+                    index={rowIndex}
+                    active={active === rowIndex}
+                    busy={busy && active === rowIndex}
+                    onHover={() => onHover(rowIndex)}
+                    onSelect={() => onSelect(hit)}
+                  />
+                );
+              })}
+            </ul>
+          </section>
+        );
+      })}
+    </div>
+  );
+}
 
 function Row({
   hit,
@@ -358,6 +508,11 @@ function Row({
               {hit.titleJa}
             </p>
           )}
+          {hit.meta && (
+            <p className="text-[10px] text-[color:var(--text-muted)] truncate mt-0.5">
+              {hit.meta}
+            </p>
+          )}
         </div>
 
         {/* year */}
@@ -380,4 +535,3 @@ function Row({
     </li>
   );
 }
-

@@ -19,6 +19,8 @@ import { cn } from "@/lib/cn";
  */
 export interface BrowseCardProps {
   item: SeasonalBrowseItem;
+  /** 首页本季新番里的单卡更新状态 */
+  updateState?: CardUpdateState;
   /** 是否显示「想看」按钮，false 时 hover 浮层只显示 tags */
   showAddButton?: boolean;
   /** 加入中状态（外部管理） */
@@ -29,8 +31,34 @@ export interface BrowseCardProps {
   priority?: boolean;
 }
 
+export type CardUpdateState = "updated" | "today" | "pending";
+
+const UPDATE_BADGE: Record<
+  CardUpdateState,
+  { label: string; dot: string; className: string }
+> = {
+  updated: {
+    label: "已更新",
+    dot: "bg-[color:var(--status-success)]",
+    className:
+      "border-[rgba(74,222,128,0.22)] bg-[rgba(74,222,128,0.12)] text-[color:var(--status-success)]",
+  },
+  today: {
+    label: "今天更新",
+    dot: "bg-[color:var(--accent)]",
+    className:
+      "border-[color:var(--accent)]/35 bg-[color:var(--accent-muted)] text-[color:var(--accent)]",
+  },
+  pending: {
+    label: "未更新",
+    dot: "bg-white/45",
+    className: "border-white/12 bg-black/45 text-white/70",
+  },
+};
+
 export function BrowseCard({
   item,
+  updateState,
   showAddButton = true,
   busy = false,
   onAdd,
@@ -87,13 +115,29 @@ export function BrowseCard({
         </div>
       )}
 
-      {/* 右上：已收藏 */}
-      {item.inLibrary && (
-        <div className="absolute top-2 right-2 z-10">
-          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-[6px] text-[10px] font-semibold bg-[color:var(--accent-muted)] text-[color:var(--accent)] border border-[color:var(--accent)]/40 backdrop-blur">
-            <Check size={10} strokeWidth={3} />
-            已收藏
-          </span>
+      {/* 右上：单卡状态 */}
+      {(updateState || item.inLibrary) && (
+        <div className="absolute top-2 right-2 z-10 flex max-w-[calc(100%_-_4rem)] flex-col items-end gap-1">
+          {updateState && (
+            <span
+              className={cn(
+                "inline-flex h-6 items-center gap-1 rounded-[6px] border px-1.5 text-[10px] font-semibold backdrop-blur",
+                UPDATE_BADGE[updateState].className,
+              )}
+            >
+              <span
+                aria-hidden
+                className={cn("h-1.5 w-1.5 rounded-full", UPDATE_BADGE[updateState].dot)}
+              />
+              {UPDATE_BADGE[updateState].label}
+            </span>
+          )}
+          {item.inLibrary && (
+            <span className="inline-flex h-6 items-center gap-1 rounded-[6px] border border-[color:var(--accent)]/40 bg-[color:var(--accent-muted)] px-1.5 text-[10px] font-semibold text-[color:var(--accent)] backdrop-blur">
+              <Check size={10} strokeWidth={3} />
+              已收藏
+            </span>
+          )}
         </div>
       )}
 

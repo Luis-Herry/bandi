@@ -11,8 +11,10 @@ import {
   HelpCircle,
 } from "lucide-react";
 import { GlassPanel, Button, StatusBadge, Tag } from "@/components/ui";
+import { AnimeCover } from "@/components/features/AnimeCover";
 import { ConfirmDialog } from "@/components/features/ConfirmDialog";
 import { QbitSetupGuideDialog } from "@/components/features/QbitSetupGuideDialog";
+import { showToast } from "@/components/features/ToastHost";
 import { cn } from "@/lib/cn";
 import type { DownloadStatus } from "@/components/ui";
 
@@ -94,6 +96,7 @@ export function DownloadsAdminClient() {
 
   async function handleDeleteDownload(id: number) {
     await fetch(`/api/downloads/${id}`, { method: "DELETE" });
+    showToast({ title: "已从下载列表移除", tone: "info" });
     void refresh();
   }
 
@@ -101,9 +104,14 @@ export function DownloadsAdminClient() {
     const res = await fetch(`/api/downloads/${id}/pause`, { method: "POST" });
     if (!res.ok) {
       const j = await res.json().catch(() => ({}));
-      alert(`暂停失败：${j.error ?? res.statusText}`);
+      showToast({
+        title: "暂停失败",
+        description: j.error ?? res.statusText,
+        tone: "error",
+      });
       return;
     }
+    showToast({ title: "下载任务已暂停", tone: "info" });
     void refresh();
   }
 
@@ -111,9 +119,14 @@ export function DownloadsAdminClient() {
     const res = await fetch(`/api/downloads/${id}/resume`, { method: "POST" });
     if (!res.ok) {
       const j = await res.json().catch(() => ({}));
-      alert(`继续失败：${j.error ?? res.statusText}`);
+      showToast({
+        title: "继续失败",
+        description: j.error ?? res.statusText,
+        tone: "error",
+      });
       return;
     }
+    showToast({ title: "下载任务已继续", tone: "download" });
     void refresh();
   }
 
@@ -353,6 +366,17 @@ function DownloadRowItem({
   return (
     <div className="p-3 rounded-[8px] border border-transparent hover:border-[color:var(--border-subtle)] hover:bg-[color:var(--bg-surface)] transition-colors">
       <div className="flex items-start gap-3">
+        {row.anime && (
+          <div className="w-[96px] shrink-0 pt-0.5">
+            <AnimeCover
+              src={row.anime.coverUrl}
+              alt={row.anime.title}
+              ratio="16/9"
+              sizes="96px"
+              className="rounded-[6px]"
+            />
+          </div>
+        )}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
             <StatusBadge kind="download" status={row.status} />

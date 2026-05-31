@@ -43,10 +43,10 @@ const WATCH_TONES: Record<WatchStatus, Tone> = {
   },
   onhold: {
     label: "搁置",
-    dot: "bg-[#e5772e]",
-    text: "text-[#f0925a]",
-    bg: "bg-[rgba(229,119,46,0.08)]",
-    border: "border-[rgba(229,119,46,0.22)]",
+    dot: "bg-[#c084fc]",
+    text: "text-[#d8b4fe]",
+    bg: "bg-[rgba(192,132,252,0.09)]",
+    border: "border-[rgba(192,132,252,0.28)]",
   },
   dropped: {
     label: "弃番",

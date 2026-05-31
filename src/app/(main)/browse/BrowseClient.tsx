@@ -11,6 +11,7 @@ import {
 import { AlertCircle, Loader2, Search } from "lucide-react";
 import { GlassPanel, TextField } from "@/components/ui";
 import { BrowseCard } from "@/components/features/BrowseCard";
+import { showToast } from "@/components/features/ToastHost";
 import type { BgmSeason } from "@/lib/bangumi";
 import type { SeasonalBrowseItem } from "@/lib/db-helpers/browse";
 import { useCardGlow } from "@/hooks/useCardGlow";
@@ -272,8 +273,18 @@ export function BrowseClient({
         });
         return next;
       });
+      showToast({
+        title: "已加入想看",
+        description: it.title,
+        tone: "success",
+      });
     } catch (e) {
       console.error("[browse] add failed:", e);
+      showToast({
+        title: "加入想看失败",
+        description: it.title,
+        tone: "error",
+      });
     } finally {
       setAdding((s) => {
         const next = new Set(s);

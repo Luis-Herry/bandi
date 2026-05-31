@@ -4,6 +4,7 @@ import type { CSSProperties } from "react";
 import { Calendar, Download, ExternalLink, Star } from "lucide-react";
 import { GlassPanel, Tag } from "@/components/ui";
 import { AnimeCreditsTabs } from "@/components/features/AnimeCreditsTabs";
+import { AnimeSubscriptionButton } from "@/components/features/AnimeSubscriptionButton";
 import { BackButton } from "@/components/features/BackButton";
 import { EpisodeGrid } from "@/components/features/EpisodeGrid";
 import { EpisodeProgressControl } from "@/components/features/EpisodeProgressControl";
@@ -197,9 +198,12 @@ export default async function AnimeDetailPage({ params }: PageProps) {
                 />
               );
             })()}
-            <WatchStatusMenu
+            {userAnime && (
+              <WatchStatusMenu animeId={anime.id} current={userAnime.watchStatus} />
+            )}
+            <AnimeSubscriptionButton
               animeId={anime.id}
-              current={userAnime?.watchStatus ?? null}
+              initialSubscribed={!!userAnime}
             />
             {/* 下载管理：仅在该番剧在 downloadQueue 有任意记录时显示，
                 没下过的番剧跳过去也看不到对应资源。 */}
@@ -289,21 +293,12 @@ export default async function AnimeDetailPage({ params }: PageProps) {
 
         {/* 右栏 */}
         <aside className="col-span-4 space-y-4">
-          <GlassPanel variant="elevated" className="p-5">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-[14px] font-semibold tracking-tight text-[color:var(--text-primary)]">
-                我的评分 · 笔记
-              </h3>
-              {!userAnime && (
-                <span className="text-[11px] text-[color:var(--text-muted)]">
-                  追番后可记录
-                </span>
-              )}
-            </div>
+          <GlassPanel className="p-5">
             <RatingNotes
               animeId={anime.id}
               initialRating={userAnime?.rating}
               initialNotes={userAnime?.notes}
+              initialUpdatedAt={userAnime?.updatedAt?.toISOString() ?? null}
               disabled={!userAnime}
             />
           </GlassPanel>

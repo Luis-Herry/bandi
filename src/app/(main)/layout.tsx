@@ -1,6 +1,7 @@
 import { auth } from "@/auth";
 import { AccentProvider } from "@/components/features/AccentProvider";
 import { Nav } from "@/components/features/Nav";
+import { ToastHost } from "@/components/features/ToastHost";
 import {
   EMPTY_NAV_NOTIFICATIONS,
   getNavNotifications,
@@ -27,6 +28,7 @@ export default async function MainLayout({
           currentTheme={currentTheme}
           notifications={notifications}
         />
+        <ToastHost />
         {/* Nav 是 fixed (h=56)，main 默认让出 pt-14；首页 Hero 用 -mt-14 自抵消，让背景透到顶栏后面。 */}
         <main className="flex-1 pt-14">{children}</main>
       </div>
