@@ -55,7 +55,7 @@ export function HomeHero({ slides }: HomeHeroProps) {
 
   return (
     <section
-      className="relative h-[560px] w-full overflow-hidden -mt-14 lg:h-[640px]"
+      className="relative h-[560px] w-full overflow-hidden -mt-16 lg:h-[640px]"
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
     >

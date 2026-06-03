@@ -10,6 +10,7 @@ import {
 } from "@/lib/db-helpers/library";
 import { getSeasonalBrowse } from "@/lib/db-helpers/browse";
 import { currentSeason } from "@/lib/bangumi";
+import { attachSeasonalUpdateStates } from "@/lib/seasonal-update-state";
 import { Button, GlassPanel, Tag } from "@/components/ui";
 import { HomeHero, type HeroSlide } from "@/components/features/HomeHero";
 import { EmberBackground } from "@/components/features/EmberBackground";
@@ -50,7 +51,9 @@ export default async function HomePage() {
   const season = currentSeason();
   let seasonalAll: SeasonalBrowseItem[] = [];
   try {
-    seasonalAll = await getSeasonalBrowse(user.id, season.season, season.year);
+    seasonalAll = await attachSeasonalUpdateStates(
+      await getSeasonalBrowse(user.id, season.season, season.year),
+    );
   } catch (err) {
     // Bangumi API 失败时降级为空数组，主页不该被外部依赖打挂
     console.error("[home] getSeasonalBrowse failed:", err);
@@ -85,8 +88,9 @@ export default async function HomePage() {
     title: u.anime.title,
     titleJa: u.anime.titleJa,
     coverUrl: u.anime.coverUrl,
-    totalEpisodes: u.anime.totalEpisodes,
+    totalEpisodes: u.seasonEpisodeTotal,
     episodeNumber: u.episode.number,
+    seasonEpisodeNumber: u.seasonEpisodeNumber,
     watched: u.watched,
     isDownloaded: u.episode.isDownloaded,
   }));
@@ -97,8 +101,9 @@ export default async function HomePage() {
     title: u.anime.title,
     titleJa: u.anime.titleJa,
     coverUrl: u.anime.coverUrl,
-    totalEpisodes: u.anime.totalEpisodes,
+    totalEpisodes: u.seasonEpisodeTotal,
     episodeNumber: u.episode.number,
+    seasonEpisodeNumber: u.seasonEpisodeNumber,
     airedAt: u.episode.airedAt ? u.episode.airedAt.toISOString() : null,
   }));
 
@@ -120,12 +125,13 @@ export default async function HomePage() {
         />
 
         {/* ── 继续观看 + 漏看提醒（左右两栏） ── */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          <div className="col-span-1 lg:col-span-7">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <div className="min-w-0">
             <Section
               icon={<Play size={16} />}
               title="继续观看"
               subtitle="上次中断的进度，从这里接着看"
+              className="flex h-full flex-col"
               right={
                 <a
                   href="/library"
@@ -142,17 +148,26 @@ export default async function HomePage() {
                   </p>
                 </GlassPanel>
               ) : (
-                <GlassPanel className="p-2 space-y-1">
+                <GlassPanel className="flex-1 p-2 space-y-1">
                   {continueItems.map((it) => {
-                    const denom = it.anime.totalEpisodes ?? null;
+                    const airedCount = it.airedCount;
+                    const watchedAiredCount = Math.min(
+                      it.watchedAiredCount,
+                      airedCount,
+                    );
                     // 继续观看 = 用户当前进度本身（0 时降级到 1）
                     const playEp =
                       it.userAnime.currentEpisode > 0
                         ? it.userAnime.currentEpisode
                         : 1;
-                    const meta = denom
-                      ? `EP.${String(it.userAnime.currentEpisode).padStart(2, "0")} / ${String(denom).padStart(2, "0")} · ${it.anime.type}`
-                      : `EP.${String(it.userAnime.currentEpisode).padStart(2, "0")} · ${it.anime.type}`;
+                    const currentLabel =
+                      it.userAnime.currentEpisode > 0
+                        ? `当前 EP.${String(it.userAnime.currentEpisode).padStart(2, "0")}`
+                        : "未开始";
+                    const meta =
+                      airedCount > 0
+                        ? `已看 ${watchedAiredCount} / 已播 ${airedCount} · ${currentLabel} · ${it.anime.type}`
+                        : `${currentLabel} · ${it.anime.type}`;
                     return (
                       <AnimeRowItem
                         key={it.anime.id}
@@ -160,13 +175,17 @@ export default async function HomePage() {
                         title={it.anime.title}
                         coverUrl={it.anime.coverUrl}
                         meta={meta}
-                        progress={denom ? it.userAnime.currentEpisode / denom : undefined}
+                        progress={
+                          airedCount > 0
+                            ? watchedAiredCount / airedCount
+                            : undefined
+                        }
                         action={
                           <PlayButton
                             animeId={it.anime.id}
                             episode={playEp}
-                            label={`EP.${String(playEp).padStart(2, "0")}`}
-                            variant="ghost"
+                            label={`播放 EP.${String(playEp).padStart(2, "0")}`}
+                            variant="primary"
                             size="sm"
                           />
                         }
@@ -178,10 +197,11 @@ export default async function HomePage() {
             </Section>
           </div>
 
-          <div className="col-span-1 lg:col-span-5">
+          <div className="min-w-0">
             <Section
               icon={<AlertCircle size={16} />}
               title="漏看提醒"
+              className="flex h-full flex-col"
               subtitle={
                 missedItems.length > 0
                   ? `${missedItems.length} 部番剧有新集数待观看`
@@ -195,22 +215,21 @@ export default async function HomePage() {
                   </p>
                 </GlassPanel>
               ) : (
-                <GlassPanel className="p-2 space-y-1">
+                <GlassPanel className="flex-1 p-2 space-y-1">
                   {missedItems.map((m) => {
-                    const behind = m.latestAiredEpisode - m.userAnime.currentEpisode;
                     return (
                       <AnimeRowItem
                         key={m.anime.id}
                         id={m.anime.id}
                         title={m.anime.title}
                         coverUrl={m.anime.coverUrl}
-                        meta={`落后 ${behind} 集 · ${m.daysSince === 0 ? "今天更新" : `${m.daysSince} 天前`}`}
+                        meta={`落后 ${m.missedCount} 集 · 下一集 EP.${String(m.nextMissedEpisode).padStart(2, "0")}`}
                         action={
                           <MissedUpdateActions
                             animeId={m.anime.id}
                             animeTitle={m.anime.title}
-                            episodeNumber={m.latestAiredEpisode}
-                            isDownloaded={m.latestEpisodeIsDownloaded}
+                            episodeNumber={m.nextMissedEpisode}
+                            isDownloaded={m.nextMissedEpisodeIsDownloaded}
                           />
                         }
                       />
@@ -286,15 +305,17 @@ function Section({
   subtitle,
   right,
   children,
+  className,
 }: {
   icon: React.ReactNode;
   title: string;
   subtitle?: string;
   right?: React.ReactNode;
   children: React.ReactNode;
+  className?: string;
 }) {
   return (
-    <section>
+    <section className={className}>
       <header className="flex flex-wrap items-end justify-between gap-3 mb-4">
         <div>
           <h2 className="flex items-center gap-2 text-[18px] font-bold tracking-[-0.02em] text-[color:var(--text-primary)]">

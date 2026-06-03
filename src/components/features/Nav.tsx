@@ -6,14 +6,15 @@ import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { signOut } from "next-auth/react";
 import {
   Check,
-  Flame,
   LogOut,
+  Menu,
   Palette,
   Search,
   Settings,
   UserRound,
 } from "lucide-react";
 import { setThemeAction } from "@/app/(main)/actions";
+import { BrandLogo } from "@/components/features/BrandLogo";
 import { NotificationMenu } from "@/components/features/NotificationMenu";
 import SearchCommand from "@/components/features/SearchCommand";
 import { Avatar, IconButton } from "@/components/ui";
@@ -28,26 +29,47 @@ interface NavProps {
   notifications: NavNotificationSummary;
 }
 
+const TEXT = {
+  account: "\u8ffd\u756a\u4e2d\u5fc3\u8d26\u6237",
+  config: "\u914d\u7f6e",
+  downloads: "\u4e0b\u8f7d\u7ba1\u7406",
+  home: "\u9996\u9875",
+  library: "\u6211\u7684\u8ffd\u756a",
+  more: "\u66f4\u591a",
+  nav: "\u5bfc\u822a",
+  openUserMenu: "\u6253\u5f00\u7528\u6237\u83dc\u5355",
+  overview: "\u6982\u89c8",
+  profile: "\u4e2a\u4eba\u4e2d\u5fc3",
+  search: "\u641c\u7d22",
+  searchPlaceholder: "\u641c\u7d22\u756a\u5267\u3001\u65e5\u6587\u539f\u540d\u3001Bangumi...",
+  settings: "\u8bbe\u7f6e\u4e2d\u5fc3",
+  signOut: "\u9000\u51fa\u767b\u5f55",
+  stats: "\u7edf\u8ba1",
+  theme: "\u4e3b\u9898",
+  titleHome: "\u8ffd\u756a\u4e2d\u5fc3 \u9996\u9875",
+  user: "\u7528\u6237",
+} as const;
+
 const LINKS: { href: string; label: string; match: (p: string) => boolean }[] = [
-  { href: "/", label: "首页", match: (p) => p === "/" },
+  { href: "/", label: TEXT.home, match: (p) => p === "/" },
   {
     href: "/library",
-    label: "我的追番",
+    label: TEXT.library,
     match: (p) => p.startsWith("/library"),
   },
   {
     href: "/browse",
-    label: "番剧库",
+    label: "\u756a\u5267\u5e93",
     match: (p) => p.startsWith("/browse"),
   },
   {
     href: "/stats",
-    label: "统计",
+    label: TEXT.stats,
     match: (p) => p.startsWith("/stats"),
   },
   {
     href: "/admin/downloads",
-    label: "下载管理",
+    label: TEXT.downloads,
     match: (p) => p.startsWith("/admin"),
   },
 ];
@@ -136,6 +158,111 @@ export function Nav({ username, currentTheme, notifications }: NavProps) {
     void signOut({ callbackUrl: "/login" });
   };
 
+  const openSearch = () => {
+    window.dispatchEvent(
+      new KeyboardEvent("keydown", {
+        key: "k",
+        ctrlKey: true,
+        metaKey: true,
+      }),
+    );
+  };
+
+  const renderThemeItems = () =>
+    THEME_OPTIONS.map((item) => (
+      <DropdownMenu.Item
+        key={item.value}
+        disabled={savingTheme}
+        onSelect={() => selectTheme(item.value)}
+        className={cn(
+          "grid grid-cols-[18px_1fr_auto] items-center gap-2 rounded-[6px] px-2 py-2",
+          "cursor-pointer outline-none",
+          "text-[12px] text-[color:var(--text-secondary)]",
+          "data-[disabled]:cursor-wait data-[disabled]:opacity-60",
+          "data-[highlighted]:bg-[color:var(--bg-surface-hover)]",
+          theme === item.value && "text-[color:var(--text-primary)]",
+        )}
+      >
+        <span
+          aria-hidden
+          className={cn(
+            "flex h-3.5 w-3.5 items-center justify-center rounded-full border transition-colors",
+            theme === item.value
+              ? "border-[color:var(--accent)]"
+              : "border-white/15",
+          )}
+          style={{ background: item.bgBase }}
+        >
+          {theme === item.value && (
+            <span className="h-1.5 w-1.5 rounded-full bg-[color:var(--accent)]" />
+          )}
+        </span>
+        <span className="min-w-0 truncate">{item.label}</span>
+        {theme === item.value && (
+          <Check size={13} className="text-[color:var(--accent)]" />
+        )}
+      </DropdownMenu.Item>
+    ));
+
+  const renderAccountItems = () => (
+    <>
+      <div className="px-2 py-2">
+        <div className="text-[12px] font-medium text-[color:var(--text-primary)]">
+          {username ?? TEXT.user}
+        </div>
+        <div className="mt-0.5 text-[10px] text-[color:var(--text-muted)]">
+          {TEXT.account}
+        </div>
+      </div>
+      <DropdownMenu.Item
+        asChild
+        className={cn(
+          "grid grid-cols-[18px_1fr_auto] items-center gap-2 rounded-[6px] px-2 py-2",
+          "cursor-pointer outline-none",
+          "text-[12px] text-[color:var(--text-secondary)]",
+          "data-[highlighted]:bg-[color:var(--bg-surface-hover)] data-[highlighted]:text-[color:var(--text-primary)]",
+        )}
+      >
+        <a href="/profile">
+          <UserRound size={14} />
+          <span>{TEXT.profile}</span>
+          <span className="text-[10px] text-[color:var(--text-muted)]">
+            {TEXT.overview}
+          </span>
+        </a>
+      </DropdownMenu.Item>
+      <DropdownMenu.Item
+        asChild
+        className={cn(
+          "grid grid-cols-[18px_1fr_auto] items-center gap-2 rounded-[6px] px-2 py-2",
+          "cursor-pointer outline-none",
+          "text-[12px] text-[color:var(--text-secondary)]",
+          "data-[highlighted]:bg-[color:var(--bg-surface-hover)] data-[highlighted]:text-[color:var(--text-primary)]",
+        )}
+      >
+        <a href="/settings">
+          <Settings size={14} />
+          <span>{TEXT.settings}</span>
+          <span className="text-[10px] text-[color:var(--text-muted)]">
+            {TEXT.config}
+          </span>
+        </a>
+      </DropdownMenu.Item>
+      <DropdownMenu.Item
+        onSelect={handleSignOut}
+        className={cn(
+          "grid grid-cols-[18px_1fr] items-center gap-2 rounded-[6px] px-2 py-2",
+          "cursor-pointer outline-none",
+          "text-[12px] text-[color:var(--text-primary)]",
+          "data-[highlighted]:bg-[color:var(--bg-surface-hover)]",
+        )}
+      >
+        <LogOut size={14} className="text-[color:var(--accent)]" />
+        <span>{TEXT.signOut}</span>
+      </DropdownMenu.Item>
+    </>
+  );
+
   return (
     <>
       <SearchCommand />
@@ -145,90 +272,57 @@ export function Nav({ username, currentTheme, notifications }: NavProps) {
           "border-b border-[color:var(--border-default)]",
         )}
         style={{
-          // 背景全靠 backdrop-filter，纯磨砂玻璃，不带任何底色
           background: "transparent",
           backdropFilter: "blur(24px) saturate(160%)",
           WebkitBackdropFilter: "blur(24px) saturate(160%)",
         }}
       >
-        <div className="pointer-events-auto relative mx-auto flex h-14 max-w-[1440px] items-center px-4 sm:px-6 lg:px-8">
-          {/* 左：brand + nav */}
-          <div className="flex items-center gap-5 xl:gap-8 shrink-0">
+        <div className="pointer-events-auto relative flex h-16 w-full items-center border-b border-transparent px-6">
+          <div className="relative z-10 flex shrink-0 items-center">
             <a
               href="/"
-              className="flex items-center gap-2 shrink-0"
-              aria-label="追番中心 首页"
+              className="shrink-0 active:scale-95 transition-transform"
+              aria-label={TEXT.titleHome}
             >
-              <span
-                className="inline-flex items-center justify-center w-7 h-7 rounded-[6px]"
-                style={{
-                  background:
-                    "linear-gradient(180deg, rgb(var(--accent-rgb) / 0.20) 0%, rgb(var(--accent-rgb) / 0.08) 100%)",
-                  border: "1px solid rgb(var(--accent-rgb) / 0.28)",
-                }}
-              >
-                <Flame
-                  size={14}
-                  style={{
-                    color: "var(--accent)",
-                    fill: "rgb(var(--accent-rgb) / 0.25)",
-                  }}
-                />
-              </span>
-              <span className="text-[14px] font-semibold tracking-tight text-[color:var(--text-primary)]">
-                追番中心
-              </span>
+              <BrandLogo />
             </a>
-
-            {/* nav links */}
-            <nav className="hidden min-[980px]:flex items-center gap-4 xl:gap-5">
-              {LINKS.map((l) => {
-                const active =
-                  l.match(pathname) ||
-                  (l.href === "/library" && isTrackedAnimeDetail);
-                return (
-                  <a
-                    key={l.href}
-                    href={l.href}
-                    className={cn(
-                      "relative text-[13px] tracking-tight py-1 transition-colors",
-                      active
-                        ? "text-[color:var(--text-primary)] font-medium"
-                        : "text-[color:var(--text-secondary)] hover:text-[color:var(--text-primary)]",
-                    )}
-                  >
-                    {l.label}
-                    {active && (
-                      <span
-                        aria-hidden
-                        className="absolute -bottom-[3px] left-0 right-0 h-[2px] rounded-full"
-                        style={{ background: "var(--accent)" }}
-                      />
-                    )}
-                  </a>
-                );
-              })}
-            </nav>
           </div>
 
-          {/* 中：search trigger，绝对居中于 header */}
-          <div className="pointer-events-none absolute left-1/2 top-1/2 hidden w-full max-w-[280px] -translate-x-1/2 -translate-y-1/2 px-4 md:block lg:max-w-[320px] xl:max-w-[420px]">
+          <nav className="pointer-events-auto absolute top-1/2 left-[max(12rem,calc((100vw-1440px)*0.5+3rem))] hidden -translate-y-1/2 items-center gap-4 min-[1100px]:flex xl:gap-5">
+            {LINKS.map((l) => {
+              const active =
+                l.match(pathname) ||
+                (l.href === "/library" && isTrackedAnimeDetail);
+              return (
+                <a
+                  key={l.href}
+                  href={l.href}
+                  className={cn(
+                    "relative text-[13px] tracking-tight py-1 transition-colors",
+                    active
+                      ? "text-[color:var(--text-primary)] font-medium"
+                      : "text-[color:var(--text-secondary)] hover:text-[color:var(--text-primary)]",
+                  )}
+                >
+                  {l.label}
+                  {active && (
+                    <span
+                      aria-hidden
+                      className="absolute -bottom-[3px] left-0 right-0 h-[2px] rounded-full"
+                      style={{ background: "var(--accent)" }}
+                    />
+                  )}
+                </a>
+              );
+            })}
+          </nav>
+
+          <div className="pointer-events-none absolute top-1/2 right-[max(12rem,calc((100vw-1440px)*0.5+3rem))] hidden w-[280px] -translate-y-1/2 min-[1100px]:block lg:w-[320px] xl:w-[388px]">
             <button
               type="button"
-              onClick={() => {
-                // dispatch a synthetic cmd+k for the stub; real component will
-                // listen the same way and open its dialog.
-                window.dispatchEvent(
-                  new KeyboardEvent("keydown", {
-                    key: "k",
-                    ctrlKey: true,
-                    metaKey: true,
-                  }),
-                );
-              }}
+              onClick={openSearch}
               className={cn(
                 "pointer-events-auto w-full flex items-center gap-2 h-9 px-3 rounded-[8px] border",
-                // 同 Avatar：半透明白 + 浅描边
                 "bg-[color:var(--bg-surface-hover)] border-[color:var(--border-default)]",
                 "text-[13px] text-[color:var(--text-primary)]",
                 "hover:bg-white/[0.14] hover:border-white/20",
@@ -239,17 +333,18 @@ export function Nav({ username, currentTheme, notifications }: NavProps) {
                 size={14}
                 className="text-[color:var(--text-primary)] shrink-0"
               />
-              <span className="min-w-0 flex-1 truncate text-left">搜索番剧、日文原名、Bangumi…</span>
+              <span className="min-w-0 flex-1 truncate text-left">
+                {TEXT.searchPlaceholder}
+              </span>
             </button>
           </div>
 
-          {/* 右：cluster */}
-          <div className="ml-auto flex items-center gap-2 sm:gap-3 shrink-0">
+          <div className="relative z-10 ml-auto hidden shrink-0 items-center gap-3 min-[1100px]:flex">
             <NotificationMenu notifications={notifications} />
             <DropdownMenu.Root modal={false}>
               <DropdownMenu.Trigger asChild>
                 <IconButton
-                  label="主题"
+                  label={TEXT.theme}
                   size="sm"
                   className={cn(
                     "bg-[color:var(--bg-surface-hover)] border-[color:var(--border-default)]",
@@ -273,44 +368,9 @@ export function Nav({ username, currentTheme, notifications }: NavProps) {
                 >
                   <div className="flex items-center gap-2 px-2 py-2 text-[12px] font-medium text-[color:var(--text-primary)]">
                     <Palette size={13} className="text-[color:var(--accent)]" />
-                    主题
+                    {TEXT.theme}
                   </div>
-                  {THEME_OPTIONS.map((item) => (
-                    <DropdownMenu.Item
-                      key={item.value}
-                      disabled={savingTheme}
-                      onSelect={() => selectTheme(item.value)}
-                      className={cn(
-                        "grid grid-cols-[18px_1fr_auto] items-center gap-2 rounded-[6px] px-2 py-2",
-                        "cursor-pointer outline-none",
-                        "text-[12px] text-[color:var(--text-secondary)]",
-                        "data-[disabled]:cursor-wait data-[disabled]:opacity-60",
-                        "data-[highlighted]:bg-[color:var(--bg-surface-hover)]",
-                        theme === item.value && "text-[color:var(--text-primary)]",
-                      )}
-                    >
-                      <span
-                        aria-hidden
-                        className={cn(
-                          "flex h-3.5 w-3.5 items-center justify-center rounded-full border transition-colors",
-                          theme === item.value
-                            ? "border-[color:var(--accent)]"
-                            : "border-white/15",
-                        )}
-                        style={{ background: item.bgBase }}
-                      >
-                        {theme === item.value && (
-                          <span className="h-1.5 w-1.5 rounded-full bg-[color:var(--accent)]" />
-                        )}
-                      </span>
-                      <span className="min-w-0 truncate">
-                        {item.label}
-                      </span>
-                      {theme === item.value && (
-                        <Check size={13} className="text-[color:var(--accent)]" />
-                      )}
-                    </DropdownMenu.Item>
-                  ))}
+                  {renderThemeItems()}
                 </DropdownMenu.Content>
               </DropdownMenu.Portal>
             </DropdownMenu.Root>
@@ -318,7 +378,7 @@ export function Nav({ username, currentTheme, notifications }: NavProps) {
               <DropdownMenu.Trigger asChild>
                 <button
                   type="button"
-                  aria-label="打开用户菜单"
+                  aria-label={TEXT.openUserMenu}
                   className={cn(
                     "rounded-full outline-none",
                     "focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--accent)]",
@@ -327,7 +387,7 @@ export function Nav({ username, currentTheme, notifications }: NavProps) {
                   <Avatar
                     name={username ?? "U"}
                     size="md"
-                    title={username ?? "用户"}
+                    title={username ?? TEXT.user}
                   />
                 </button>
               </DropdownMenu.Trigger>
@@ -342,61 +402,118 @@ export function Nav({ username, currentTheme, notifications }: NavProps) {
                     "shadow-[0_12px_36px_rgba(0,0,0,0.45)]",
                   )}
                 >
-                  <div className="px-2 py-2">
-                    <div className="text-[12px] font-medium text-[color:var(--text-primary)]">
-                      {username ?? "用户"}
-                    </div>
-                    <div className="mt-0.5 text-[10px] text-[color:var(--text-muted)]">
-                      追番中心账户
-                    </div>
+                  {renderAccountItems()}
+                </DropdownMenu.Content>
+              </DropdownMenu.Portal>
+            </DropdownMenu.Root>
+          </div>
+
+          <div className="relative z-10 ml-auto flex shrink-0 items-center gap-2 min-[1100px]:hidden">
+            <IconButton
+              label={TEXT.search}
+              size="sm"
+              onClick={openSearch}
+              className={cn(
+                "bg-[color:var(--bg-surface-hover)] border-[color:var(--border-default)]",
+                "text-[color:var(--text-primary)]",
+                "hover:bg-white/[0.14] hover:border-white/20",
+              )}
+            >
+              <Search />
+            </IconButton>
+
+            <NotificationMenu notifications={notifications} />
+
+            <DropdownMenu.Root modal={false}>
+              <DropdownMenu.Trigger asChild>
+                <IconButton
+                  label={TEXT.theme}
+                  size="sm"
+                  className={cn(
+                    "bg-[color:var(--bg-surface-hover)] border-[color:var(--border-default)]",
+                    "text-[color:var(--text-primary)]",
+                    "hover:bg-white/[0.14] hover:border-white/20",
+                  )}
+                >
+                  <Palette />
+                </IconButton>
+              </DropdownMenu.Trigger>
+              <DropdownMenu.Portal>
+                <DropdownMenu.Content
+                  align="end"
+                  sideOffset={8}
+                  className={cn(
+                    "z-50 w-[220px] rounded-[8px] p-1.5",
+                    "border border-[color:var(--border-default)]",
+                    "bg-[color:var(--bg-elevated)]",
+                    "shadow-[0_12px_36px_rgba(0,0,0,0.45)]",
+                  )}
+                >
+                  <div className="flex items-center gap-2 px-2 py-2 text-[12px] font-medium text-[color:var(--text-primary)]">
+                    <Palette size={13} className="text-[color:var(--accent)]" />
+                    {TEXT.theme}
                   </div>
-                  <DropdownMenu.Item
-                    asChild
-                    className={cn(
-                      "grid grid-cols-[18px_1fr_auto] items-center gap-2 rounded-[6px] px-2 py-2",
-                      "cursor-pointer outline-none",
-                      "text-[12px] text-[color:var(--text-secondary)]",
-                      "data-[highlighted]:bg-[color:var(--bg-surface-hover)] data-[highlighted]:text-[color:var(--text-primary)]",
-                    )}
-                  >
-                    <a href="/profile">
-                      <UserRound size={14} />
-                      <span>个人中心</span>
-                      <span className="text-[10px] text-[color:var(--text-muted)]">
-                        概览
-                      </span>
-                    </a>
-                  </DropdownMenu.Item>
-                  <DropdownMenu.Item
-                    asChild
-                    className={cn(
-                      "grid grid-cols-[18px_1fr_auto] items-center gap-2 rounded-[6px] px-2 py-2",
-                      "cursor-pointer outline-none",
-                      "text-[12px] text-[color:var(--text-secondary)]",
-                      "data-[highlighted]:bg-[color:var(--bg-surface-hover)] data-[highlighted]:text-[color:var(--text-primary)]",
-                    )}
-                  >
-                    <a href="/settings">
-                      <Settings size={14} />
-                      <span>设置中心</span>
-                      <span className="text-[10px] text-[color:var(--text-muted)]">
-                        配置
-                      </span>
-                    </a>
-                  </DropdownMenu.Item>
+                  {renderThemeItems()}
+                </DropdownMenu.Content>
+              </DropdownMenu.Portal>
+            </DropdownMenu.Root>
+
+            <DropdownMenu.Root modal={false}>
+              <DropdownMenu.Trigger asChild>
+                <IconButton
+                  label={TEXT.more}
+                  size="sm"
+                  className={cn(
+                    "bg-[color:var(--bg-surface-hover)] border-[color:var(--border-default)]",
+                    "text-[color:var(--text-primary)]",
+                    "hover:bg-white/[0.14] hover:border-white/20",
+                  )}
+                >
+                  <Menu />
+                </IconButton>
+              </DropdownMenu.Trigger>
+              <DropdownMenu.Portal>
+                <DropdownMenu.Content
+                  align="end"
+                  sideOffset={8}
+                  className={cn(
+                    "z-50 max-h-[calc(100vh-72px)] w-[min(calc(100vw-24px),360px)] overflow-y-auto rounded-[8px] p-1.5",
+                    "border border-[color:var(--border-default)]",
+                    "bg-[color:var(--bg-elevated)]",
+                    "shadow-[0_12px_36px_rgba(0,0,0,0.45)]",
+                  )}
+                >
+                  <div className="px-2 py-2 text-[11px] font-medium uppercase tracking-[0.14em] text-[color:var(--text-muted)]">
+                    {TEXT.nav}
+                  </div>
+                  {LINKS.map((l) => {
+                    const active =
+                      l.match(pathname) ||
+                      (l.href === "/library" && isTrackedAnimeDetail);
+                    return (
+                      <DropdownMenu.Item
+                        key={l.href}
+                        asChild
+                        className={cn(
+                          "grid grid-cols-[1fr_auto] items-center gap-2 rounded-[6px] px-2 py-2",
+                          "cursor-pointer outline-none",
+                          "text-[12px] text-[color:var(--text-secondary)]",
+                          "data-[highlighted]:bg-[color:var(--bg-surface-hover)] data-[highlighted]:text-[color:var(--text-primary)]",
+                          active && "text-[color:var(--text-primary)]",
+                        )}
+                      >
+                        <a href={l.href}>
+                          <span>{l.label}</span>
+                          {active && (
+                            <span className="h-1.5 w-1.5 rounded-full bg-[color:var(--accent)]" />
+                          )}
+                        </a>
+                      </DropdownMenu.Item>
+                    );
+                  })}
+
                   <DropdownMenu.Separator className="my-1 h-px bg-[color:var(--border-subtle)]" />
-                  <DropdownMenu.Item
-                    onSelect={handleSignOut}
-                    className={cn(
-                      "grid grid-cols-[18px_1fr] items-center gap-2 rounded-[6px] px-2 py-2",
-                      "cursor-pointer outline-none",
-                      "text-[12px] text-[color:var(--text-primary)]",
-                      "data-[highlighted]:bg-[color:var(--bg-surface-hover)]",
-                    )}
-                  >
-                    <LogOut size={14} className="text-[color:var(--accent)]" />
-                    <span>退出登录</span>
-                  </DropdownMenu.Item>
+                  {renderAccountItems()}
                 </DropdownMenu.Content>
               </DropdownMenu.Portal>
             </DropdownMenu.Root>

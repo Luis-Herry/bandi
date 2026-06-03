@@ -24,38 +24,40 @@ export function MissedUpdateActions({
 
   return (
     <div className="flex items-center gap-2">
-      {isDownloaded && (
+      {isDownloaded ? (
         <PlayButton
           animeId={animeId}
           episode={episodeNumber}
-          label="播放"
+          label={`播放 EP.${episodeLabel}`}
           variant="primary"
           size="sm"
-          buttonClassName="h-7 px-2.5 text-[11px]"
         />
+      ) : (
+        <>
+          <button
+            type="button"
+            onClick={() => setSourceOpen(true)}
+            aria-label={`搜索 EP.${episodeLabel} 下载源`}
+            className={cn(
+              "inline-flex h-8 items-center justify-center gap-2 rounded-[6px] px-3",
+              "border border-[color:var(--accent-muted)] bg-[color:var(--accent-subtle)]",
+              "text-xs font-medium text-[color:var(--accent)]",
+              "transition-colors hover:bg-[color:var(--accent-muted)]",
+              "focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--accent)]",
+            )}
+          >
+            <Search size={12} strokeWidth={2.5} />
+            找资源
+          </button>
+          <EpisodeSourceDialog
+            open={sourceOpen}
+            onOpenChange={setSourceOpen}
+            animeId={animeId}
+            animeTitle={animeTitle}
+            episodeNumber={episodeNumber}
+          />
+        </>
       )}
-      <button
-        type="button"
-        onClick={() => setSourceOpen(true)}
-        aria-label={`搜索 EP.${episodeLabel} 下载源`}
-        className={cn(
-          "inline-flex h-7 items-center justify-center gap-1.5 rounded-[6px] px-2.5",
-          "border border-[color:var(--accent-muted)] bg-[color:var(--accent-subtle)]",
-          "text-[11px] font-medium text-[color:var(--accent)]",
-          "transition-colors hover:bg-[color:var(--accent-muted)]",
-          "focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--accent)]",
-        )}
-      >
-        <Search size={11} strokeWidth={2.5} />
-        找资源
-      </button>
-      <EpisodeSourceDialog
-        open={sourceOpen}
-        onOpenChange={setSourceOpen}
-        animeId={animeId}
-        animeTitle={animeTitle}
-        episodeNumber={episodeNumber}
-      />
     </div>
   );
 }

@@ -4,8 +4,9 @@ import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
 import { motion } from "motion/react";
-import { User, Lock, Flame } from "lucide-react";
+import { User, Lock } from "lucide-react";
 import { Button, TextField } from "@/components/ui";
+import { BrandLogo } from "@/components/features/BrandLogo";
 import { DuskBackdrop } from "@/components/features/DuskBackdrop";
 
 interface LoginShellProps {
@@ -52,31 +53,8 @@ export function LoginShell({
       <DuskBackdrop />
 
       {/* top-left brand */}
-      <header className="absolute top-8 left-10 flex items-center gap-3 z-10">
-        <span
-          className="inline-flex items-center justify-center w-9 h-9 rounded-[8px]"
-          style={{
-            background:
-              "linear-gradient(180deg, rgb(var(--accent-rgb) / 0.20) 0%, rgb(var(--accent-rgb) / 0.10) 100%)",
-            border: "1px solid rgb(var(--accent-rgb) / 0.30)",
-          }}
-        >
-          <Flame
-            size={18}
-            style={{
-              color: "var(--accent)",
-              fill: "rgb(var(--accent-rgb) / 0.25)",
-            }}
-          />
-        </span>
-        <div className="leading-tight">
-          <p className="text-[15px] font-semibold tracking-tight text-[color:var(--text-primary)]">
-            追番中心
-          </p>
-          <p className="text-[11px] text-[color:var(--text-muted)] tracking-[0.04em]">
-            你的个人追番中心
-          </p>
-        </div>
+      <header className="absolute top-8 left-10 z-10">
+        <BrandLogo markSize="md" />
       </header>
 
       {/* center card */}
@@ -94,22 +72,7 @@ export function LoginShell({
         >
           {/* mini badge */}
           <div className="flex items-center justify-center mb-5">
-            <span
-              className="inline-flex items-center justify-center w-12 h-12 rounded-full"
-              style={{
-                background:
-                  "radial-gradient(circle at 50% 40%, rgb(var(--accent-rgb) / 0.30) 0%, rgb(var(--accent-rgb) / 0.05) 70%)",
-                border: "1px solid rgb(var(--accent-rgb) / 0.25)",
-              }}
-            >
-              <Flame
-                size={22}
-                style={{
-                  color: "var(--accent)",
-                  fill: "rgb(var(--accent-rgb) / 0.30)",
-                }}
-              />
-            </span>
+            <BrandLogo showText={false} markSize="lg" />
           </div>
 
           <h1 className="text-[26px] font-extrabold tracking-[-0.02em] text-center text-[color:var(--text-primary)]">

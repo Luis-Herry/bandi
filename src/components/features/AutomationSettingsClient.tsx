@@ -10,6 +10,7 @@ import {
   RefreshCw,
   Rss,
   Settings2,
+  ShieldCheck,
   SlidersHorizontal,
   TestTube,
   Trash2,
@@ -477,7 +478,7 @@ function QbitStatusPanel({
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-4 gap-3">
+      <div className="grid grid-cols-5 gap-3">
         <SummaryTile
           label="连接状态"
           value={connected ? "已连接" : "未连接"}
@@ -489,14 +490,39 @@ function QbitStatusPanel({
           compact
         />
         <SummaryTile label="当前下载" value={formatSpeed(qbit?.dlSpeed)} />
+        <SummaryTile label="当前上传" value={formatSpeed(qbit?.upSpeed)} />
         <SummaryTile label="磁盘剩余" value={formatBytes(qbit?.freeSpaceOnDisk)} compact />
       </div>
 
       <div className="rounded-[8px] border border-[color:var(--border-subtle)] bg-[color:var(--bg-surface)] p-3">
         <p className="flex items-center gap-2 text-[12px] font-medium text-[color:var(--text-primary)]">
           <Activity size={14} className="text-[color:var(--accent)]" />
-          桌面版默认连接 127.0.0.1:8080，配置读取 QBIT_URL / QBIT_USER / QBIT_PASS
+          连接配置读取 QBIT_URL / QBIT_USER / QBIT_PASS
         </p>
+        <details className="group mt-3 border-t border-[color:var(--border-subtle)] pt-3">
+          <summary className="flex cursor-pointer list-none items-center gap-2 text-[12px] font-medium text-[color:var(--text-secondary)] transition-colors hover:text-[color:var(--text-primary)]">
+            <ShieldCheck
+              size={14}
+              className="shrink-0 text-[color:var(--accent)]"
+            />
+            <span>高级连接说明</span>
+            <span className="ml-auto text-[11px] text-[color:var(--text-muted)] group-open:hidden">
+              展开
+            </span>
+            <span className="ml-auto hidden text-[11px] text-[color:var(--text-muted)] group-open:inline">
+              收起
+            </span>
+          </summary>
+          <div className="mt-2 space-y-1.5 text-[12px] leading-5 text-[color:var(--text-muted)]">
+            <p>
+              安全下载模式会限制上传，并在下载完成后暂停 torrent，减少后台做种对网络的占用。
+            </p>
+            <p>
+              如果正在使用 VPN / TUN / 代理，建议在代理软件里将 qbittorrent.exe
+              设为直连，qBittorrent 自身代理保持“无”。
+            </p>
+          </div>
+        </details>
         {qbit?.error && (
           <p className="mt-2 text-[12px] text-[color:var(--status-warning)]">
             {qbit.error}

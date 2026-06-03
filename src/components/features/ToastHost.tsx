@@ -82,14 +82,6 @@ export function ToastHost() {
           </span>
         )}
       </span>
-      <span
-        aria-hidden
-        className="absolute inset-x-0 bottom-0 h-px opacity-70"
-        style={{
-          background:
-            "linear-gradient(90deg, transparent 0%, var(--accent) 50%, transparent 100%)",
-        }}
-      />
     </div>
   );
 }

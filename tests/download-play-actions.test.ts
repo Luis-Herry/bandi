@@ -46,6 +46,7 @@ test("today update cards expose RSS search and downloaded playback actions", () 
     "src/components/features/TodayOrUpcomingSection.tsx",
     "utf8",
   );
+  const helperSource = readFileSync("src/lib/db-helpers/library.ts", "utf8");
   const homeSource = readFileSync("src/app/(main)/page.tsx", "utf8");
 
   assert.match(sectionSource, /import \{ PlayButton \}/);
@@ -54,10 +55,27 @@ test("today update cards expose RSS search and downloaded playback actions", () 
   assert.match(sectionSource, /setSourceEpisode/);
   assert.match(sectionSource, /找资源/);
   assert.match(sectionSource, /播放/);
+  assert.match(sectionSource, /size="sm"/);
+  assert.doesNotMatch(sectionSource, /buttonClassName="h-7 px-2\.5 text-\[11px\]"/);
+  assert.doesNotMatch(sectionSource, /inline-flex h-7 items-center justify-center/);
+  assert.match(helperSource, /getCompletedDownloadEpisodeIds/);
+  assert.match(helperSource, /isDownloaded: downloadedEpisodeIds\.has\(r\.ep\.id\)/);
   assert.match(homeSource, /isDownloaded: u\.episode\.isDownloaded/);
 });
 
-test("missed update cards search or play the latest aired episode", () => {
+test("continue watching uses the missed-reminder playback button style", () => {
+  const homeSource = readFileSync("src/app/(main)/page.tsx", "utf8");
+  const continuePlayButton = /episode=\{playEp\}[\s\S]*?label=\{`播放 EP\.\$\{String\(playEp\)\.padStart\(2, "0"\)\}`\}[\s\S]*?variant="primary"[\s\S]*?size="sm"/;
+
+  assert.match(homeSource, continuePlayButton);
+  assert.doesNotMatch(homeSource, /buttonClassName="h-7 px-2\.5 text-\[11px\]"/);
+  assert.match(homeSource, /watchedAiredCount/);
+  assert.match(homeSource, /已看 \$\{watchedAiredCount\} \/ 已播 \$\{airedCount\}/);
+  assert.match(homeSource, /watchedAiredCount \/ airedCount/);
+  assert.doesNotMatch(homeSource, /currentEpisode \/ denom/);
+});
+
+test("missed update cards search or play the next missed episode", () => {
   const actionSource = readFileSync(
     "src/components/features/MissedUpdateActions.tsx",
     "utf8",
@@ -65,13 +83,20 @@ test("missed update cards search or play the latest aired episode", () => {
   const helperSource = readFileSync("src/lib/db-helpers/library.ts", "utf8");
   const homeSource = readFileSync("src/app/(main)/page.tsx", "utf8");
 
+  assert.match(helperSource, /nextMissedEpisode/);
+  assert.match(helperSource, /missedCount/);
   assert.match(helperSource, /latestEpisodeIsDownloaded/);
+  assert.match(helperSource, /nextMissedEpisodeIsDownloaded/);
+  assert.match(helperSource, /isDownloaded: downloadedEpisodeIds\.has\(e\.id\)/);
   assert.match(actionSource, /EpisodeSourceDialog/);
   assert.match(actionSource, /episodeNumber=\{episodeNumber\}/);
-  assert.match(actionSource, /isDownloaded &&/);
+  assert.match(actionSource, /isDownloaded \? \(/);
+  assert.doesNotMatch(actionSource, /\{isDownloaded &&/);
   assert.match(actionSource, /找资源/);
-  assert.match(actionSource, /label="播放"/);
+  assert.match(actionSource, /label=\{`播放 EP\.\$\{episodeLabel\}`\}/);
+  assert.match(actionSource, /size="sm"/);
+  assert.doesNotMatch(actionSource, /h-7 px-2\.5 text-\[11px\]/);
   assert.match(homeSource, /MissedUpdateActions/);
-  assert.match(homeSource, /episodeNumber=\{m\.latestAiredEpisode\}/);
-  assert.match(homeSource, /isDownloaded=\{m\.latestEpisodeIsDownloaded\}/);
+  assert.match(homeSource, /episodeNumber=\{m\.nextMissedEpisode\}/);
+  assert.match(homeSource, /isDownloaded=\{m\.nextMissedEpisodeIsDownloaded\}/);
 });

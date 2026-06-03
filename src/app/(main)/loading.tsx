@@ -7,7 +7,7 @@
  * 骨架结构对齐 src/app/(main)/page.tsx：
  *   - Hero 区（h-[240px]）
  *   - 今日更新 / 未来 7 天预告（4 张大卡）
- *   - 继续观看 + 漏看提醒（7+5 双栏）
+ *   - 继续观看 + 漏看提醒（等宽双栏）
  *   - 本季新番（按 weekday 多段）
  */
 
@@ -83,8 +83,8 @@ export default function HomeLoading() {
         </div>
 
         {/* 继续观看 + 漏看 */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          <div className="col-span-1 space-y-3 lg:col-span-7">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <div className="min-w-0 space-y-3">
             <SectionHeader />
             <div className="rounded-[8px] p-2 space-y-2 bg-[color:var(--bg-surface)] shadow-[inset_0_0_0_1px_var(--border-subtle)]">
               {Array.from({ length: 4 }).map((_, i) => (
@@ -99,7 +99,7 @@ export default function HomeLoading() {
               ))}
             </div>
           </div>
-          <div className="col-span-1 space-y-3 lg:col-span-5">
+          <div className="min-w-0 space-y-3">
             <SectionHeader />
             <div className="rounded-[8px] p-2 space-y-2 bg-[color:var(--bg-surface)] shadow-[inset_0_0_0_1px_var(--border-subtle)]">
               {Array.from({ length: 3 }).map((_, i) => (

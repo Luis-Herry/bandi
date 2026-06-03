@@ -18,12 +18,17 @@ import {
   type Episode,
   type UserAnime,
 } from "@/db/schema";
+import {
+  applyCompletedDownloadState,
+  getCompletedDownloadEpisodeIds,
+} from "@/lib/download-cleanup";
 import { dedupeEpisodesByNumber } from "@/lib/episode-normalize";
 
 export interface LibraryItem {
   anime: Anime;
   userAnime: UserAnime;
   airedCount: number;
+  watchedAiredCount: number;
 }
 
 /** All `userAnime` rows for a user, joined with anime + an aired-count. */
@@ -45,6 +50,7 @@ export function getLibrary(userId: string): LibraryItem[] {
   const epRows = db
     .select({
       animeId: episodes.animeId,
+      number: episodes.number,
       airedAt: episodes.airedAt,
     })
     .from(episodes)
@@ -52,10 +58,20 @@ export function getLibrary(userId: string): LibraryItem[] {
     .all();
 
   const now = Date.now();
+  const currentByAnime = new Map(
+    rows.map((r) => [r.a.id, r.ua.currentEpisode]),
+  );
   const airedByAnime = new Map<number, number>();
+  const watchedAiredByAnime = new Map<number, number>();
   for (const e of epRows) {
     if (e.airedAt && e.airedAt.getTime() <= now) {
       airedByAnime.set(e.animeId, (airedByAnime.get(e.animeId) ?? 0) + 1);
+      if (e.number <= (currentByAnime.get(e.animeId) ?? 0)) {
+        watchedAiredByAnime.set(
+          e.animeId,
+          (watchedAiredByAnime.get(e.animeId) ?? 0) + 1,
+        );
+      }
     }
   }
 
@@ -63,6 +79,7 @@ export function getLibrary(userId: string): LibraryItem[] {
     anime: r.a,
     userAnime: r.ua,
     airedCount: airedByAnime.get(r.a.id) ?? 0,
+    watchedAiredCount: watchedAiredByAnime.get(r.a.id) ?? 0,
   }));
 }
 
@@ -118,7 +135,9 @@ export function getAnimeDetail(
     .where(eq(episodes.animeId, animeId))
     .orderBy(asc(episodes.number))
     .all();
-  const eps = dedupeEpisodesByNumber(storedEpisodes);
+  const eps = applyCompletedDownloadState(
+    dedupeEpisodesByNumber(storedEpisodes),
+  );
   const displayAnime =
     eps.length > 0 && a.totalEpisodes !== eps.length
       ? { ...a, totalEpisodes: eps.length }
@@ -147,6 +166,8 @@ export function getAnimeDetail(
 export interface TodayUpdate {
   anime: Anime;
   episode: Episode;
+  seasonEpisodeNumber: number;
+  seasonEpisodeTotal: number | null;
   watched: boolean;
 }
 
@@ -176,6 +197,13 @@ export function getTodayUpdates(userId: string): TodayUpdate[] {
     .innerJoin(anime, eq(episodes.animeId, anime.id))
     .where(inArray(episodes.animeId, animeIds))
     .all();
+  const downloadedEpisodeIds = getCompletedDownloadEpisodeIds(
+    eps.map((r) => r.ep.id),
+  );
+  const seasonEpisodeMeta = buildSeasonEpisodeMeta(
+    eps.map((r) => r.ep),
+    new Map(eps.map((r) => [r.a.id, r.a.totalEpisodes])),
+  );
 
   return eps
     .filter(
@@ -184,16 +212,26 @@ export function getTodayUpdates(userId: string): TodayUpdate[] {
         r.ep.airedAt.getTime() >= start.getTime() &&
         r.ep.airedAt.getTime() < end.getTime(),
     )
-    .map((r) => ({
-      anime: r.a,
-      episode: r.ep,
-      watched: (currentByAnime.get(r.a.id) ?? 0) >= r.ep.number,
-    }));
+    .map((r) => {
+      const meta = seasonEpisodeMeta.get(r.ep.id);
+      return {
+        anime: r.a,
+        episode: {
+          ...r.ep,
+          isDownloaded: downloadedEpisodeIds.has(r.ep.id),
+        },
+        seasonEpisodeNumber: meta?.number ?? r.ep.number,
+        seasonEpisodeTotal: meta?.total ?? r.a.totalEpisodes,
+        watched: (currentByAnime.get(r.a.id) ?? 0) >= r.ep.number,
+      };
+    });
 }
 
 export interface UpcomingEpisode {
   anime: Anime;
   episode: Episode;
+  seasonEpisodeNumber: number;
+  seasonEpisodeTotal: number | null;
 }
 
 /**
@@ -224,6 +262,10 @@ export function getUpcomingEpisodes(
     .innerJoin(anime, eq(episodes.animeId, anime.id))
     .where(inArray(episodes.animeId, animeIds))
     .all();
+  const seasonEpisodeMeta = buildSeasonEpisodeMeta(
+    rows.map((r) => r.ep),
+    new Map(rows.map((r) => [r.a.id, r.a.totalEpisodes])),
+  );
 
   return rows
     .filter(
@@ -233,13 +275,51 @@ export function getUpcomingEpisodes(
         r.ep.airedAt.getTime() < end.getTime(),
     )
     .sort((a, b) => a.ep.airedAt!.getTime() - b.ep.airedAt!.getTime())
-    .map((r) => ({ anime: r.a, episode: r.ep }));
+    .map((r) => {
+      const meta = seasonEpisodeMeta.get(r.ep.id);
+      return {
+        anime: r.a,
+        episode: r.ep,
+        seasonEpisodeNumber: meta?.number ?? r.ep.number,
+        seasonEpisodeTotal: meta?.total ?? r.a.totalEpisodes,
+      };
+    });
+}
+
+function buildSeasonEpisodeMeta(
+  rows: Episode[],
+  totalByAnime: Map<number, number | null>,
+): Map<number, { number: number; total: number | null }> {
+  const grouped = new Map<number, Episode[]>();
+  for (const row of rows) {
+    const list = grouped.get(row.animeId) ?? [];
+    list.push(row);
+    grouped.set(row.animeId, list);
+  }
+
+  const out = new Map<number, { number: number; total: number | null }>();
+  for (const [animeId, list] of grouped) {
+    const normalized = dedupeEpisodesByNumber(
+      [...list].sort((a, b) => a.number - b.number),
+    );
+    const declaredTotal = totalByAnime.get(animeId);
+    const total =
+      declaredTotal && declaredTotal > 0 ? declaredTotal : normalized.length;
+    normalized.forEach((row, index) => {
+      out.set(row.id, {
+        number: index + 1,
+        total: total > 0 ? total : null,
+      });
+    });
+  }
+  return out;
 }
 
 export interface ContinueWatching {
   anime: Anime;
   userAnime: UserAnime;
   airedCount: number;
+  watchedAiredCount: number;
 }
 
 /** Currently watching, sorted by recently updated. */
@@ -311,6 +391,9 @@ export function getSeasonalByDay(userId: string): SeasonalByDay[] {
 export interface MissedItem {
   anime: Anime;
   userAnime: UserAnime;
+  missedCount: number;
+  nextMissedEpisode: number;
+  nextMissedEpisodeIsDownloaded: boolean;
   latestAiredEpisode: number;
   latestEpisodeIsDownloaded: boolean;
   daysSince: number;
@@ -329,34 +412,42 @@ export function getMissedUpdates(userId: string, limit = 4): MissedItem[] {
     .from(episodes)
     .where(inArray(episodes.animeId, animeIds))
     .all();
+  const downloadedEpisodeIds = getCompletedDownloadEpisodeIds(
+    eps.map((e) => e.id),
+  );
 
   const now = Date.now();
-  const latestByAnime = new Map<
+  const airedByAnime = new Map<
     number,
-    { number: number; aired: number; isDownloaded: boolean }
+    { number: number; aired: number; isDownloaded: boolean }[]
   >();
   for (const e of eps) {
     if (!e.airedAt) continue;
     const t = e.airedAt.getTime();
     if (t > now) continue;
-    const prev = latestByAnime.get(e.animeId);
-    if (!prev || e.number > prev.number) {
-      latestByAnime.set(e.animeId, {
-        number: e.number,
-        aired: t,
-        isDownloaded: e.isDownloaded,
-      });
-    }
+    const list = airedByAnime.get(e.animeId) ?? [];
+    list.push({
+      number: e.number,
+      aired: t,
+      isDownloaded: downloadedEpisodeIds.has(e.id),
+    });
+    airedByAnime.set(e.animeId, list);
   }
 
   const out: MissedItem[] = [];
   for (const it of lib) {
-    const latest = latestByAnime.get(it.anime.id);
-    if (!latest) continue;
-    if (latest.number > it.userAnime.currentEpisode) {
+    const missed = (airedByAnime.get(it.anime.id) ?? [])
+      .filter((episode) => episode.number > it.userAnime.currentEpisode)
+      .sort((a, b) => a.number - b.number);
+    if (missed.length > 0) {
+      const next = missed[0];
+      const latest = missed[missed.length - 1];
       out.push({
         anime: it.anime,
         userAnime: it.userAnime,
+        missedCount: missed.length,
+        nextMissedEpisode: next.number,
+        nextMissedEpisodeIsDownloaded: next.isDownloaded,
         latestAiredEpisode: latest.number,
         latestEpisodeIsDownloaded: latest.isDownloaded,
         daysSince: Math.max(

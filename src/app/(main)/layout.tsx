@@ -29,8 +29,8 @@ export default async function MainLayout({
           notifications={notifications}
         />
         <ToastHost />
-        {/* Nav 是 fixed (h=56)，main 默认让出 pt-14；首页 Hero 用 -mt-14 自抵消，让背景透到顶栏后面。 */}
-        <main className="flex-1 pt-14">{children}</main>
+        {/* Nav 全断点 h=64；首页 Hero 用匹配的负 margin 自抵消，让背景透到顶栏后面。 */}
+        <main className="flex-1 pt-16">{children}</main>
       </div>
     </AccentProvider>
   );

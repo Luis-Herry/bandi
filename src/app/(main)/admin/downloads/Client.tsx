@@ -6,9 +6,9 @@ import {
   Trash2,
   Activity,
   Download,
+  HelpCircle,
   Pause,
   Play,
-  HelpCircle,
 } from "lucide-react";
 import { GlassPanel, Button, StatusBadge, Tag } from "@/components/ui";
 import { AnimeCover } from "@/components/features/AnimeCover";
@@ -52,6 +52,10 @@ export function DownloadsAdminClient() {
   const [qbit, setQbit] = useState<QbitStatus | null>(null);
   const [tab, setTab] = useState<"all" | DownloadStatus>("all");
   const [loading, setLoading] = useState(true);
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [selectedDownloadIds, setSelectedDownloadIds] = useState<Set<number>>(
+    () => new Set(),
+  );
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -80,6 +84,20 @@ export function DownloadsAdminClient() {
     [downloads, tab],
   );
 
+  const filteredDownloadIds = useMemo(
+    () => filteredDownloads.map((d) => d.id),
+    [filteredDownloads],
+  );
+
+  const selectedCount = selectedDownloadIds.size;
+  const selectedVisibleCount = useMemo(
+    () => filteredDownloadIds.filter((id) => selectedDownloadIds.has(id)).length,
+    [filteredDownloadIds, selectedDownloadIds],
+  );
+  const allVisibleSelected =
+    filteredDownloadIds.length > 0 &&
+    selectedVisibleCount === filteredDownloadIds.length;
+
   const counts = useMemo(() => {
     const out: Record<string, number> = {
       all: downloads.length,
@@ -91,13 +109,109 @@ export function DownloadsAdminClient() {
     for (const d of downloads) out[d.status] = (out[d.status] ?? 0) + 1;
     return out;
   }, [downloads]);
+  const hasActiveDownload = useMemo(
+    () =>
+      downloads.some(
+        (download) =>
+          download.status === "downloading" ||
+          /downloading|stalledDL|forcedDL|metaDL|checkingDL/i.test(
+            download.liveState ?? "",
+          ),
+      ),
+    [downloads],
+  );
+
+  useEffect(() => {
+    setSelectedDownloadIds((current) => {
+      if (current.size === 0) return current;
+      const validIds = new Set(downloads.map((d) => d.id));
+      const next = new Set([...current].filter((id) => validIds.has(id)));
+      return next.size === current.size ? current : next;
+    });
+  }, [downloads]);
 
   /* ── Download handlers ── */
 
+  function toggleDownloadSelection(id: number) {
+    setSelectedDownloadIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }
+
+  function toggleVisibleSelection() {
+    setSelectedDownloadIds((current) => {
+      const next = new Set(current);
+      if (allVisibleSelected) {
+        for (const id of filteredDownloadIds) next.delete(id);
+      } else {
+        for (const id of filteredDownloadIds) next.add(id);
+      }
+      return next;
+    });
+  }
+
   async function handleDeleteDownload(id: number) {
-    await fetch(`/api/downloads/${id}`, { method: "DELETE" });
+    const res = await fetch(`/api/downloads/${id}`, { method: "DELETE" });
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({}));
+      showToast({
+        title: "移除失败",
+        description: j.error ?? res.statusText,
+        tone: "error",
+      });
+      return;
+    }
+    setSelectedDownloadIds((current) => {
+      const next = new Set(current);
+      next.delete(id);
+      return next;
+    });
     showToast({ title: "已从下载列表移除", tone: "info" });
     void refresh();
+  }
+
+  async function handleBulkDelete(ids: number[]) {
+    const uniqueIds = [...new Set(ids)];
+    if (uniqueIds.length === 0) return;
+    setBulkBusy(true);
+    try {
+      const res = await fetch("/api/downloads/bulk-delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: uniqueIds }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        showToast({
+          title: "批量移除失败",
+          description: j.error ?? res.statusText,
+          tone: "error",
+        });
+        return;
+      }
+      setSelectedDownloadIds((current) => {
+        const next = new Set(current);
+        for (const id of uniqueIds) next.delete(id);
+        return next;
+      });
+      showToast({
+        title:
+          uniqueIds.length === downloads.length
+            ? "下载列表已清空"
+            : `已移除 ${j.deleted ?? uniqueIds.length} 条下载记录`,
+        description: "qBittorrent 任务和本地文件未改动",
+        tone: "info",
+      });
+      await refresh();
+    } finally {
+      setBulkBusy(false);
+    }
   }
 
   async function handlePauseDownload(id: number) {
@@ -153,7 +267,7 @@ export function DownloadsAdminClient() {
       </header>
 
       {/* ── qBit 状态卡片 ── */}
-      <QbitStatusCard qbit={qbit} />
+      <QbitStatusCard qbit={qbit} hasActiveDownload={hasActiveDownload} />
 
       <section className="mt-6">
         <SectionHeader
@@ -161,7 +275,74 @@ export function DownloadsAdminClient() {
           title="下载列表"
           count={downloads.length}
           action={
-            <div className="flex items-center gap-1">
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              {filteredDownloads.length > 0 && (
+                <button
+                  type="button"
+                  onClick={toggleVisibleSelection}
+                  className="h-7 inline-flex items-center gap-2 rounded-[6px] border border-[color:var(--border-default)] bg-[color:var(--bg-surface)] px-2.5 text-[11px] font-medium text-[color:var(--text-secondary)] transition-colors hover:border-[color:var(--border-strong)] hover:text-[color:var(--text-primary)]"
+                >
+                  <span
+                    aria-hidden
+                    className={cn(
+                      "inline-flex h-3.5 w-3.5 items-center justify-center rounded-[4px] border transition-colors",
+                      allVisibleSelected
+                        ? "border-[color:var(--accent)] bg-[color:var(--accent)]"
+                        : "border-[color:var(--border-strong)]",
+                    )}
+                  >
+                    {allVisibleSelected && (
+                      <span className="h-1.5 w-1.5 rounded-[2px] bg-[color:var(--accent-contrast)]" />
+                    )}
+                  </span>
+                  {allVisibleSelected
+                    ? "取消全选"
+                    : tab === "all"
+                      ? "全选列表"
+                      : "全选当前分类"}
+                </button>
+              )}
+              {selectedCount > 0 && (
+                <ConfirmDialog
+                  title="移除已选下载记录？"
+                  description={`将从本地下载列表移除已选的 ${selectedCount} 条记录。不会删除 qBittorrent 中的任务或本地文件。`}
+                  confirmLabel="移除所选"
+                  destructive
+                  onConfirm={() => handleBulkDelete([...selectedDownloadIds])}
+                  trigger={
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      disabled={bulkBusy}
+                      leftIcon={<Trash2 size={12} />}
+                      className="h-7 px-2.5 text-[11px] !text-[color:var(--status-error,#ef4444)] hover:!border-[rgba(239,68,68,0.35)]"
+                    >
+                      删除所选 {selectedCount}
+                    </Button>
+                  }
+                />
+              )}
+              {downloads.length > 0 && (
+                <ConfirmDialog
+                  title="清空下载列表？"
+                  description={`将从本地下载列表移除全部 ${downloads.length} 条记录。不会删除 qBittorrent 中的任务或本地文件。`}
+                  confirmLabel="清空列表"
+                  destructive
+                  onConfirm={() => handleBulkDelete(downloads.map((d) => d.id))}
+                  trigger={
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled={bulkBusy}
+                      leftIcon={<Trash2 size={12} />}
+                      className="h-7 px-2.5 text-[11px] !text-[color:var(--text-secondary)] hover:!text-[color:var(--status-error,#ef4444)]"
+                    >
+                      清空列表
+                    </Button>
+                  }
+                />
+              )}
+              <div className="flex items-center gap-1">
               {(["all", "downloading", "completed", "pending", "failed"] as const).map(
                 (t) => (
                   <button
@@ -182,6 +363,7 @@ export function DownloadsAdminClient() {
                   </button>
                 ),
               )}
+              </div>
             </div>
           }
         />
@@ -195,6 +377,8 @@ export function DownloadsAdminClient() {
               <DownloadRowItem
                 key={d.id}
                 row={d}
+                selected={selectedDownloadIds.has(d.id)}
+                onToggleSelected={() => toggleDownloadSelection(d.id)}
                 onDelete={() => handleDeleteDownload(d.id)}
                 onPause={() => handlePauseDownload(d.id)}
                 onResume={() => handleResumeDownload(d.id)}
@@ -209,9 +393,20 @@ export function DownloadsAdminClient() {
 
 /* ─── Sub-components ────────────────────────────────────────── */
 
-function QbitStatusCard({ qbit }: { qbit: QbitStatus | null }) {
+const HIGH_QBIT_UPLOAD_BYTES = 512 * 1024;
+const SLOW_QBIT_DOWNLOAD_BYTES = 32 * 1024;
+
+function QbitStatusCard({
+  qbit,
+  hasActiveDownload,
+}: {
+  qbit: QbitStatus | null;
+  hasActiveDownload: boolean;
+}) {
   const connected = qbit?.connected ?? false;
   const hint = qbit?.error ? qbitErrorHint(qbit.error) : null;
+  const adviceReason = qbitConnectionAdviceReason(qbit, hasActiveDownload);
+
   return (
     <GlassPanel variant="elevated" className="p-4">
       <div className="flex items-center justify-between">
@@ -243,9 +438,15 @@ function QbitStatusCard({ qbit }: { qbit: QbitStatus | null }) {
                 {hint}
               </p>
             )}
+            {adviceReason && <QbitConnectionAdvice reason={adviceReason} />}
           </div>
         </div>
-        <div className="flex items-center gap-4 text-[12px]">
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-6 text-[12px]">
+            <StatCell label="下载" value={formatSpeed(qbit?.dlSpeed)} accent />
+            <StatCell label="上传" value={formatSpeed(qbit?.upSpeed)} />
+            <StatCell label="剩余空间" value={formatBytes(qbit?.freeSpaceOnDisk)} />
+          </div>
           <QbitSetupGuideDialog
             trigger={
               <Button
@@ -257,14 +458,44 @@ function QbitStatusCard({ qbit }: { qbit: QbitStatus | null }) {
               </Button>
             }
           />
-          <div className="flex items-center gap-6">
-            <StatCell label="下载" value={formatSpeed(qbit?.dlSpeed)} accent />
-            <StatCell label="上传" value={formatSpeed(qbit?.upSpeed)} />
-            <StatCell label="剩余空间" value={formatBytes(qbit?.freeSpaceOnDisk)} />
-          </div>
         </div>
       </div>
     </GlassPanel>
+  );
+}
+
+function qbitConnectionAdviceReason(
+  qbit: QbitStatus | null,
+  hasActiveDownload: boolean,
+): string | null {
+  if (!qbit) return null;
+  if (!qbit.connected || qbit.error) return "qBittorrent Web UI 当前不可用。";
+  if ((qbit.upSpeed ?? 0) >= HIGH_QBIT_UPLOAD_BYTES) {
+    return "当前上传偏高，可能影响同机网络。";
+  }
+  if (hasActiveDownload && (qbit.dlSpeed ?? 0) <= SLOW_QBIT_DOWNLOAD_BYTES) {
+    return "有下载任务，但当前下载速度很低。";
+  }
+  return null;
+}
+
+function QbitConnectionAdvice({ reason }: { reason: string }) {
+  return (
+    <details className="group mt-2 border-t border-[color:var(--border-subtle)] pt-2">
+      <summary className="inline-flex cursor-pointer list-none items-center gap-1.5 text-[11px] font-medium text-[color:var(--accent)] transition-colors hover:text-[color:var(--text-primary)]">
+        查看连接建议
+        <span className="text-[color:var(--text-muted)] group-open:hidden">展开</span>
+        <span className="hidden text-[color:var(--text-muted)] group-open:inline">收起</span>
+      </summary>
+      <div className="mt-2 max-w-[520px] space-y-1 text-[11px] leading-5 text-[color:var(--text-muted)]">
+        <p>当前状态：{reason}</p>
+        <p>安全下载模式会限制上传，并在下载完成后暂停 torrent。</p>
+        <p>
+          如果正在使用 VPN / TUN / 代理，建议在代理软件里将 qbittorrent.exe
+          设为直连，qBittorrent 自身代理保持“无”。
+        </p>
+      </div>
+    </details>
   );
 }
 
@@ -333,11 +564,15 @@ function SectionHeader({
 
 function DownloadRowItem({
   row,
+  selected,
+  onToggleSelected,
   onDelete,
   onPause,
   onResume,
 }: {
   row: DownloadRow;
+  selected: boolean;
+  onToggleSelected: () => void;
   onDelete: () => Promise<void>;
   onPause: () => Promise<void>;
   onResume: () => Promise<void>;
@@ -364,8 +599,37 @@ function DownloadRowItem({
       : row.status === "downloading";
 
   return (
-    <div className="p-3 rounded-[8px] border border-transparent hover:border-[color:var(--border-subtle)] hover:bg-[color:var(--bg-surface)] transition-colors">
+    <div
+      className={cn(
+        "p-3 rounded-[8px] border transition-colors",
+        selected
+          ? "border-[color:var(--accent)] bg-[color:var(--accent-subtle)]"
+          : "border-transparent hover:border-[color:var(--border-subtle)] hover:bg-[color:var(--bg-surface)]",
+      )}
+    >
       <div className="flex items-start gap-3">
+        <label className="mt-1 inline-flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-[6px] border border-[color:var(--border-default)] bg-[color:var(--bg-surface)] transition-colors hover:border-[color:var(--accent)]">
+          <input
+            type="checkbox"
+            className="sr-only"
+            checked={selected}
+            onChange={onToggleSelected}
+            aria-label={`选择下载记录：${row.title}`}
+          />
+          <span
+            aria-hidden
+            className={cn(
+              "inline-flex h-3.5 w-3.5 items-center justify-center rounded-[4px] border transition-colors",
+              selected
+                ? "border-[color:var(--accent)] bg-[color:var(--accent)]"
+                : "border-[color:var(--border-strong)]",
+            )}
+          >
+            {selected && (
+              <span className="h-1.5 w-1.5 rounded-[2px] bg-[color:var(--accent-contrast)]" />
+            )}
+          </span>
+        </label>
         {row.anime && (
           <div className="w-[96px] shrink-0 pt-0.5">
             <AnimeCover

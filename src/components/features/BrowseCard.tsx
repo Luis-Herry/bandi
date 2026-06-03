@@ -4,7 +4,10 @@ import { Check, Loader2, Plus, Star } from "lucide-react";
 import { type ReactNode } from "react";
 import { Button } from "@/components/ui";
 import { AnimeCover } from "@/components/features/AnimeCover";
-import type { SeasonalBrowseItem } from "@/lib/db-helpers/browse";
+import type {
+  SeasonalBrowseItem,
+  SeasonalUpdateState,
+} from "@/lib/db-helpers/browse";
 import { cn } from "@/lib/cn";
 
 /**
@@ -20,7 +23,7 @@ import { cn } from "@/lib/cn";
 export interface BrowseCardProps {
   item: SeasonalBrowseItem;
   /** 首页本季新番里的单卡更新状态 */
-  updateState?: CardUpdateState;
+  updateState?: SeasonalUpdateState;
   /** 是否显示「想看」按钮，false 时 hover 浮层只显示 tags */
   showAddButton?: boolean;
   /** 加入中状态（外部管理） */
@@ -31,10 +34,8 @@ export interface BrowseCardProps {
   priority?: boolean;
 }
 
-export type CardUpdateState = "updated" | "today" | "pending";
-
 const UPDATE_BADGE: Record<
-  CardUpdateState,
+  SeasonalUpdateState,
   { label: string; dot: string; className: string }
 > = {
   updated: {
@@ -43,8 +44,8 @@ const UPDATE_BADGE: Record<
     className:
       "border-[rgba(74,222,128,0.22)] bg-[rgba(74,222,128,0.12)] text-[color:var(--status-success)]",
   },
-  today: {
-    label: "今天更新",
+  upcoming: {
+    label: "即将更新",
     dot: "bg-[color:var(--accent)]",
     className:
       "border-[color:var(--accent)]/35 bg-[color:var(--accent-muted)] text-[color:var(--accent)]",

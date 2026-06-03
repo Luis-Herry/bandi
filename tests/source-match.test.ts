@@ -28,6 +28,27 @@ test("containsEpisodeRelease accepts local season numbers for absolute episode r
   );
 });
 
+test("containsEpisodeRelease accepts Season marker before a single episode number", () => {
+  const episodeNumbers = [14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25];
+
+  assert.equal(
+    containsEpisodeRelease(
+      "[ANi] Tsue to Tsurugi no Wistoria / 杖與劍的魔劍譚 Season 2 - 20 [1080P][Baha][WEB-DL][AAC AVC][CHT][MP4]",
+      20,
+      episodeNumbers,
+    ),
+    true,
+  );
+  assert.equal(
+    containsEpisodeRelease(
+      "[黒ネズミたち] 杖与剑的魔剑谭 第二季 / Tsue to Tsurugi no Wistoria Season 2 - 20 (B-Global 1920x1080 HEVC AAC MKV)",
+      20,
+      episodeNumbers,
+    ),
+    true,
+  );
+});
+
 test("containsEpisodeRelease rejects volume-only BD releases", () => {
   const episodeNumbers = [67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77];
 
@@ -132,6 +153,47 @@ test("containsAnimeTitleAlias prefers season aliases over broad base titles", ()
       aliases,
     ),
     false,
+  );
+});
+
+test("containsAnimeTitleAlias accepts base alias when the release season matches", () => {
+  const aliases = [
+    "杖与剑的魔剑谭",
+    "杖与剑的魔剑谭 第二季",
+    "Tsue to Tsurugi no Wistoria",
+    "Tsue to Tsurugi no Wistoria Season 2",
+  ];
+
+  assert.equal(
+    containsAnimeTitleAlias(
+      "[ANi] Tsue to Tsurugi no Wistoria / 杖與劍的魔劍譚 Season 2 - 20 [1080P][Baha][WEB-DL][AAC AVC][CHT][MP4]",
+      aliases,
+    ),
+    true,
+  );
+  assert.equal(
+    containsAnimeTitleAlias(
+      "[ANi] Tsue to Tsurugi no Wistoria / 杖與劍的魔劍譚 Season 3 - 20 [1080P][Baha][WEB-DL][AAC AVC][CHT][MP4]",
+      aliases,
+    ),
+    false,
+  );
+});
+
+test("containsAnimeTitleAlias accepts translated season markers for the same base title", () => {
+  const aliases = [
+    "杖与剑的魔剑谭",
+    "杖与剑的魔剑谭 第二季",
+    "杖與劍的魔劍譚",
+    "杖與劍的魔劍譚 第二季",
+  ];
+
+  assert.equal(
+    containsAnimeTitleAlias(
+      "[ANi] Tsue to Tsurugi no Wistoria / 杖與劍的魔劍譚 Season 2 - 20 [1080P][Baha][WEB-DL][AAC AVC][CHT][MP4]",
+      aliases,
+    ),
+    true,
   );
 });
 

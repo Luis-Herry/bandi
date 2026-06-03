@@ -11,12 +11,20 @@ const todaySource = readFileSync(
   "src/components/features/TodayOrUpcomingSection.tsx",
   "utf8",
 );
+const coverSource = readFileSync(
+  "src/components/features/AnimeCover.tsx",
+  "utf8",
+);
 const seasonalSource = readFileSync(
   "src/components/features/SeasonalBrowseWeekday.tsx",
   "utf8",
 );
 const browseCardSource = readFileSync(
   "src/components/features/BrowseCard.tsx",
+  "utf8",
+);
+const seasonalStateSource = readFileSync(
+  "src/lib/seasonal-update-state.ts",
   "utf8",
 );
 const rowItemSource = readFileSync(
@@ -44,6 +52,10 @@ test("Nav notification button opens a real menu backed by home feed data", () =>
   assert.match(layoutSource, /notifications=\{notifications\}/);
   assert.match(notificationHelperSource, /export function getNavNotifications/);
   assert.match(notificationHelperSource, /getMissedUpdates/);
+  assert.match(notificationHelperSource, /nextMissedEpisode/);
+  assert.match(notificationHelperSource, /nextMissedEpisodeIsDownloaded/);
+  assert.match(notificationHelperSource, /missedAnimeIds/);
+  assert.match(notificationHelperSource, /if \(missedAnimeIds\.has\(item\.anime\.id\)\) continue/);
   assert.match(notificationHelperSource, /getTodayUpdates/);
   assert.match(notificationHelperSource, /getUpcomingEpisodes/);
 });
@@ -86,22 +98,44 @@ test("home responsive layout collapses dense grids before they overflow", () => 
   assert.match(heroSource, /text-balance/);
   assert.match(heroSource, /lg:items-center lg:justify-between/);
   assert.match(heroSource, /lg:flex/);
-  assert.match(homeSource, /grid-cols-1 lg:grid-cols-12/);
-  assert.match(homeSource, /col-span-1 lg:col-span-7/);
-  assert.match(homeSource, /col-span-1 lg:col-span-5/);
+  assert.match(heroSource, /-mt-16 lg:h-\[640px\]/);
+  assert.match(layoutSource, /flex-1 pt-16/);
+  assert.doesNotMatch(heroSource, /-mt-28/);
+  assert.doesNotMatch(layoutSource, /pt-28/);
+  assert.match(homeSource, /grid-cols-1 gap-6 lg:grid-cols-2/);
+  assert.doesNotMatch(homeSource, /lg:col-span-7/);
+  assert.doesNotMatch(homeSource, /lg:col-span-5/);
   assert.match(todaySource, /grid-cols-1 sm:grid-cols-2 xl:grid-cols-4/);
+  assert.match(todaySource, /seasonEpisodeNumber: number/);
+  assert.match(todaySource, /currentEpisode=\{u\.seasonEpisodeNumber\}/);
+  assert.doesNotMatch(todaySource, /currentEpisode=\{u\.episodeNumber\}/);
   assert.match(seasonalSource, /max\(156px, calc/);
   assert.match(rowItemSource, /flex-wrap sm:flex-nowrap/);
   assert.match(loadingSource, /grid-cols-1 sm:grid-cols-2 xl:grid-cols-4/);
-  assert.match(loadingSource, /grid-cols-1 lg:grid-cols-12/);
+  assert.match(loadingSource, /grid-cols-1 gap-6 lg:grid-cols-2/);
+});
+
+test("Bangumi covers load directly after entering the viewport", () => {
+  assert.match(coverSource, /bypassOptimization/);
+  assert.match(coverSource, /lain\\.bgm\\.tv\|bangumi\\.tv/);
+  assert.match(coverSource, /IntersectionObserver/);
+  assert.match(coverSource, /rootMargin: "600px 0px"/);
+  assert.match(coverSource, /if \(!src \|\| !shouldLoad \|\| loaded \|\| failed\) return/);
+  assert.match(coverSource, /bypassOptimization &&/);
+  assert.match(coverSource, /<img/);
+  assert.doesNotMatch(coverSource, /unoptimized=\{bypassOptimization\}/);
 });
 
 test("seasonal update state belongs to each anime card", () => {
   assert.doesNotMatch(homeSource, /SeasonalUpdateLegend/);
   assert.doesNotMatch(seasonalSource, /SeasonalUpdateLegend/);
-  assert.match(seasonalSource, /updateState=\{getUpdateState\(it\.date\)\}/);
-  assert.match(browseCardSource, /updateState\?: CardUpdateState/);
+  assert.match(homeSource, /attachSeasonalUpdateStates/);
+  assert.match(seasonalStateSource, /applyCompletedDownloadState/);
+  assert.match(seasonalStateSource, /targetDownloaded: latestAired\.isDownloaded/);
+  assert.match(seasonalSource, /updateState=\{it\.updateState\}/);
+  assert.match(browseCardSource, /updateState\?: SeasonalUpdateState/);
   assert.match(browseCardSource, /已更新/);
-  assert.match(browseCardSource, /今天更新/);
+  assert.doesNotMatch(browseCardSource, /今天更新/);
+  assert.match(browseCardSource, /即将更新/);
   assert.match(browseCardSource, /未更新/);
 });

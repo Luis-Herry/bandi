@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { downloadQueue } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { resetDownloadedFlagsWithoutCompletedRows } from "@/lib/download-cleanup";
 
 export const dynamic = "force-dynamic";
 
@@ -44,6 +45,18 @@ export async function DELETE(
   const rowId = Number(id);
   if (!Number.isFinite(rowId))
     return NextResponse.json({ error: "invalid id" }, { status: 400 });
-  db.delete(downloadQueue).where(eq(downloadQueue.id, rowId)).run();
-  return NextResponse.json({ ok: true });
+  const row = db
+    .select({ episodeId: downloadQueue.episodeId })
+    .from(downloadQueue)
+    .where(eq(downloadQueue.id, rowId))
+    .get();
+  const result = db.delete(downloadQueue).where(eq(downloadQueue.id, rowId)).run();
+  const resetDownloaded = resetDownloadedFlagsWithoutCompletedRows([
+    row?.episodeId,
+  ]);
+  return NextResponse.json({
+    ok: true,
+    deleted: result.changes ?? 0,
+    resetDownloaded,
+  });
 }

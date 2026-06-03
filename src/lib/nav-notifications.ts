@@ -132,11 +132,13 @@ function buildNavNotificationItems(userId: string): NavNotificationItem[] {
     (item) => item.tone !== "danger" && item.title !== "下载完成",
   );
   const seen = new Set<string>();
+  const missedAnimeIds = new Set<number>();
   const items: NavNotificationItem[] = [...downloadAlerts];
 
   for (const item of missed) {
-    const key = `${item.anime.id}-${item.latestAiredEpisode}`;
+    const key = `${item.anime.id}-${item.nextMissedEpisode}`;
     seen.add(key);
+    missedAnimeIds.add(item.anime.id);
     items.push({
       id: `missed-${key}`,
       tone: "alert",
@@ -144,13 +146,14 @@ function buildNavNotificationItems(userId: string): NavNotificationItem[] {
       countsAsUnread: true,
       isRead: false,
       title: "有新集待看",
-      description: `《${item.anime.title}》已更新到 ${ep(item.latestAiredEpisode)}，当前看到 ${ep(item.userAnime.currentEpisode)}`,
+      description: `《${item.anime.title}》已更新到 ${ep(item.latestAiredEpisode)}，下一集 ${ep(item.nextMissedEpisode)}`,
       href: `/anime/${item.anime.id}`,
-      actionLabel: item.latestEpisodeIsDownloaded ? "播放或找资源" : "查看详情",
+      actionLabel: item.nextMissedEpisodeIsDownloaded ? "播放或找资源" : "查看详情",
     });
   }
 
   for (const item of today) {
+    if (missedAnimeIds.has(item.anime.id)) continue;
     const key = `${item.anime.id}-${item.episode.number}`;
     if (seen.has(key)) continue;
     seen.add(key);

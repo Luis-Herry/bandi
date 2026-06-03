@@ -294,14 +294,40 @@ export function extractMagnetHash(magnet: string): string | null {
   return null;
 }
 
-export async function addTorrent(
+export interface AddTorrentOptions {
+  category?: string;
+  savePath?: string;
+  upLimit?: number;
+  dlLimit?: number;
+  ratioLimit?: number;
+  seedingTimeLimit?: number;
+  paused?: boolean;
+}
+
+export function buildAddTorrentForm(
   magnetOrUrl: string,
-  options: { category?: string; savePath?: string } = {},
-): Promise<{ ok: boolean; error?: string }> {
+  options: AddTorrentOptions = {},
+): URLSearchParams {
   const form = new URLSearchParams();
   form.set("urls", magnetOrUrl);
   if (options.category) form.set("category", options.category);
   if (options.savePath) form.set("savepath", options.savePath);
+  if (options.upLimit != null) form.set("upLimit", String(options.upLimit));
+  if (options.dlLimit != null) form.set("dlLimit", String(options.dlLimit));
+  if (options.ratioLimit != null)
+    form.set("ratioLimit", String(options.ratioLimit));
+  if (options.seedingTimeLimit != null) {
+    form.set("seedingTimeLimit", String(options.seedingTimeLimit));
+  }
+  if (options.paused != null) form.set("paused", String(options.paused));
+  return form;
+}
+
+export async function addTorrent(
+  magnetOrUrl: string,
+  options: AddTorrentOptions = {},
+): Promise<{ ok: boolean; error?: string }> {
+  const form = buildAddTorrentForm(magnetOrUrl, options);
   const r = await request<string>("/api/v2/torrents/add", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },

@@ -23,6 +23,10 @@ export interface RssMatchOptions {
   group?: string;
 }
 
+export interface FetchRssOptions {
+  timeoutMs?: number;
+}
+
 const MAGNET_RE = /magnet:\?[^"'\s<>]+/i;
 
 const parser = new XMLParser({
@@ -32,7 +36,10 @@ const parser = new XMLParser({
 });
 
 /** Fetch and parse an RSS feed URL. Resolves to [] on any error. */
-export async function fetchRss(url: string): Promise<RssItem[]> {
+export async function fetchRss(
+  url: string,
+  options: FetchRssOptions = {},
+): Promise<RssItem[]> {
   try {
     const res = await fetch(url, {
       headers: {
@@ -43,7 +50,7 @@ export async function fetchRss(url: string): Promise<RssItem[]> {
       },
       // RSS sources update at most every 30 min — no caching needed here,
       // but timeout via AbortSignal to avoid hanging cron jobs.
-      signal: AbortSignal.timeout(15_000),
+      signal: AbortSignal.timeout(options.timeoutMs ?? 15_000),
     });
     if (!res.ok) return [];
     const xml = await res.text();

@@ -17,6 +17,8 @@ import {
   type BgmSubject,
 } from "@/lib/bangumi";
 
+export type SeasonalUpdateState = "updated" | "upcoming" | "pending";
+
 export interface SeasonalBrowseItem {
   bangumiId: number;
   title: string;
@@ -31,6 +33,7 @@ export interface SeasonalBrowseItem {
   platform: string | null;
   localAnimeId: number | null;
   inLibrary: boolean;
+  updateState?: SeasonalUpdateState;
 }
 
 function pickCover(s: BgmSubject): string | null {

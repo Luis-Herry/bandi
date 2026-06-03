@@ -1,8 +1,8 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
-import { downloadQueue, episodes } from "@/db/schema";
+import { downloadQueue } from "@/db/schema";
 
-const ACTIVE_DOWNLOAD_STATUSES = ["pending", "downloading", "completed"] as const;
+const ACTIVE_DOWNLOAD_STATUSES = ["pending", "downloading"] as const;
 
 export type DownloadDuplicateReason =
   | "same-magnet"
@@ -30,13 +30,22 @@ export function findDownloadDuplicate(input: {
 
   if (input.episodeId == null) return null;
 
-  const episode = db
-    .select({ id: episodes.id, isDownloaded: episodes.isDownloaded })
-    .from(episodes)
-    .where(eq(episodes.id, input.episodeId))
+  const completedEpisode = db
+    .select({ id: downloadQueue.id })
+    .from(downloadQueue)
+    .where(
+      and(
+        eq(downloadQueue.episodeId, input.episodeId),
+        eq(downloadQueue.status, "completed"),
+      ),
+    )
     .get();
-  if (episode?.isDownloaded) {
-    return { reason: "episode-downloaded", episodeId: episode.id };
+  if (completedEpisode) {
+    return {
+      reason: "episode-downloaded",
+      downloadId: completedEpisode.id,
+      episodeId: input.episodeId,
+    };
   }
 
   const sameEpisode = db

@@ -1,4 +1,4 @@
-import { extractEpisodeNumber } from "@/lib/rss";
+import { extractEpisodeNumber, extractSeason } from "@/lib/rss";
 
 const COMPLETE_LABEL_RE =
   /(?:季度|全季|整季|TV)?\s*全\s*(?:集|话|話)|合集|complete|batch/i;
@@ -39,21 +39,28 @@ export function containsAnimeTitleAlias(
 ): boolean {
   const lower = normalizeTitleForMatch(title);
   const normalizedAliases = aliases
-    .map((alias) => normalizeTitleForMatch(alias))
-    .filter((alias) => alias.length >= 2);
+    .map((alias) => ({
+      raw: alias,
+      normalized: normalizeTitleForMatch(alias),
+    }))
+    .filter((alias) => alias.normalized.length >= 2);
   const preciseAliases = normalizedAliases.filter(
-    (alias) => alias.length >= PRECISE_ALIAS_MIN_LENGTH,
+    (alias) => alias.normalized.length >= PRECISE_ALIAS_MIN_LENGTH,
   );
   const seasonAliases = preciseAliases.filter((alias) =>
-    SEASON_MARKER_RE.test(alias),
+    hasSeasonMarker(alias),
   );
   if (seasonAliases.length > 0) {
-    if (seasonAliases.some((alias) => lower.includes(alias))) return true;
-    if (SEASON_MARKER_RE.test(lower)) return false;
+    if (seasonAliases.some((alias) => lower.includes(alias.normalized))) {
+      return true;
+    }
+    if (SEASON_MARKER_RE.test(lower)) {
+      return containsCompatibleSeasonBaseAlias(title, lower, preciseAliases, seasonAliases);
+    }
   }
   const candidates =
     preciseAliases.length > 0 ? preciseAliases : normalizedAliases;
-  return candidates.some((alias) => lower.includes(alias));
+  return candidates.some((alias) => lower.includes(alias.normalized));
 }
 
 export function stripTrailingArcAfterSeason(value: string): string | null {
@@ -114,17 +121,68 @@ function isMultiEpisodePackRelease(title: string): boolean {
   return extractEpisodeRanges(title).length > 0;
 }
 
+function hasSeasonMarker(alias: { raw: string; normalized: string }): boolean {
+  return SEASON_MARKER_RE.test(alias.normalized) || extractSeason(alias.raw) !== null;
+}
+
+function containsCompatibleSeasonBaseAlias(
+  title: string,
+  normalizedTitle: string,
+  preciseAliases: Array<{ raw: string; normalized: string }>,
+  seasonAliases: Array<{ raw: string; normalized: string }>,
+): boolean {
+  const titleSeason = extractSeason(title);
+  if (titleSeason === null) return false;
+
+  const expectedSeasons = new Set<number>();
+  for (const alias of seasonAliases) {
+    const season = extractSeason(alias.raw) ?? extractSeason(alias.normalized);
+    if (season !== null) expectedSeasons.add(season);
+  }
+  if (!expectedSeasons.has(titleSeason)) return false;
+
+  return preciseAliases.some((alias) => {
+    if (hasSeasonMarker(alias)) return false;
+    return normalizedTitle.includes(alias.normalized);
+  });
+}
+
 function extractEpisodeRanges(title: string): Array<{ start: number; end: number }> {
   const ranges: Array<{ start: number; end: number }> = [];
-  for (const match of title.matchAll(EPISODE_RANGE_RE)) {
+  const rangeRe = new RegExp(EPISODE_RANGE_RE.source, EPISODE_RANGE_RE.flags);
+  let match: RegExpExecArray | null;
+  while ((match = rangeRe.exec(title)) !== null) {
     const start = Number(match[1]);
     const end = Number(match[2]);
+    const startIndex = getCaptureStartIndex(match, match[1]);
+    if (startIndex !== null && isSeasonNumberBeforeEpisodeDash(title, startIndex)) {
+      rangeRe.lastIndex = startIndex + match[1].length;
+      continue;
+    }
     if (!Number.isFinite(start) || !Number.isFinite(end)) continue;
     if (start <= 0 || end <= 0 || end < start) continue;
     if (start >= 480 || end >= 480) continue;
     ranges.push({ start, end });
   }
   return ranges;
+}
+
+function getCaptureStartIndex(
+  match: RegExpExecArray,
+  capture: string | undefined,
+): number | null {
+  if (match.index === undefined || !capture) return null;
+  const offset = match[0].indexOf(capture);
+  if (offset < 0) return null;
+  return match.index + offset;
+}
+
+function isSeasonNumberBeforeEpisodeDash(
+  title: string,
+  startNumberIndex: number,
+): boolean {
+  const before = title.slice(Math.max(0, startNumberIndex - 24), startNumberIndex);
+  return /\bseason\s*$/i.test(before);
 }
 
 function buildEpisodeMatchNumbers(

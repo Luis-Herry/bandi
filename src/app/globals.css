@@ -201,6 +201,28 @@ body {
   text-rendering: optimizeLegibility;
 }
 
+@keyframes brand-logo-float {
+  0% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-3px);
+  }
+  100% {
+    transform: translateY(0);
+  }
+}
+
+.brand-logo-float {
+  animation: brand-logo-float 4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .brand-logo-float {
+    animation: none;
+  }
+}
+
 /* 数字用等宽 */
 .tabular,
 [data-tabular] {

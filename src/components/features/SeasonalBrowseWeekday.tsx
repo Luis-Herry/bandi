@@ -2,10 +2,7 @@
 
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  BrowseCard,
-  type CardUpdateState,
-} from "@/components/features/BrowseCard";
+import { BrowseCard } from "@/components/features/BrowseCard";
 import { showToast } from "@/components/features/ToastHost";
 import { useCardGlow } from "@/hooks/useCardGlow";
 import type { SeasonalBrowseItem } from "@/lib/db-helpers/browse";
@@ -251,7 +248,7 @@ export function SeasonalBrowseWeekday({ groups, perDay = 6 }: Props) {
             <div key={it.bangumiId} className="snap-start">
               <BrowseCard
                 item={merged}
-                updateState={getUpdateState(it.date)}
+                updateState={it.updateState}
                 busy={adding.has(it.bangumiId)}
                 onAdd={() => addToPlanning(it)}
               />
@@ -267,17 +264,4 @@ function getInitialActiveDay(groups: DayGroup[]) {
   const today = new Date().getDay();
   if (groups.some((g) => g.day === today)) return today;
   return groups[0]?.day ?? WEEKDAY_ORDER[0];
-}
-
-function getUpdateState(date: string | null): CardUpdateState | undefined {
-  if (!date) return undefined;
-  const parsed = new Date(date);
-  if (Number.isNaN(parsed.getTime())) return undefined;
-  const day = parsed.getDay();
-  const today = new Date().getDay();
-  const todayIndex = WEEKDAY_ORDER.indexOf(today);
-  const dayIndex = WEEKDAY_ORDER.indexOf(day);
-  if (dayIndex < todayIndex) return "updated";
-  if (dayIndex === todayIndex) return "today";
-  return "pending";
 }

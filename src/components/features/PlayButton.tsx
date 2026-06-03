@@ -87,7 +87,7 @@ export function PlayButton({
     });
   };
 
-  const iconSize = size === "sm" ? 11 : size === "lg" ? 16 : 14;
+  const iconSize = size === "sm" ? 12 : size === "lg" ? 16 : 14;
 
   return (
     <span className={cn("relative inline-flex", className)}>

@@ -4,9 +4,14 @@ import { anime, downloadQueue, episodes } from "@/db/schema";
 import { desc, eq } from "drizzle-orm";
 import { findDownloadDuplicate } from "@/lib/download-dedupe";
 import {
+  buildSafeTorrentOptions,
+  shouldPauseAfterCompletion,
+} from "@/lib/download-safety";
+import {
   addTorrent,
   extractMagnetHash,
   listTorrents,
+  pauseTorrent,
   type QbitTorrent,
 } from "@/lib/qbit";
 
@@ -114,6 +119,7 @@ export async function GET() {
 
   // Cross-reference qBit live state to keep progress + status fresh.
   const live = await listTorrents().catch(() => []);
+  const pauseHashes = new Set<string>();
 
   const now = new Date();
 
@@ -128,6 +134,7 @@ export async function GET() {
     if (lt) {
       const liveStatus = deriveStatus(lt);
       const livePct = Math.min(100, Math.max(0, Math.round(lt.progress * 100)));
+      const completedNow = shouldPauseAfterCompletion(status, liveStatus);
       const liveSpeedStr = lt.dlspeed > 0 ? null : null; // 不存速度，UI 用 liveSpeed 实时显示
 
       const changed =
@@ -148,15 +155,15 @@ export async function GET() {
         // 跨 downloading→completed 边界时回写 episodes.isDownloaded
         // 只在「原状态非 completed + 新状态 completed + 有关联集号」三者同时满足时写一次
         // 避免每次轮询都重复 UPDATE
-        if (
-          liveStatus === "completed" &&
-          r.d.status !== "completed" &&
-          r.d.episodeId != null
-        ) {
+        if (completedNow && r.d.episodeId != null) {
           db.update(episodes)
             .set({ isDownloaded: true })
             .where(eq(episodes.id, r.d.episodeId))
             .run();
+        }
+        if (completedNow) {
+          const hash = extractMagnetHash(r.d.magnetUrl);
+          if (hash) pauseHashes.add(hash);
         }
 
         status = liveStatus;
@@ -175,6 +182,20 @@ export async function GET() {
       liveState: lt ? lt.state : null,
     };
   });
+
+  if (pauseHashes.size > 0) {
+    await Promise.all(
+      [...pauseHashes].map(async (hash) => {
+        const result = await pauseTorrent(hash);
+        if (!result.ok) {
+          console.error("[downloads] pause completed torrent failed:", {
+            hash,
+            error: result.error,
+          });
+        }
+      }),
+    );
+  }
 
   return NextResponse.json({ items });
 }
@@ -220,7 +241,10 @@ export async function POST(req: Request) {
     .get();
 
   // Push to qBit, update status accordingly.
-  const result = await addTorrent(body.magnetUrl);
+  const result = await addTorrent(
+    body.magnetUrl,
+    buildSafeTorrentOptions({ category: "anime" }),
+  );
   if (result.ok) {
     db.update(downloadQueue)
       .set({ status: "downloading", updatedAt: new Date() })

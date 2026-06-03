@@ -25,6 +25,7 @@ import {
   type LibraryAnimeRef,
 } from "@/lib/rss";
 import { findDownloadDuplicate } from "@/lib/download-dedupe";
+import { buildSafeTorrentOptions } from "@/lib/download-safety";
 import { addTorrent } from "@/lib/qbit";
 import { getPreferences } from "@/lib/preferences";
 
@@ -244,7 +245,10 @@ export async function runCheckRss(): Promise<CheckRssResult> {
         );
 
         // 推 qBit
-        const r = await addTorrent(magnet, { category: "anime" });
+        const r = await addTorrent(
+          magnet,
+          buildSafeTorrentOptions({ category: "anime" }),
+        );
         if (r.ok) {
           db.update(downloadQueue)
             .set({ status: "downloading", updatedAt: new Date() })

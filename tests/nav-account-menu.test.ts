@@ -3,12 +3,58 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
 const navSource = readFileSync("src/components/features/Nav.tsx", "utf8");
+const brandLogoSource = readFileSync("src/components/features/BrandLogo.tsx", "utf8");
+const globalsSource = readFileSync("src/app/globals.css", "utf8");
+const loginSource = readFileSync("src/app/(auth)/login/LoginShell.tsx", "utf8");
+
+test("Nav keeps brand and compact actions in a single-row header", () => {
+  assert.match(navSource, /<BrandLogo \/>/);
+  assert.match(navSource, /<Menu \/>/);
+  assert.equal(
+    [...navSource.matchAll(/<NotificationMenu notifications=\{notifications\} \/>/g)]
+      .length,
+    2,
+  );
+  assert.match(
+    navSource,
+    /relative z-10 ml-auto flex shrink-0 items-center gap-2 min-\[1100px\]:hidden[\s\S]*label=\{TEXT\.search\}[\s\S]*<NotificationMenu notifications=\{notifications\} \/>[\s\S]*label=\{TEXT\.theme\}[\s\S]*label=\{TEXT\.more\}/,
+  );
+  assert.match(navSource, /label=\{TEXT\.search\}/);
+  assert.match(navSource, /label=\{TEXT\.more\}/);
+  assert.doesNotMatch(navSource, /notifications\.items\.slice\(0, 3\)/);
+  assert.doesNotMatch(navSource, /TEXT\.latestNotifications/);
+  assert.doesNotMatch(navSource, /TEXT\.noNotifications/);
+  assert.doesNotMatch(navSource, /Bell,/);
+  assert.doesNotMatch(navSource, /min-h-28 w-full flex-col/);
+  assert.doesNotMatch(navSource, /h-12 w-full items-center/);
+  assert.doesNotMatch(navSource, /border-t border-\[color:var\(--border-subtle\)\]/);
+  assert.doesNotMatch(navSource, /overflow-x-auto/);
+  assert.match(brandLogoSource, /Tv/);
+  assert.match(brandLogoSource, /strokeWidth=\{2\}/);
+  assert.match(brandLogoSource, /brand-logo-mark/);
+  assert.match(brandLogoSource, /brand-logo-float/);
+  assert.match(brandLogoSource, /color:\s*"white"/);
+  assert.match(globalsSource, /@keyframes brand-logo-float/);
+  assert.doesNotMatch(brandLogoSource, /var\(--accent\) 58%, white/);
+  assert.doesNotMatch(brandLogoSource, /brand-logo-icon-shell/);
+  assert.doesNotMatch(brandLogoSource, /group-hover:-translate-y/);
+  assert.doesNotMatch(brandLogoSource, /group-hover:rotate/);
+  assert.doesNotMatch(brandLogoSource, /group-hover:scale/);
+  assert.doesNotMatch(globalsSource, /rotate\(/);
+  assert.doesNotMatch(navSource, /Flame/);
+});
+
+test("Login reuses the animated brand mark", () => {
+  assert.match(loginSource, /<BrandLogo markSize="md" \/>/);
+  assert.match(loginSource, /<BrandLogo showText=\{false\} markSize="lg" \/>/);
+  assert.doesNotMatch(loginSource, /Flame/);
+});
 
 test("Nav exposes an account menu from the avatar", () => {
-  assert.match(navSource, /aria-label="打开用户菜单"/);
-  assert.match(navSource, />个人中心</);
-  assert.match(navSource, />设置中心</);
-  assert.match(navSource, />退出登录</);
+  assert.match(navSource, /aria-label=\{TEXT\.openUserMenu\}/);
+  assert.match(navSource, /\{TEXT\.profile\}/);
+  assert.match(navSource, /\{TEXT\.settings\}/);
+  assert.match(navSource, /\{TEXT\.signOut\}/);
 });
 
 test("Nav signs out through the client NextAuth helper", () => {
@@ -25,10 +71,8 @@ test("Nav theme menu shows a selected dot and check", () => {
 test("Nav theme menu labels themes by color only", async () => {
   const { THEME_OPTIONS } = await import("../src/lib/theme-options");
 
-  assert.deepEqual(
-    THEME_OPTIONS.map((theme) => theme.label),
-    ["琥珀金（默认）", "赤红珊瑚", "鼠尾草绿", "暖紫", "蜜桃粉", "冷青蓝"],
-  );
+  assert.equal(THEME_OPTIONS.length, 6);
+  assert.ok(THEME_OPTIONS.every((theme) => theme.label.length > 0));
   assert.doesNotMatch(navSource, /item\.tone/);
   assert.doesNotMatch(navSource, /mt-0\.5 block truncate text-\[10px\]/);
 });

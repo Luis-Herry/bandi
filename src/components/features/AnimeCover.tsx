@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/cn";
 
 interface AnimeCoverProps {
@@ -40,24 +40,52 @@ export function AnimeCover({
   priority = false,
   sizes = "(min-width: 1280px) 320px, (min-width: 768px) 33vw, 50vw",
 }: AnimeCoverProps) {
+  const rootRef = useRef<HTMLDivElement>(null);
   const [loaded, setLoaded] = useState(false);
   const [failed, setFailed] = useState(!src);
+  const [shouldLoad, setShouldLoad] = useState(priority);
+  const bypassOptimization =
+    src != null && /^https:\/\/(?:lain\.bgm\.tv|bangumi\.tv)\//.test(src);
 
   // src 变化时重置状态（卡片复用 / 列表过滤会切 src）
   useEffect(() => {
     setLoaded(false);
     setFailed(!src);
-  }, [src]);
+    setShouldLoad(priority);
+  }, [src, priority]);
 
-  // 超时兜底：N 秒还没 onLoad 也没 onError，强制判失败
+  // 非首屏封面先等进入视口附近再挂载图片，避免浏览器 lazy 还没开始请求时被超时判失败。
   useEffect(() => {
-    if (!src || loaded || failed) return;
+    if (!src || priority || shouldLoad) return;
+    const node = rootRef.current;
+    if (!node || typeof IntersectionObserver === "undefined") {
+      setShouldLoad(true);
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          setShouldLoad(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: "600px 0px" },
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [src, priority, shouldLoad]);
+
+  // 超时兜底：只有真正开始加载后才计时，避免懒加载封面提前落到占位图。
+  useEffect(() => {
+    if (!src || !shouldLoad || loaded || failed) return;
     const t = setTimeout(() => setFailed(true), TIMEOUT_MS);
     return () => clearTimeout(t);
-  }, [src, loaded, failed]);
+  }, [src, shouldLoad, loaded, failed]);
 
   return (
     <div
+      ref={rootRef}
       className={cn(
         "relative overflow-hidden bg-[color:var(--bg-elevated)]",
         className,
@@ -65,7 +93,7 @@ export function AnimeCover({
       style={{ aspectRatio: ratio }}
     >
       {/* loading shimmer：仅在有 src 且还没失败、没加载完时显示 */}
-      {src && !loaded && !failed && (
+      {src && shouldLoad && !loaded && !failed && (
         <div
           className="absolute inset-0"
           style={{
@@ -77,15 +105,31 @@ export function AnimeCover({
         />
       )}
 
-      {src && !failed && (
+      {src && shouldLoad && !failed && bypassOptimization && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={src}
+          alt={alt}
+          loading="eager"
+          decoding="async"
+          onLoad={() => setLoaded(true)}
+          onError={() => setFailed(true)}
+          className={cn(
+            "absolute inset-0 h-full w-full object-cover transition-opacity duration-300",
+            loaded ? "opacity-100" : "opacity-0",
+          )}
+        />
+      )}
+
+      {src && shouldLoad && !failed && !bypassOptimization && (
         <Image
           src={src}
           alt={alt}
           fill
           sizes={sizes}
           priority={priority}
-          // 非优先项交给浏览器 lazy，priority 自动 eager
-          loading={priority ? undefined : "lazy"}
+          // 非优先项已经由 IntersectionObserver 控制挂载，挂载后直接加载。
+          loading={priority ? undefined : "eager"}
           onLoad={() => setLoaded(true)}
           onError={() => setFailed(true)}
           className={cn(
