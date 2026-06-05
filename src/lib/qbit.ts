@@ -13,8 +13,10 @@ const DEFAULT_QBIT_URLS = [
   "http://localhost:8080",
   "http://127.0.0.1:18080",
 ];
+const isDesktopApp = process.env.ANIME_DESKTOP_APP === "1";
 const allowLocalFallback =
-  !configuredQbitUrl || isLocalDefaultWebUiUrl(configuredQbitUrl);
+  !isDesktopApp &&
+  (!configuredQbitUrl || isLocalDefaultWebUiUrl(configuredQbitUrl));
 const QBIT_USER = process.env.QBIT_USER ?? "admin";
 const QBIT_PASS = process.env.QBIT_PASS ?? "";
 
@@ -42,6 +44,9 @@ function isLocalDefaultWebUiUrl(url: string): boolean {
 
 function getCandidateUrls(): string[] {
   const configured = configuredQbitUrl ? [normalizeUrl(configuredQbitUrl)] : [];
+  if (isDesktopApp) {
+    return configured.length > 0 ? configured : [DEFAULT_QBIT_URLS[0]];
+  }
   const defaults = allowLocalFallback ? DEFAULT_QBIT_URLS : [];
   const candidates = [...configured, ...defaults].map(normalizeUrl);
   const urls = new Set<string>();

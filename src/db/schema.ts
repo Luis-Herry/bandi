@@ -127,6 +127,44 @@ export const watchEvents = sqliteTable(
   ],
 );
 
+/* ===== playbackProgress ===== */
+
+export const playbackProgress = sqliteTable(
+  "playback_progress",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    animeId: integer("anime_id")
+      .notNull()
+      .references(() => anime.id, { onDelete: "cascade" }),
+    episodeId: integer("episode_id").references(() => episodes.id, {
+      onDelete: "set null",
+    }),
+    episodeNumber: integer("episode_number").notNull(),
+    positionSeconds: integer("position_seconds").notNull().default(0),
+    durationSeconds: integer("duration_seconds").notNull().default(0),
+    completed: integer("completed", { mode: "boolean" })
+      .notNull()
+      .default(false),
+    lastPlayedAt: integer("last_played_at", { mode: "timestamp" })
+      .notNull()
+      .default(sql`(unixepoch())`),
+    updatedAt: integer("updated_at", { mode: "timestamp" })
+      .notNull()
+      .default(sql`(unixepoch())`),
+  },
+  (t) => [
+    uniqueIndex("playback_progress_user_episode_idx").on(
+      t.userId,
+      t.animeId,
+      t.episodeId,
+    ),
+    index("playback_progress_user_recent_idx").on(t.userId, t.lastPlayedAt),
+  ],
+);
+
 /* ===== rssSources ===== */
 
 export interface RssFilters {
@@ -196,6 +234,7 @@ export type Anime = typeof anime.$inferSelect;
 export type UserAnime = typeof userAnime.$inferSelect;
 export type Episode = typeof episodes.$inferSelect;
 export type WatchEvent = typeof watchEvents.$inferSelect;
+export type PlaybackProgress = typeof playbackProgress.$inferSelect;
 export type RssSource = typeof rssSources.$inferSelect;
 export type DownloadItem = typeof downloadQueue.$inferSelect;
 export type AppSetting = typeof appSettings.$inferSelect;

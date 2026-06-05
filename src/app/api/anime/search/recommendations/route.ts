@@ -12,6 +12,7 @@ import {
 import { getCurrentUser } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
+const POPULAR_LIMIT = 4;
 
 interface RecommendationItem {
   source: "local" | "bangumi";
@@ -88,7 +89,7 @@ export async function GET() {
   }
 
   const popular: RecommendationItem[] = [];
-  for (const item of seasonal) {
+  for (const item of selectJapaneseSeasonalTopRated(seasonal)) {
     const recommendation: RecommendationItem = {
       source: item.localAnimeId ? "local" : "bangumi",
       id: item.localAnimeId,
@@ -98,13 +99,11 @@ export async function GET() {
       year: season.year,
       coverUrl: item.coverUrl,
       inLibrary: item.inLibrary,
-      meta: item.score
-        ? `Bangumi ${item.score.toFixed(1)}`
-        : item.platform ?? "本季热门",
+      meta: `Bangumi ${item.score!.toFixed(1)}`,
     };
     if (!addSeen(seen, recommendation)) continue;
     popular.push(recommendation);
-    if (popular.length >= 4) break;
+    if (popular.length >= POPULAR_LIMIT) break;
   }
 
   return NextResponse.json({
@@ -125,4 +124,15 @@ function addSeen(seen: Set<string>, item: RecommendationItem) {
   if (seen.has(key)) return false;
   seen.add(key);
   return true;
+}
+
+function selectJapaneseSeasonalTopRated(items: SeasonalBrowseItem[]) {
+  return items
+    .filter(
+      (item) =>
+        item.score != null &&
+        item.score > 0 &&
+        item.tags.includes("日本"),
+    )
+    .sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
 }

@@ -3,6 +3,7 @@ import { GlassPanel } from "@/components/ui";
 import { AnimeCover } from "@/components/features/AnimeCover";
 import { LibraryClient } from "./LibraryClient";
 import { StatusRing } from "@/components/features/StatusRing";
+import { resizeBangumiImageUrl } from "@/lib/bangumi-image";
 import { WatchHoursChart } from "@/components/features/WatchHoursChart";
 import {
   getLibrary,
@@ -24,7 +25,7 @@ export default async function LibraryPage() {
   const heroCovers = items
     .filter((it) => it.anime.coverUrl)
     .slice(0, 4)
-    .map((it) => it.anime.coverUrl as string);
+    .map((it) => resizeBangumiImageUrl(it.anime.coverUrl as string, "card"));
 
   // 环形图数据
   const ringSegments = [
@@ -41,7 +42,7 @@ export default async function LibraryPage() {
   return (
     <div className="relative">
       {/* ============ Hero 横幅 ============ */}
-      <section className="relative h-[240px] w-full overflow-hidden">
+      <section className="relative min-h-[220px] w-full overflow-hidden sm:h-[240px]">
         {/* 背景：4 张封面横排拼 + 强模糊 + 暗罩 */}
         <div className="absolute inset-0 flex">
           {heroCovers.length > 0 ? (
@@ -76,19 +77,19 @@ export default async function LibraryPage() {
           }}
         />
 
-        <div className="relative mx-auto max-w-[1440px] h-full px-8 flex items-center justify-between">
-          <div>
+        <div className="app-page-container relative flex min-h-[220px] flex-col justify-end gap-5 pb-6 sm:h-full min-[900px]:flex-row min-[900px]:items-center min-[900px]:justify-between min-[900px]:pb-0">
+          <div className="min-w-0">
             <h1
-              className="text-[44px] font-extrabold tracking-[-0.03em] leading-none text-[color:var(--text-primary)]"
+              className="text-[34px] font-extrabold leading-none tracking-[-0.025em] text-[color:var(--text-primary)] sm:text-[44px] sm:tracking-[-0.03em]"
               style={{ textShadow: "0 2px 16px rgba(0,0,0,0.5)" }}
             >
               我的追番
             </h1>
-            <p className="mt-3 text-[13px] text-[color:var(--text-secondary)]">
+            <p className="mt-3 text-[13px] leading-relaxed text-[color:var(--text-secondary)]">
               管理你的追番收藏 · 共 {stats.total} 部
             </p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="grid w-full grid-cols-3 gap-2 min-[900px]:w-auto min-[900px]:flex min-[900px]:items-center min-[900px]:gap-3">
             <StatCard label="正在看" value={stats.watching} />
             <StatCard label="本季在追" value={stats.seasonal} accent />
             <StatCard label="已看完" value={stats.completed} />
@@ -97,9 +98,9 @@ export default async function LibraryPage() {
       </section>
 
       {/* ============ Body ============ */}
-      <section className="mx-auto max-w-[1440px] px-8 py-8 grid grid-cols-12 gap-6">
+      <section className="app-page-container grid grid-cols-1 gap-6 py-6 sm:py-8 lg:grid-cols-12">
         {/* 左侧统计 */}
-        <aside className="col-span-3 space-y-4">
+        <aside className="order-2 grid grid-cols-1 gap-4 md:grid-cols-2 lg:order-1 lg:col-span-3 lg:block lg:space-y-4">
           <GlassPanel variant="elevated" className="p-5">
             <h3 className="text-[13px] font-medium text-[color:var(--text-secondary)] mb-4">
               状态统计
@@ -140,7 +141,7 @@ export default async function LibraryPage() {
           </GlassPanel>
 
           {items.length > 0 && (
-            <GlassPanel className="p-4">
+            <GlassPanel className="p-4 md:col-span-2 lg:col-span-auto">
               <h3 className="text-[12px] font-medium text-[color:var(--text-muted)] mb-3">
                 最近添加
               </h3>
@@ -169,7 +170,7 @@ export default async function LibraryPage() {
         </aside>
 
         {/* 右侧主区 */}
-        <div className="col-span-9">
+        <div className="order-1 min-w-0 lg:order-2 lg:col-span-9">
           <LibraryClient items={items} />
         </div>
       </section>
@@ -188,7 +189,7 @@ function StatCard({
 }) {
   return (
     <div
-      className="px-5 py-3 rounded-[8px] min-w-[100px]"
+      className="min-w-0 rounded-[8px] px-3 py-2 sm:px-5 sm:py-3 min-[900px]:min-w-[100px]"
       style={{
         background: "rgba(20,20,22,0.7)",
         backdropFilter: "blur(16px)",
@@ -197,14 +198,16 @@ function StatCard({
     >
       <p
         data-tabular
-        className="text-[28px] font-bold tracking-tight leading-none"
+        className="text-[22px] font-bold leading-none tracking-tight sm:text-[28px]"
         style={{
           color: accent ? "var(--accent)" : "var(--text-primary)",
         }}
       >
         {value}
       </p>
-      <p className="mt-1 text-[11px] text-[color:var(--text-muted)]">{label}</p>
+      <p className="mt-1 truncate text-[11px] text-[color:var(--text-muted)]">
+        {label}
+      </p>
     </div>
   );
 }

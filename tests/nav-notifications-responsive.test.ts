@@ -118,9 +118,14 @@ test("home responsive layout collapses dense grids before they overflow", () => 
 test("Bangumi covers load directly after entering the viewport", () => {
   assert.match(coverSource, /bypassOptimization/);
   assert.match(coverSource, /lain\\.bgm\\.tv\|bangumi\\.tv/);
+  assert.match(coverSource, /resizeBangumiImageUrl/);
+  assert.match(coverSource, /imageRole = "card"/);
+  assert.match(coverSource, /node\?\.complete && node\.naturalWidth > 0/);
+  assert.match(coverSource, /referrerPolicy="no-referrer"/);
+  assert.match(coverSource, /保持图片节点可见/);
   assert.match(coverSource, /IntersectionObserver/);
   assert.match(coverSource, /rootMargin: "600px 0px"/);
-  assert.match(coverSource, /if \(!src \|\| !shouldLoad \|\| loaded \|\| failed\) return/);
+  assert.match(coverSource, /if \(!resolvedSrc \|\| !shouldLoad \|\| loaded \|\| failed\) return/);
   assert.match(coverSource, /bypassOptimization &&/);
   assert.match(coverSource, /<img/);
   assert.doesNotMatch(coverSource, /unoptimized=\{bypassOptimization\}/);

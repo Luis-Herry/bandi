@@ -1,8 +1,12 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/cn";
+import {
+  resizeBangumiImageUrl,
+  type BangumiImageRole,
+} from "@/lib/bangumi-image";
 
 interface AnimeCoverProps {
   src?: string | null;
@@ -17,6 +21,8 @@ interface AnimeCoverProps {
    * 默认按"卡片网格"场景给一个合理值（1280px 屏 4 列 ≈ 280px）。
    */
   sizes?: string;
+  /** Bangumi 图片按展示场景降尺寸，避免列表页拉原图后超时。 */
+  imageRole?: BangumiImageRole;
 }
 
 /**
@@ -39,24 +45,36 @@ export function AnimeCover({
   className,
   priority = false,
   sizes = "(min-width: 1280px) 320px, (min-width: 768px) 33vw, 50vw",
+  imageRole = "card",
 }: AnimeCoverProps) {
   const rootRef = useRef<HTMLDivElement>(null);
+  const imageRef = useRef<HTMLImageElement | null>(null);
+  const resolvedSrc = src ? resizeBangumiImageUrl(src, imageRole) : null;
   const [loaded, setLoaded] = useState(false);
-  const [failed, setFailed] = useState(!src);
+  const [failed, setFailed] = useState(!resolvedSrc);
   const [shouldLoad, setShouldLoad] = useState(priority);
   const bypassOptimization =
-    src != null && /^https:\/\/(?:lain\.bgm\.tv|bangumi\.tv)\//.test(src);
+    resolvedSrc != null &&
+    /^https:\/\/(?:lain\.bgm\.tv|bangumi\.tv)\//.test(resolvedSrc);
 
   // src 变化时重置状态（卡片复用 / 列表过滤会切 src）
   useEffect(() => {
     setLoaded(false);
-    setFailed(!src);
+    setFailed(!resolvedSrc);
     setShouldLoad(priority);
-  }, [src, priority]);
+  }, [resolvedSrc, priority]);
+
+  const attachImageRef = useCallback((node: HTMLImageElement | null) => {
+    imageRef.current = node;
+    if (node?.complete && node.naturalWidth > 0) {
+      setLoaded(true);
+      setFailed(false);
+    }
+  }, []);
 
   // 非首屏封面先等进入视口附近再挂载图片，避免浏览器 lazy 还没开始请求时被超时判失败。
   useEffect(() => {
-    if (!src || priority || shouldLoad) return;
+    if (!resolvedSrc || priority || shouldLoad) return;
     const node = rootRef.current;
     if (!node || typeof IntersectionObserver === "undefined") {
       setShouldLoad(true);
@@ -74,14 +92,19 @@ export function AnimeCover({
     );
     observer.observe(node);
     return () => observer.disconnect();
-  }, [src, priority, shouldLoad]);
+  }, [resolvedSrc, priority, shouldLoad]);
 
   // 超时兜底：只有真正开始加载后才计时，避免懒加载封面提前落到占位图。
   useEffect(() => {
-    if (!src || !shouldLoad || loaded || failed) return;
+    if (!resolvedSrc || !shouldLoad || loaded || failed) return;
+    const node = imageRef.current;
+    if (node?.complete && node.naturalWidth > 0) {
+      setLoaded(true);
+      return;
+    }
     const t = setTimeout(() => setFailed(true), TIMEOUT_MS);
     return () => clearTimeout(t);
-  }, [src, shouldLoad, loaded, failed]);
+  }, [resolvedSrc, shouldLoad, loaded, failed]);
 
   return (
     <div
@@ -93,7 +116,7 @@ export function AnimeCover({
       style={{ aspectRatio: ratio }}
     >
       {/* loading shimmer：仅在有 src 且还没失败、没加载完时显示 */}
-      {src && shouldLoad && !loaded && !failed && (
+      {resolvedSrc && shouldLoad && !loaded && !failed && (
         <div
           className="absolute inset-0"
           style={{
@@ -105,25 +128,30 @@ export function AnimeCover({
         />
       )}
 
-      {src && shouldLoad && !failed && bypassOptimization && (
+      {resolvedSrc && shouldLoad && !failed && bypassOptimization && (
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          src={src}
+          ref={attachImageRef}
+          src={resolvedSrc}
           alt={alt}
           loading="eager"
           decoding="async"
-          onLoad={() => setLoaded(true)}
+          referrerPolicy="no-referrer"
+          onLoad={() => {
+            setLoaded(true);
+            setFailed(false);
+          }}
           onError={() => setFailed(true)}
           className={cn(
-            "absolute inset-0 h-full w-full object-cover transition-opacity duration-300",
-            loaded ? "opacity-100" : "opacity-0",
+            // Bangumi 直连图可能在 hydration 前已加载完；保持图片节点可见，避免错过 onLoad 后永久透明。
+            "absolute inset-0 h-full w-full object-cover",
           )}
         />
       )}
 
-      {src && shouldLoad && !failed && !bypassOptimization && (
+      {resolvedSrc && shouldLoad && !failed && !bypassOptimization && (
         <Image
-          src={src}
+          src={resolvedSrc}
           alt={alt}
           fill
           sizes={sizes}

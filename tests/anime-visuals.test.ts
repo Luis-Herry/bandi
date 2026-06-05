@@ -42,3 +42,13 @@ test("anime detail uses cover color through local anime variables only", () => {
     /--anime-surface-noise-opacity[\s\S]*--surface-noise-opacity, 0\.025/,
   );
 });
+
+test("anime detail credits tabs hide incidental scrollbars", () => {
+  const tabsSource = readFileSync(
+    "src/components/features/AnimeCreditsTabs.tsx",
+    "utf8",
+  );
+
+  assert.match(tabsSource, /no-scrollbar/);
+  assert.match(tabsSource, /overflow-x-auto/);
+});

@@ -19,10 +19,11 @@ const notoSansSC = Noto_Sans_SC({
 
 export const metadata: Metadata = {
   title: {
-    default: "追番中心",
-    template: "%s · 追番中心",
+    default: "Bandi",
+    template: "%s · Bandi",
   },
-  description: "你的个人追番中心",
+  applicationName: "Bandi",
+  description: "你的私人放映厅",
   icons: {
     icon: "/favicon.svg",
   },

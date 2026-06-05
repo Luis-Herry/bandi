@@ -116,11 +116,11 @@ export function EpisodeProgressControl({
   };
 
   return (
-    <div className="inline-flex items-center justify-end gap-2">
+    <div className="flex w-full flex-wrap items-center justify-start gap-2 sm:w-auto sm:justify-end">
       {/* 状态消息位放最前：固定宽度占位避免抖动，同时让控件区域贴父容器右边 */}
       <span
         className={cn(
-          "text-[11px] w-14 text-right transition-opacity",
+          "w-14 text-right text-[11px] transition-opacity",
           flash || pending ? "opacity-100" : "opacity-0",
           flash === "err"
             ? "text-[color:var(--status-error)]"
@@ -149,7 +149,7 @@ export function EpisodeProgressControl({
 
       <div
         className={cn(
-          "inline-flex items-center h-8 rounded-[8px] overflow-hidden",
+          "inline-flex h-9 items-center overflow-hidden rounded-[8px] sm:h-8",
           "bg-[color:var(--bg-surface)] border border-[color:var(--border-subtle)]",
           "focus-within:border-[color:var(--accent-muted)]",
           !enabled && "opacity-50",
@@ -161,7 +161,7 @@ export function EpisodeProgressControl({
           onClick={() => step(-1)}
           disabled={!canDec || pending}
           className={cn(
-            "h-full w-8 grid place-items-center",
+            "grid h-full w-9 place-items-center sm:w-8",
             "text-[color:var(--text-secondary)]",
             "hover:bg-[color:var(--bg-surface-hover)] hover:text-[color:var(--text-primary)]",
             "disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-[color:var(--text-muted)]",
@@ -193,7 +193,7 @@ export function EpisodeProgressControl({
             }
           }}
           className={cn(
-            "h-full w-14 px-1 text-center bg-transparent outline-none",
+            "h-full w-14 bg-transparent px-1 text-center outline-none",
             "text-[13px] font-semibold tracking-tight",
             "text-[color:var(--text-primary)]",
             "border-x border-[color:var(--border-subtle)]",
@@ -210,7 +210,7 @@ export function EpisodeProgressControl({
           onClick={() => step(1)}
           disabled={!canInc || pending}
           className={cn(
-            "h-full w-8 grid place-items-center",
+            "grid h-full w-9 place-items-center sm:w-8",
             "text-[color:var(--text-secondary)]",
             "hover:bg-[color:var(--bg-surface-hover)] hover:text-[color:var(--text-primary)]",
             "disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-[color:var(--text-muted)]",

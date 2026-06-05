@@ -8,6 +8,7 @@ import { db } from "@/db";
 import { anime as animeTable } from "@/db/schema";
 import { or, like, sql } from "drizzle-orm";
 import { searchSubjects, type BgmSearchHit } from "@/lib/bangumi";
+import { selectBangumiImageByRole } from "@/lib/bangumi-image";
 
 export interface SearchHit {
   source: "local" | "bangumi";
@@ -72,7 +73,7 @@ export async function searchAnime(q: string): Promise<SearchHit[]> {
         r.date && /^\d{4}/.test(r.date)
           ? parseInt(r.date.slice(0, 4), 10)
           : null,
-      coverUrl: r.images?.large ?? r.images?.common ?? null,
+      coverUrl: selectBangumiImageByRole(r.images, "thumb"),
     }));
 
   return [...localHits, ...remoteHits];

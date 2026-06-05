@@ -17,24 +17,17 @@ import type { SeasonalBrowseItem } from "@/lib/db-helpers/browse";
 import { useCardGlow } from "@/hooks/useCardGlow";
 import { cn } from "@/lib/cn";
 
-const SEASON_CN: Record<BgmSeason, string> = {
-  WINTER: "冬",
-  SPRING: "春",
-  SUMMER: "夏",
-  FALL: "秋",
+const SEASON_START_MONTH: Record<BgmSeason, number> = {
+  WINTER: 1,
+  SPRING: 4,
+  SUMMER: 7,
+  FALL: 10,
 };
 
 interface QuarterTab {
   season: BgmSeason;
   year: number;
-  labelKey: "prev" | "current" | "next";
 }
-
-const TAB_LABEL: Record<QuarterTab["labelKey"], string> = {
-  prev: "上一季",
-  current: "本季",
-  next: "下一季",
-};
 
 /* ─────────── 筛选词表 ─────────── */
 
@@ -89,6 +82,7 @@ interface BrowseClientProps {
   initialYear: number;
   initialItems: SeasonalBrowseItem[];
   quarters: QuarterTab[];
+  yearOptions: number[];
   dataStatus: "fresh" | "fallback" | "unavailable";
 }
 
@@ -97,6 +91,7 @@ export function BrowseClient({
   initialYear,
   initialItems,
   quarters,
+  yearOptions,
   dataStatus,
 }: BrowseClientProps) {
   const router = useRouter();
@@ -106,7 +101,7 @@ export function BrowseClient({
   const activeKey = `${initialSeason}-${initialYear}`;
 
   // 不再把 initialItems 拍进 useState：那样换季后 prop 变了 state 不会同步，
-  // 用户看到的还是上一季的列表（曾经的 "三季数据一样" bug）。
+  // 用户看到的还是切换前的列表（曾经的 "三季数据一样" bug）。
   // 现在的列表直接从 props 派生，本地乐观补丁单独存在 Map 里覆盖 server 数据。
   const [patches, setPatches] = useState<
     Map<number, { inLibrary: boolean; localAnimeId: number | null }>
@@ -254,6 +249,16 @@ export function BrowseClient({
     });
   }
 
+  function switchYear(nextYear: number) {
+    if (nextYear === initialYear) return;
+    const params = new URLSearchParams(sp.toString());
+    params.set("season", initialSeason);
+    params.set("year", String(nextYear));
+    startTransition(() => {
+      router.push(`/browse?${params.toString()}`);
+    });
+  }
+
   async function addToPlanning(it: SeasonalBrowseItem) {
     if (adding.has(it.bangumiId)) return;
     setAdding((s) => new Set(s).add(it.bangumiId));
@@ -303,7 +308,7 @@ export function BrowseClient({
     [items],
   );
 
-  const seasonLabel = `${initialYear} ${SEASON_CN[initialSeason]}季`;
+  const seasonLabel = formatQuarterLabel(initialYear, initialSeason);
   const totalCount = items.length;
   const filteredCount = filteredItems.length;
   const isFiltered = filteredCount !== totalCount;
@@ -323,6 +328,7 @@ export function BrowseClient({
 
   // 至少一类有可选项才显示筛选区
   const showFilters =
+    yearOptions.length > 0 ||
     availableOptions.category.length > 0 ||
     availableOptions.source.length > 0 ||
     availableOptions.genre.length > 0 ||
@@ -331,7 +337,7 @@ export function BrowseClient({
   return (
     <div className="relative">
       {/* ========== Hero ========== */}
-      <section className="relative h-[240px] w-full overflow-hidden">
+      <section className="relative min-h-[220px] w-full overflow-hidden sm:h-[240px]">
         <div className="absolute inset-0 flex">
           {heroCovers.length > 0 ? (
             heroCovers.map((url, i) => (
@@ -364,15 +370,15 @@ export function BrowseClient({
               "radial-gradient(ellipse at 30% 50%, rgb(var(--accent-rgb) / 0.10) 0%, transparent 60%)",
           }}
         />
-        <div className="relative mx-auto max-w-[1440px] h-full px-8 flex items-end pb-6">
+        <div className="app-page-container relative flex min-h-[220px] items-end pb-6 sm:h-full">
           <div>
             <h1
-              className="text-[44px] font-extrabold tracking-[-0.03em] leading-none text-[color:var(--text-primary)]"
+              className="text-[34px] font-extrabold leading-none tracking-[-0.025em] text-[color:var(--text-primary)] sm:text-[44px] sm:tracking-[-0.03em]"
               style={{ textShadow: "0 2px 16px rgba(0,0,0,0.5)" }}
             >
               番剧库
             </h1>
-            <p className="mt-3 text-[13px] text-[color:var(--text-secondary)]">
+            <p className="mt-3 max-w-[28rem] text-[13px] leading-relaxed text-[color:var(--text-secondary)]">
               按季度浏览 Bangumi 番剧，一键加入想看
             </p>
           </div>
@@ -380,47 +386,43 @@ export function BrowseClient({
       </section>
 
       {/* ========== Tabs + 筛选 + 列表 ========== */}
-      <section className="mx-auto max-w-[1440px] px-8 py-8">
-        <div className="flex items-end justify-between gap-6 mb-6">
-          <div className="flex items-center gap-1 border-b border-[color:var(--border-subtle)]">
-            {quarters.map((q) => {
-              const key = `${q.season}-${q.year}`;
-              const active = key === activeKey;
-              return (
-                <button
-                  key={key}
-                  type="button"
-                  disabled={pending && active}
-                  onClick={() => switchTo(q)}
-                  className={cn(
-                    "relative h-10 px-4 text-[13px] tracking-tight transition-colors outline-none",
-                    active
-                      ? "text-[color:var(--text-primary)] font-medium"
-                      : "text-[color:var(--text-secondary)] hover:text-[color:var(--text-primary)]",
-                  )}
-                >
-                  <span className="flex items-center gap-2">
-                    {TAB_LABEL[q.labelKey]}
-                    <span
-                      data-tabular
-                      className="text-[11px] text-[color:var(--text-muted)]"
-                    >
-                      {q.year} {SEASON_CN[q.season]}
+      <section className="app-page-container py-6 sm:py-8">
+        <div className="mb-6 border-b border-[color:var(--border-subtle)]">
+          <div className="flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between lg:gap-6">
+            <div className="no-scrollbar grid w-full grid-cols-4 items-center gap-0 overflow-visible touch-pan-y sm:flex sm:max-w-full sm:min-w-0 sm:gap-1 sm:overflow-x-auto sm:touch-pan-x">
+              {quarters.map((q) => {
+                const key = `${q.season}-${q.year}`;
+                const active = key === activeKey;
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    disabled={pending && active}
+                    onClick={() => switchTo(q)}
+                    className={cn(
+                      "relative h-10 min-w-0 px-1 text-center text-[12px] tracking-tight transition-colors outline-none sm:shrink-0 sm:px-4 sm:text-[13px]",
+                      active
+                        ? "text-[color:var(--text-primary)] font-medium"
+                        : "text-[color:var(--text-secondary)] hover:text-[color:var(--text-primary)]",
+                    )}
+                  >
+                    <span className="flex items-center justify-center gap-1 whitespace-nowrap sm:justify-start sm:gap-2">
+                      {formatQuarterLabel(q.year, q.season)}
                     </span>
-                  </span>
-                  {active && (
-                    <span
-                      aria-hidden
-                      className="absolute -bottom-px left-3 right-3 h-[2px] rounded-full"
-                      style={{ background: "var(--accent)" }}
-                    />
-                  )}
-                </button>
-              );
-            })}
-          </div>
-          <div className="text-[12px] text-[color:var(--text-muted)]">
-            {seasonLabel} · {summary}
+                    {active && (
+                      <span
+                        aria-hidden
+                        className="absolute -bottom-px left-1 right-1 h-[2px] rounded-full sm:left-3 sm:right-3"
+                        style={{ background: "var(--accent)" }}
+                      />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="pb-2 text-[12px] leading-relaxed text-[color:var(--text-muted)] lg:shrink-0 lg:text-right">
+              {seasonLabel} · {summary}
+            </div>
           </div>
         </div>
 
@@ -438,10 +440,32 @@ export function BrowseClient({
           <div
             className={cn(
               "mb-6 rounded-[8px] border border-[color:var(--border-subtle)]",
-              "bg-[color:var(--bg-surface)] p-4",
+              "bg-[color:var(--bg-surface)] p-4 touch-pan-y",
             )}
           >
             <div className="flex flex-col gap-3">
+              <div className="flex min-h-[28px] flex-col gap-2 min-[520px]:flex-row min-[520px]:items-start min-[520px]:gap-3">
+                <div
+                  className={cn(
+                    "shrink-0 pt-[3px] min-[520px]:w-12",
+                    "text-[12px] text-[color:var(--text-muted)]",
+                  )}
+                >
+                  年份
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {yearOptions.map((option) => (
+                    <FilterChip
+                      key={option}
+                      active={option === initialYear}
+                      onClick={() => switchYear(option)}
+                    >
+                      {option}年
+                    </FilterChip>
+                  ))}
+                </div>
+              </div>
+
               {(Object.keys(FILTER_LABEL) as FilterKey[]).map((key) => {
                 const opts = availableOptions[key];
                 if (opts.length === 0) return null;
@@ -449,11 +473,11 @@ export function BrowseClient({
                 return (
                   <div
                     key={key}
-                    className="flex items-start gap-3 min-h-[28px]"
+                    className="flex min-h-[28px] flex-col gap-2 min-[520px]:flex-row min-[520px]:items-start min-[520px]:gap-3"
                   >
                     <div
                       className={cn(
-                        "shrink-0 w-12 pt-[3px]",
+                        "shrink-0 pt-[3px] min-[520px]:w-12",
                         "text-[12px] text-[color:var(--text-muted)]",
                       )}
                     >
@@ -483,23 +507,25 @@ export function BrowseClient({
               })}
 
               {/* 搜索框 + 评分排序：独立一行，放筛选区底部 */}
-              <div className="mt-1 pt-3 border-t border-[color:var(--border-subtle)] flex items-center gap-3">
-                <div className="shrink-0 w-12 text-[12px] text-[color:var(--text-muted)]">
-                  搜索
+              <div className="mt-1 flex flex-col gap-3 border-t border-[color:var(--border-subtle)] pt-3 md:flex-row md:items-center">
+                <div className="flex min-w-0 flex-col gap-2 min-[520px]:flex-row min-[520px]:items-center min-[520px]:gap-3 md:flex-1">
+                  <div className="shrink-0 text-[12px] text-[color:var(--text-muted)] min-[520px]:w-12">
+                    搜索
+                  </div>
+                  <div className="w-full min-w-0 md:max-w-[360px]">
+                    <TextField
+                      value={query}
+                      onChange={(e) => setQuery(e.target.value)}
+                      placeholder="搜索番剧标题（中文或日文）"
+                      prefixIcon={<Search size={14} />}
+                    />
+                  </div>
                 </div>
-                <div className="flex-1 max-w-[360px]">
-                  <TextField
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
-                    placeholder="搜索番剧标题（中文或日文）"
-                    prefixIcon={<Search size={14} />}
-                  />
-                </div>
-                <div className="flex items-center gap-2 ml-auto">
-                  <span className="text-[12px] text-[color:var(--text-muted)]">
+                <div className="flex min-w-0 flex-wrap items-center gap-2 md:ml-auto">
+                  <span className="shrink-0 text-[12px] text-[color:var(--text-muted)]">
                     评分
                   </span>
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex min-w-0 flex-wrap items-center gap-1.5">
                     <FilterChip
                       active={scoreOrder === "desc"}
                       onClick={() => setScoreOrder("desc")}
@@ -564,7 +590,7 @@ export function BrowseClient({
         {!pending && filteredItems.length > 0 && (
           <div
             ref={gridRef}
-            className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4"
+            className="grid grid-cols-1 gap-4 min-[520px]:grid-cols-2 md:grid-cols-3 xl:grid-cols-4"
           >
             {filteredItems.map((it, idx) => (
               <BrowseCard
@@ -581,6 +607,10 @@ export function BrowseClient({
       </section>
     </div>
   );
+}
+
+function formatQuarterLabel(year: number, season: BgmSeason) {
+  return `${year}年${SEASON_START_MONTH[season]}月`;
 }
 
 /* ─────────── 筛选 chip ─────────── */
@@ -600,6 +630,7 @@ function FilterChip({
       onClick={onClick}
       className={cn(
         "inline-flex items-center h-7 px-2.5 rounded-[6px] text-[12px] leading-none",
+        "touch-pan-y",
         "transition-[background,color,border-color] duration-150",
         "[transition-timing-function:var(--ease-default)]",
         "border",

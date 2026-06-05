@@ -1,9 +1,12 @@
+"use client";
+
 import Link from "next/link";
 import { ExternalLink, Tv } from "lucide-react";
 import { GlassPanel, Tag } from "@/components/ui";
 import { AnimeCover } from "@/components/features/AnimeCover";
 import type { RelatedResourceView } from "@/lib/bangumi-relations";
 import { getRelatedResourcesHint } from "@/lib/bangumi-relations";
+import { useCardGlow } from "@/hooks/useCardGlow";
 import { cn } from "@/lib/cn";
 
 interface RelatedResourcesPanelProps {
@@ -17,6 +20,7 @@ export function RelatedResourcesPanel({
   anilistId,
   resources,
 }: RelatedResourcesPanelProps) {
+  const resourcesRef = useCardGlow<HTMLDivElement>([resources]);
   const hint =
     resources.length > 0
       ? getRelatedResourcesHint(resources)
@@ -37,7 +41,7 @@ export function RelatedResourcesPanel({
       </div>
 
       {resources.length > 0 ? (
-        <div className="space-y-2">
+        <div ref={resourcesRef} className="space-y-2">
           {resources.map((item) => (
             <RelatedResourceItem key={item.id} item={item} />
           ))}

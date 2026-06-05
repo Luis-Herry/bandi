@@ -40,13 +40,14 @@ export function AnimeRowItem({
         "group flex flex-wrap sm:flex-nowrap items-center gap-3 p-2 rounded-[8px]",
         "border border-transparent",
         "transition-colors hover:bg-[color:var(--bg-surface)] hover:border-[color:var(--border-subtle)]",
+        "touch-pan-y",
         className,
       )}
     >
       <a
         href={`/anime/${id}`}
         aria-label={`查看 ${title}`}
-        className="absolute inset-0 z-[1] rounded-[8px]"
+        className="absolute inset-0 z-[1] rounded-[8px] touch-pan-y"
       >
         <span className="sr-only">查看 {title}</span>
       </a>
@@ -58,7 +59,7 @@ export function AnimeRowItem({
           className="w-[88px] rounded-[6px] sm:w-[120px]"
         />
       </div>
-      <div className="pointer-events-none flex-1 min-w-0">
+      <div className="pointer-events-none min-w-0 flex-1">
         <p className="block text-[13px] font-semibold tracking-tight text-[color:var(--text-primary)] truncate transition-colors group-hover:text-[color:var(--accent)]">
           {title}
         </p>
@@ -83,7 +84,7 @@ export function AnimeRowItem({
         )}
       </div>
       {action && (
-        <div className="relative z-[2] ml-auto flex shrink-0 items-center justify-end">
+        <div className="relative z-[2] ml-auto flex w-full shrink-0 items-center justify-end sm:w-auto">
           {action}
         </div>
       )}

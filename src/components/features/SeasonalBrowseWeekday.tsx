@@ -232,7 +232,7 @@ export function SeasonalBrowseWeekday({ groups, perDay = 6 }: Props) {
           railsRef.current[activeGroup.day] = el;
         }}
         onScroll={() => updateRailState(activeGroup.day)}
-        className="mt-3 grid grid-flow-col gap-4 overflow-x-auto overscroll-x-contain scroll-smooth snap-x snap-mandatory pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="no-scrollbar mt-3 grid grid-flow-col gap-4 overflow-x-auto overscroll-x-contain scroll-smooth snap-x snap-mandatory pb-1"
         style={{ gridAutoColumns: cardWidth }}
       >
         {activeGroup.items.map((it) => {

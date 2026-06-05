@@ -117,7 +117,7 @@ export default async function HomePage() {
       {slides.length > 0 && <HomeHero slides={slides} />}
 
       {/* 主体信息流 */}
-      <section className="mx-auto max-w-[1440px] px-4 py-8 space-y-8 sm:px-6 lg:px-8 lg:py-10 lg:space-y-10">
+      <section className="app-page-container py-8 space-y-8 lg:py-10 lg:space-y-10">
         {/* ── 今日更新 / 未来 7 天预告 ── */}
         <TodayOrUpcomingSection
           todayUpdates={todayUpdates}
@@ -155,17 +155,34 @@ export default async function HomePage() {
                       it.watchedAiredCount,
                       airedCount,
                     );
-                    // 继续观看 = 用户当前进度本身（0 时降级到 1）
+                    const hasPlaybackProgress =
+                      it.playbackEpisodeNumber != null &&
+                      it.playbackPositionSeconds != null &&
+                      it.playbackDurationSeconds != null &&
+                      it.playbackDurationSeconds > 0;
+                    const playbackProgressRatio = hasPlaybackProgress
+                      ? Math.min(
+                          1,
+                          Math.max(
+                            0,
+                            it.playbackPositionSeconds! /
+                              it.playbackDurationSeconds!,
+                          ),
+                        )
+                      : null;
+                    // 继续观看优先读内置播放器的真实播放集；没有记录时沿用用户当前进度。
                     const playEp =
-                      it.userAnime.currentEpisode > 0
+                      it.playbackEpisodeNumber ??
+                      (it.userAnime.currentEpisode > 0
                         ? it.userAnime.currentEpisode
-                        : 1;
+                        : 1);
                     const currentLabel =
                       it.userAnime.currentEpisode > 0
                         ? `当前 EP.${String(it.userAnime.currentEpisode).padStart(2, "0")}`
                         : "未开始";
-                    const meta =
-                      airedCount > 0
+                    const meta = hasPlaybackProgress
+                      ? `上次 EP.${String(it.playbackEpisodeNumber).padStart(2, "0")} · ${formatPlaybackTime(it.playbackPositionSeconds!)} / ${formatPlaybackTime(it.playbackDurationSeconds!)} · ${it.anime.type}`
+                      : airedCount > 0
                         ? `已看 ${watchedAiredCount} / 已播 ${airedCount} · ${currentLabel} · ${it.anime.type}`
                         : `${currentLabel} · ${it.anime.type}`;
                     return (
@@ -176,9 +193,10 @@ export default async function HomePage() {
                         coverUrl={it.anime.coverUrl}
                         meta={meta}
                         progress={
-                          airedCount > 0
+                          playbackProgressRatio ??
+                          (airedCount > 0
                             ? watchedAiredCount / airedCount
-                            : undefined
+                            : undefined)
                         }
                         action={
                           <PlayButton
@@ -348,7 +366,7 @@ function EmptyHome({ username }: { username: string }) {
       />
 
       <div className="relative z-10 mx-auto max-w-[720px] px-4 pt-28 pb-20 text-center sm:px-8 sm:pt-32 sm:pb-24">
-        <Tag variant="accent">追番中心</Tag>
+        <Tag variant="accent">Bandi</Tag>
         <h1 className="mt-5 text-[40px] font-extrabold tracking-[-0.03em] leading-[1.1] text-[color:var(--text-primary)]">
           {username}，欢迎回来
         </h1>
@@ -397,4 +415,15 @@ function EmptyHome({ username }: { username: string }) {
       </div>
     </div>
   );
+}
+
+function formatPlaybackTime(seconds: number) {
+  const safe = Math.max(0, Math.floor(seconds));
+  const h = Math.floor(safe / 3600);
+  const m = Math.floor((safe % 3600) / 60);
+  const s = safe % 60;
+  if (h > 0) {
+    return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  }
+  return `${m}:${String(s).padStart(2, "0")}`;
 }

@@ -22,7 +22,7 @@ const iconSizeClass = {
 };
 
 export function BrandLogo({
-  subtitle = "你的个人媒体中心",
+  subtitle = "你的私人放映厅",
   showText = true,
   markSize = "sm",
   className,
@@ -62,7 +62,7 @@ export function BrandLogo({
       {showText && (
         <span className={cn("min-w-0 leading-tight", textClassName)}>
           <span className="block truncate text-[16px] font-bold tracking-tight text-[color:var(--text-primary)]">
-            追番中心
+            Bandi
           </span>
           {subtitle && (
             <span className="mt-0.5 block truncate text-[10px] font-medium tracking-[0.12em] text-[color:var(--accent)]">

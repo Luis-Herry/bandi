@@ -142,7 +142,7 @@ export function AutomationSettingsClient() {
           title="RSS 源"
           subtitle="自动检查更新时使用的订阅源、过滤规则和启停状态"
           action={
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center justify-start gap-2 sm:justify-end">
               <Button
                 variant="ghost"
                 size="sm"
@@ -287,7 +287,7 @@ function PreferencesCard() {
       title="下载偏好"
       subtitle="自动匹配资源时使用的全局规则，保存后立即影响 RSS 检查"
       action={
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center justify-start gap-2 sm:justify-end sm:gap-3">
           {savedAt && !saving && (
             <span className="flex items-center gap-1 text-[11px] text-[color:var(--text-muted)]">
               <CheckCircle2 size={12} className="text-[color:var(--accent)]" />
@@ -349,7 +349,7 @@ function SettingsSection({
 }) {
   return (
     <GlassPanel variant="elevated" className="p-5">
-      <header className="flex items-start justify-between gap-4">
+      <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
         <div className="flex min-w-0 items-start gap-3">
           <span className="mt-0.5 text-[color:var(--accent)]">{icon}</span>
           <div className="min-w-0">
@@ -393,13 +393,13 @@ function RssRow({
       : "从未检查";
 
   return (
-    <div className="flex items-start gap-3 rounded-[8px] border border-transparent p-3 transition-colors hover:border-[color:var(--border-subtle)] hover:bg-[color:var(--bg-surface-hover)]">
+    <div className="flex flex-col gap-3 rounded-[8px] border border-transparent p-3 transition-colors touch-pan-y hover:border-[color:var(--border-subtle)] hover:bg-[color:var(--bg-surface-hover)] sm:flex-row sm:items-start">
       <button
         type="button"
         onClick={onToggle}
         aria-label={source.isActive ? "停用" : "启用"}
         className={cn(
-          "mt-1 h-2 w-2 shrink-0 rounded-full transition-colors",
+          "h-2 w-2 shrink-0 rounded-full transition-colors sm:mt-1",
           source.isActive ? "bg-[color:var(--accent)]" : "bg-[color:var(--text-muted)]",
         )}
         style={
@@ -419,7 +419,7 @@ function RssRow({
           最近检查：{last}
         </p>
       </div>
-      <div className="flex shrink-0 items-center gap-1">
+      <div className="flex shrink-0 items-center gap-1 self-start sm:self-auto">
         <IconAction label="测试" onClick={onTest}>
           <TestTube size={13} />
         </IconAction>
@@ -478,7 +478,7 @@ function QbitStatusPanel({
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-5 gap-3">
+      <div className="grid grid-cols-1 gap-3 min-[520px]:grid-cols-2 xl:grid-cols-5">
         <SummaryTile
           label="连接状态"
           value={connected ? "已连接" : "未连接"}
@@ -589,7 +589,7 @@ function TagListField({
 
   return (
     <div>
-      <div className="mb-1.5 flex items-baseline justify-between gap-4">
+      <div className="mb-1.5 flex flex-col gap-1 min-[520px]:flex-row min-[520px]:items-baseline min-[520px]:justify-between min-[520px]:gap-4">
         <label className="text-[12px] font-medium text-[color:var(--text-primary)]">
           {label}
         </label>
@@ -622,7 +622,7 @@ function TagListField({
         ))}
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex flex-col gap-2 min-[520px]:flex-row min-[520px]:items-center">
         <TextField
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
@@ -639,6 +639,7 @@ function TagListField({
         <Button
           variant="secondary"
           size="sm"
+          className="self-start"
           disabled={!draft.trim()}
           onClick={() => {
             addValue(draft);

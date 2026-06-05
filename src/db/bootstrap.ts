@@ -79,6 +79,25 @@ export function ensureDatabaseSchema(sqlite: SqliteDatabase) {
     CREATE INDEX IF NOT EXISTS watch_events_anime_episode_idx
       ON watch_events(anime_id, episode);
 
+    CREATE TABLE IF NOT EXISTS playback_progress (
+      id integer PRIMARY KEY AUTOINCREMENT,
+      user_id text NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      anime_id integer NOT NULL REFERENCES anime(id) ON DELETE CASCADE,
+      episode_id integer REFERENCES episodes(id) ON DELETE SET NULL,
+      episode_number integer NOT NULL,
+      position_seconds integer NOT NULL DEFAULT 0,
+      duration_seconds integer NOT NULL DEFAULT 0,
+      completed integer NOT NULL DEFAULT 0,
+      last_played_at integer NOT NULL DEFAULT (unixepoch()),
+      updated_at integer NOT NULL DEFAULT (unixepoch())
+    );
+
+    CREATE UNIQUE INDEX IF NOT EXISTS playback_progress_user_episode_idx
+      ON playback_progress(user_id, anime_id, episode_id);
+
+    CREATE INDEX IF NOT EXISTS playback_progress_user_recent_idx
+      ON playback_progress(user_id, last_played_at);
+
     CREATE TABLE IF NOT EXISTS rss_sources (
       id integer PRIMARY KEY AUTOINCREMENT,
       name text NOT NULL,

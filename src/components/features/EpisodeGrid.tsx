@@ -71,8 +71,8 @@ export function EpisodeGrid({
   return (
     <>
       {episodes.length > 1 && (
-        <div className="mb-3 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3 text-[11px] text-[color:var(--text-muted)]">
+        <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[11px] text-[color:var(--text-muted)]">
             <span className="inline-flex items-center gap-1">
               <span
                 aria-hidden
@@ -106,11 +106,11 @@ export function EpisodeGrid({
             type="button"
             onClick={() => setSeasonDialogOpen(true)}
             className={cn(
-              "inline-flex items-center gap-1.5 h-8 px-3 rounded-[6px] border",
+              "inline-flex h-8 items-center justify-center gap-1.5 rounded-[6px] border px-3",
               "border-[color:var(--border-default)] bg-[color:var(--bg-surface)]",
               "text-[12px] text-[color:var(--text-secondary)]",
               "hover:bg-[color:var(--bg-surface-hover)] hover:text-[color:var(--text-primary)]",
-              "transition-colors",
+              "transition-colors max-sm:w-full",
             )}
           >
             <Download size={12} />
@@ -119,7 +119,7 @@ export function EpisodeGrid({
         </div>
       )}
 
-      <div className="grid grid-cols-6 gap-2.5">
+      <div className="grid grid-cols-2 gap-2.5 min-[460px]:grid-cols-3 sm:grid-cols-4 xl:grid-cols-6">
         {episodes.map((ep) => {
           const isUnaired = ep.airedAt ? ep.airedAt.getTime() > now : false;
           // currentEpisode 是「当前/最后看的那一集」（用户的心智模型）。
@@ -139,8 +139,8 @@ export function EpisodeGrid({
             <div
               key={ep.id}
               className={cn(
-                "group relative flex flex-col items-start justify-between",
-                "h-[68px] px-3 py-2 rounded-[8px]",
+                "group relative flex min-w-0 flex-col items-start justify-between",
+                "min-h-[72px] rounded-[8px] px-3 py-2 sm:min-h-[68px]",
                 "border transition-all duration-150 text-left",
                 "[transition-timing-function:var(--ease-default)]",
                 !isUnaired &&

@@ -16,9 +16,9 @@ export default async function StatsPage() {
   const report = getStatsReport(user.id);
 
   return (
-    <div className="mx-auto max-w-[1440px] px-8 py-8 space-y-6">
-      <header className="flex items-end justify-between">
-        <div>
+    <div className="app-page-container space-y-6 py-6 sm:py-8">
+      <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div className="min-w-0">
           <p className="text-[12px] text-[color:var(--text-muted)]">
             {report.year} 年度报告
           </p>
@@ -26,7 +26,7 @@ export default async function StatsPage() {
             统计
           </h1>
         </div>
-        <div className="text-right">
+        <div className="rounded-[8px] border border-[color:var(--border-subtle)] bg-[color:var(--bg-surface)] px-3 py-2 sm:border-0 sm:bg-transparent sm:p-0 sm:text-right">
           <p className="text-[12px] text-[color:var(--text-muted)]">
             活跃观看日
           </p>
@@ -39,7 +39,7 @@ export default async function StatsPage() {
         </div>
       </header>
 
-      <section className="grid grid-cols-4 gap-4">
+      <section className="grid grid-cols-1 gap-4 min-[520px]:grid-cols-2 xl:grid-cols-4">
         <MetricCard
           icon={<Clock size={16} />}
           label="年度观看时长"
@@ -66,8 +66,8 @@ export default async function StatsPage() {
         />
       </section>
 
-      <section className="grid grid-cols-12 gap-6">
-        <GlassPanel variant="elevated" className="col-span-8 p-5">
+      <section className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+        <GlassPanel variant="elevated" className="p-4 sm:p-5 lg:col-span-8">
           <PanelHeader
             title="月度观看时长"
             subtitle={`${report.year} 年 · 12 个月`}
@@ -82,7 +82,7 @@ export default async function StatsPage() {
           </div>
         </GlassPanel>
 
-        <GlassPanel variant="elevated" className="col-span-4 p-5">
+        <GlassPanel variant="elevated" className="p-4 sm:p-5 lg:col-span-4">
           <PanelHeader title="评分分布" subtitle="当前追番库评分" />
           <div className="mt-5 space-y-3">
             {report.ratingDistribution.map((item) => (
@@ -100,8 +100,8 @@ export default async function StatsPage() {
         </GlassPanel>
       </section>
 
-      <section className="grid grid-cols-12 gap-6">
-        <GlassPanel variant="elevated" className="col-span-5 p-5">
+      <section className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+        <GlassPanel variant="elevated" className="p-4 sm:p-5 lg:col-span-5">
           <PanelHeader title="类型分布" subtitle="按观看事件聚合" />
           <div className="mt-5 space-y-3">
             {report.tagDistribution.length === 0 ? (
@@ -123,7 +123,7 @@ export default async function StatsPage() {
           </div>
         </GlassPanel>
 
-        <GlassPanel variant="elevated" className="col-span-7 p-5">
+        <GlassPanel variant="elevated" className="p-4 sm:p-5 lg:col-span-7">
           <PanelHeader title="今年看完" subtitle="按完成时刻与观看时长排序" />
           <div className="mt-4 divide-y divide-[color:var(--border-subtle)]">
             {report.completedTop.length === 0 ? (
@@ -155,7 +155,7 @@ export default async function StatsPage() {
                       {formatDate(item.completedAt)} · {item.watchedEpisodes} 集
                     </p>
                   </div>
-                  <div className="text-right">
+                  <div className="shrink-0 text-right">
                     <p
                       data-tabular
                       className="text-[13px] font-semibold text-[color:var(--text-primary)]"
@@ -189,16 +189,16 @@ function MetricCard({
 }) {
   return (
     <GlassPanel variant="elevated" className="p-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3">
         <span className="text-[color:var(--accent)]">{icon}</span>
         <span className="text-[11px] text-[color:var(--text-muted)]">
           {label}
         </span>
       </div>
-      <div className="mt-5 flex items-baseline gap-2">
+      <div className="mt-5 flex min-w-0 items-baseline gap-2">
         <span
           data-tabular
-          className="text-[30px] font-bold tracking-tight leading-none text-[color:var(--text-primary)]"
+          className="truncate text-[28px] font-bold leading-none tracking-tight text-[color:var(--text-primary)] sm:text-[30px]"
         >
           {value}
         </span>

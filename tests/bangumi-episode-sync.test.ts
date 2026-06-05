@@ -20,6 +20,24 @@ test("subjectToAnimeRow uses main episode count instead of OP/ED-inclusive total
   assert.equal(row.totalEpisodes, 12);
 });
 
+test("subjectToAnimeRow stores a hero-sized Bangumi cover instead of the original large file", () => {
+  const row = subjectToAnimeRow({
+    id: 602059,
+    type: 2,
+    name: "ONE PIECE エルバフ編",
+    images: {
+      large: "https://lain.bgm.tv/pic/cover/l/23/3d/602059_4j4UW.jpg",
+      medium: "https://lain.bgm.tv/r/800/pic/cover/l/23/3d/602059_4j4UW.jpg",
+      common: "https://lain.bgm.tv/r/400/pic/cover/l/23/3d/602059_4j4UW.jpg",
+    },
+  });
+
+  assert.equal(
+    row.coverUrl,
+    "https://lain.bgm.tv/r/800/pic/cover/l/23/3d/602059_4j4UW.jpg",
+  );
+});
+
 test("selectMainBangumiEpisodes drops OP and ED rows", () => {
   const rows: BgmEpisode[] = [
     { id: 1, type: 0, sort: 1, ep: 1, name: "第1話" },

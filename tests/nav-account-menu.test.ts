@@ -5,7 +5,10 @@ import { test } from "node:test";
 const navSource = readFileSync("src/components/features/Nav.tsx", "utf8");
 const brandLogoSource = readFileSync("src/components/features/BrandLogo.tsx", "utf8");
 const globalsSource = readFileSync("src/app/globals.css", "utf8");
+const layoutSource = readFileSync("src/app/layout.tsx", "utf8");
 const loginSource = readFileSync("src/app/(auth)/login/LoginShell.tsx", "utf8");
+const homeSource = readFileSync("src/app/(main)/page.tsx", "utf8");
+const chineseBrandPattern = new RegExp(String.fromCharCode(0x756a, 0x90b8));
 
 test("Nav keeps brand and compact actions in a single-row header", () => {
   assert.match(navSource, /<BrandLogo \/>/);
@@ -42,6 +45,27 @@ test("Nav keeps brand and compact actions in a single-row header", () => {
   assert.doesNotMatch(brandLogoSource, /group-hover:scale/);
   assert.doesNotMatch(globalsSource, /rotate\(/);
   assert.doesNotMatch(navSource, /Flame/);
+});
+
+test("Brand copy uses Bandi across metadata, nav, logo, and login", () => {
+  assert.match(layoutSource, /default:\s*"Bandi"/);
+  assert.match(layoutSource, /template:\s*"%s · Bandi"/);
+  assert.match(layoutSource, /applicationName:\s*"Bandi"/);
+  assert.match(layoutSource, /description:\s*"你的私人放映厅"/);
+  assert.match(brandLogoSource, /Bandi/);
+  assert.match(brandLogoSource, /subtitle = "你的私人放映厅"/);
+  assert.match(navSource, /account:\s*"Bandi \\u8d26\\u6237"/);
+  assert.match(navSource, /titleHome:\s*"Bandi \\u9996\\u9875"/);
+  assert.match(loginSource, /登录后进入你的私人放映厅/);
+  assert.match(loginSource, /© 2026 Bandi/);
+  assert.match(homeSource, /<Tag variant="accent">Bandi<\/Tag>/);
+
+  for (const source of [layoutSource, brandLogoSource, loginSource, homeSource]) {
+    assert.doesNotMatch(source, chineseBrandPattern);
+    assert.doesNotMatch(source, /追番中心/);
+    assert.doesNotMatch(source, /你的个人媒体中心/);
+    assert.doesNotMatch(source, /你的个人追番中心/);
+  }
 });
 
 test("Login reuses the animated brand mark", () => {

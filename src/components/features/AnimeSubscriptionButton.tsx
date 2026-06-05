@@ -84,6 +84,7 @@ export function AnimeSubscriptionButton({
     "bg-[color:var(--accent-subtle)] text-[color:var(--accent)]",
     "hover:border-[color:var(--accent)] hover:bg-[color:var(--accent-subtle)]",
     "focus-visible:outline-[color:var(--accent)]",
+    "max-sm:flex-[1_1_calc(50%-5px)]",
   );
 
   const icon = (

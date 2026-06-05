@@ -29,7 +29,7 @@ export function SeasonalCalendar({ data }: SeasonalCalendarProps) {
 
   return (
     <div>
-      <div className="flex items-center gap-1 mb-4 overflow-x-auto">
+      <div className="no-scrollbar flex items-center gap-1 mb-4 overflow-x-auto touch-pan-x">
         {DAYS.map((d) => {
           const isActive = active === d.idx;
           const isToday = d.idx === today;

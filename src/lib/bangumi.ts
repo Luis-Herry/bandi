@@ -9,6 +9,7 @@
  */
 
 import { unstable_cache } from "next/cache";
+import { selectBangumiImageByRole } from "@/lib/bangumi-image";
 
 const BASE = "https://api.bgm.tv";
 
@@ -506,8 +507,7 @@ export function shiftSeason(
 
 /** Map a Bangumi subject to anime table shape */
 export function subjectToAnimeRow(s: BgmSubject) {
-  const cover =
-    s.images?.large ?? s.images?.common ?? s.images?.medium ?? null;
+  const cover = selectBangumiImageByRole(s.images, "hero");
   const tags = (s.tags ?? []).slice(0, 8).map((t) => t.name);
   let year: number | undefined;
   if (s.date && /^\d{4}/.test(s.date)) year = parseInt(s.date.slice(0, 4), 10);

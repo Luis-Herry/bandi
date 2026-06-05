@@ -75,6 +75,7 @@ export function BrowseCard({
     item.localAnimeId != null
       ? `/anime/${item.localAnimeId}`
       : `/anime/bgm/${item.bangumiId}`;
+  const exposeActionOnTouch = showAddButton && !item.inLibrary && Boolean(onAdd);
 
   const cardBody: ReactNode = (
     <div className="relative w-full">
@@ -85,7 +86,7 @@ export function BrowseCard({
           alt={item.title}
           ratio="3/4"
           priority={priority}
-          sizes="(min-width: 1024px) 25vw, (min-width: 768px) 33vw, 50vw"
+          sizes="(min-width: 1280px) 25vw, (min-width: 768px) 33vw, (min-width: 520px) 50vw, 100vw"
         />
       </div>
 
@@ -148,6 +149,7 @@ export function BrowseCard({
           "absolute left-3 right-3 bottom-3 z-10",
           "transition-transform duration-500 [transition-timing-function:cubic-bezier(0.22,1,0.36,1)]",
           "group-hover:-translate-y-12",
+          exposeActionOnTouch && "max-lg:-translate-y-12",
         )}
       >
         <div className="flex items-center gap-1.5 text-[10px] text-white/75 mb-1">
@@ -173,6 +175,8 @@ export function BrowseCard({
           "opacity-0 pointer-events-none",
           "[transform:translateY(12px)]",
           "group-hover:opacity-100 group-hover:[transform:translateY(0)]",
+          exposeActionOnTouch &&
+            "max-lg:opacity-100 max-lg:pointer-events-auto max-lg:[transform:translateY(0)]",
         )}
         style={{
           transition:
@@ -198,7 +202,7 @@ export function BrowseCard({
             type="button"
             variant="primary"
             size="sm"
-            className="pointer-events-none group-hover:pointer-events-auto"
+            className="pointer-events-none touch-pan-y max-lg:pointer-events-auto group-hover:pointer-events-auto"
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
@@ -225,6 +229,7 @@ export function BrowseCard({
     "rounded-[8px] overflow-hidden",
     "border border-[color:var(--border-subtle)]",
     "bg-[color:var(--bg-surface)]",
+    "touch-pan-y",
   );
 
   return (
@@ -241,7 +246,7 @@ export function BrowseCard({
       <a
         href={href}
         aria-label={`查看 ${item.title}`}
-        className="absolute inset-0 z-[8] block cursor-pointer rounded-[8px]"
+        className="absolute inset-0 z-[8] block cursor-pointer rounded-[8px] touch-pan-y"
       >
         <span className="sr-only">查看 {item.title}</span>
       </a>

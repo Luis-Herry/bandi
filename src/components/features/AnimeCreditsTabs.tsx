@@ -85,7 +85,7 @@ export function AnimeCreditsTabs({
 
   return (
     <Tabs.Root value={active} onValueChange={handleTabChange}>
-      <Tabs.List className="relative z-10 flex items-center gap-1 border-b border-[color:var(--border-subtle)] mb-5">
+      <Tabs.List className="no-scrollbar relative z-10 mb-5 flex items-center gap-1 overflow-x-auto border-b border-[color:var(--border-subtle)]">
         {[
           { v: "intro", label: "简介" },
           { v: "characters", label: "角色" },
@@ -94,7 +94,7 @@ export function AnimeCreditsTabs({
           <Tabs.Trigger
             key={t.v}
             value={t.v}
-            className="relative h-10 cursor-pointer px-4 text-[13px] text-[color:var(--text-secondary)] data-[state=active]:text-[color:var(--text-primary)] data-[state=active]:font-medium transition-colors hover:text-[color:var(--text-primary)] outline-none data-[state=active]:after:content-[''] data-[state=active]:after:absolute data-[state=active]:after:-bottom-px data-[state=active]:after:left-3 data-[state=active]:after:right-3 data-[state=active]:after:h-[2px] data-[state=active]:after:bg-[color:var(--accent)] data-[state=active]:after:rounded-full"
+            className="relative h-10 shrink-0 cursor-pointer px-4 text-[13px] text-[color:var(--text-secondary)] outline-none transition-colors hover:text-[color:var(--text-primary)] data-[state=active]:font-medium data-[state=active]:text-[color:var(--text-primary)] data-[state=active]:after:absolute data-[state=active]:after:-bottom-px data-[state=active]:after:left-3 data-[state=active]:after:right-3 data-[state=active]:after:h-[2px] data-[state=active]:after:rounded-full data-[state=active]:after:bg-[color:var(--accent)] data-[state=active]:after:content-['']"
           >
             {t.label}
           </Tabs.Trigger>
@@ -102,7 +102,7 @@ export function AnimeCreditsTabs({
       </Tabs.List>
 
       <Tabs.Content value="intro" className="outline-none">
-        <p className="text-[14px] leading-[1.75] text-[color:var(--text-secondary)] whitespace-pre-line">
+        <p className="max-w-[75ch] whitespace-pre-line text-[14px] leading-[1.75] text-[color:var(--text-secondary)]">
           {synopsis ?? "暂无简介。"}
         </p>
         {tags && tags.length > 0 && (

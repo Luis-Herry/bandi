@@ -6,9 +6,9 @@ import {
   Trash2,
   Activity,
   Download,
-  HelpCircle,
   Pause,
   Play,
+  HelpCircle,
 } from "lucide-react";
 import { GlassPanel, Button, StatusBadge, Tag } from "@/components/ui";
 import { AnimeCover } from "@/components/features/AnimeCover";
@@ -245,10 +245,10 @@ export function DownloadsAdminClient() {
   }
 
   return (
-    <div className="mx-auto max-w-[1440px] px-8 py-8">
+    <div className="app-page-container py-6 sm:py-8">
       {/* ── 页头 ── */}
-      <header className="flex items-end justify-between mb-6">
-        <div>
+      <header className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div className="min-w-0">
           <h1 className="text-[28px] font-bold tracking-[-0.02em] text-[color:var(--text-primary)]">
             下载管理
           </h1>
@@ -275,7 +275,7 @@ export function DownloadsAdminClient() {
           title="下载列表"
           count={downloads.length}
           action={
-            <div className="flex flex-wrap items-center justify-end gap-2">
+          <div className="flex flex-wrap items-center justify-start gap-2 sm:justify-end">
               {filteredDownloads.length > 0 && (
                 <button
                   type="button"
@@ -342,7 +342,7 @@ export function DownloadsAdminClient() {
                   }
                 />
               )}
-              <div className="flex items-center gap-1">
+              <div className="no-scrollbar flex max-w-full items-center gap-1 overflow-x-auto touch-pan-x">
               {(["all", "downloading", "completed", "pending", "failed"] as const).map(
                 (t) => (
                   <button
@@ -409,8 +409,8 @@ function QbitStatusCard({
 
   return (
     <GlassPanel variant="elevated" className="p-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex min-w-0 items-start gap-4">
           <div
             aria-hidden
             className={cn(
@@ -423,7 +423,7 @@ function QbitStatusCard({
                 : undefined
             }
           />
-          <div>
+          <div className="min-w-0">
             <p className="text-[13px] font-semibold text-[color:var(--text-primary)] flex items-center gap-2">
               <Activity size={13} />
               qBittorrent {connected ? "已连接" : "未连接"}
@@ -441,8 +441,8 @@ function QbitStatusCard({
             {adviceReason && <QbitConnectionAdvice reason={adviceReason} />}
           </div>
         </div>
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-6 text-[12px]">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+          <div className="grid grid-cols-3 gap-3 text-[12px] sm:flex sm:items-center sm:gap-6">
             <StatCell label="下载" value={formatSpeed(qbit?.dlSpeed)} accent />
             <StatCell label="上传" value={formatSpeed(qbit?.upSpeed)} />
             <StatCell label="剩余空间" value={formatBytes(qbit?.freeSpaceOnDisk)} />
@@ -547,7 +547,7 @@ function SectionHeader({
   action?: React.ReactNode;
 }) {
   return (
-    <div className="flex items-center justify-between mb-3">
+    <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <h2 className="flex items-center gap-2 text-[14px] font-semibold tracking-tight text-[color:var(--text-primary)]">
         <span className="text-[color:var(--accent)]">{icon}</span>
         {title}
@@ -557,7 +557,7 @@ function SectionHeader({
           </span>
         )}
       </h2>
-      {action}
+      {action && <div className="min-w-0">{action}</div>}
     </div>
   );
 }
@@ -607,7 +607,7 @@ function DownloadRowItem({
           : "border-transparent hover:border-[color:var(--border-subtle)] hover:bg-[color:var(--bg-surface)]",
       )}
     >
-      <div className="flex items-start gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
         <label className="mt-1 inline-flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-[6px] border border-[color:var(--border-default)] bg-[color:var(--bg-surface)] transition-colors hover:border-[color:var(--accent)]">
           <input
             type="checkbox"
@@ -631,18 +631,18 @@ function DownloadRowItem({
           </span>
         </label>
         {row.anime && (
-          <div className="w-[96px] shrink-0 pt-0.5">
+          <div className="w-full shrink-0 pt-0.5 sm:w-[96px]">
             <AnimeCover
               src={row.anime.coverUrl}
               alt={row.anime.title}
               ratio="16/9"
-              sizes="96px"
+              sizes="(min-width: 640px) 96px, 100vw"
               className="rounded-[6px]"
             />
           </div>
         )}
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1">
+          <div className="mb-1 flex flex-wrap items-center gap-2">
             <StatusBadge kind="download" status={row.status} />
             {isPaused && (
               <span className="px-1.5 py-0.5 rounded-[4px] text-[10px] font-medium bg-[color:var(--bg-surface-hover)] text-[color:var(--text-muted)] border border-[color:var(--border-subtle)]">
@@ -662,7 +662,7 @@ function DownloadRowItem({
             </p>
           )}
         </div>
-        <div className="flex items-center gap-1 shrink-0">
+        <div className="flex shrink-0 items-center gap-1 self-start sm:self-auto">
           {canControl && (
             isPaused ? (
               <button
@@ -706,7 +706,7 @@ function DownloadRowItem({
       </div>
 
       {(row.status === "downloading" || isPaused) && (
-        <div className="mt-2 flex items-center gap-3">
+        <div className="mt-2 flex flex-wrap items-center gap-2 sm:gap-3">
           <div className="flex-1 h-[4px] rounded-full bg-[color:var(--bg-surface-hover)] overflow-hidden">
             <div
               className="h-full rounded-full"

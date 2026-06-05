@@ -38,30 +38,30 @@ export default async function ProfilePage() {
 
   return (
     <>
-      <div className="fixed top-20 left-8 z-40">
+      <div className="fixed left-4 top-20 z-40 sm:left-6 lg:left-8">
         <BackButton />
       </div>
 
-      <div className="mx-auto max-w-[1440px] px-8 py-8 space-y-6">
-      <header className="flex items-end justify-between">
-        <div>
+      <div className="app-page-container space-y-6 py-6 sm:py-8">
+      <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div className="min-w-0">
           <p className="text-[12px] text-[color:var(--text-muted)]">
             个人中心
           </p>
-          <h1 className="mt-2 text-[34px] font-extrabold tracking-tight text-[color:var(--text-primary)]">
+          <h1 className="mt-2 text-[28px] font-extrabold tracking-tight text-[color:var(--text-primary)] sm:text-[34px]">
             {user.username} 的追番概览
           </h1>
         </div>
         <a
           href="/stats"
-          className="inline-flex h-9 items-center gap-2 rounded-[6px] border border-[color:var(--border-default)] px-3 text-[12px] text-[color:var(--text-primary)] transition-colors hover:bg-[color:var(--bg-surface-hover)]"
+          className="inline-flex h-9 w-fit items-center gap-2 rounded-[6px] border border-[color:var(--border-default)] px-3 text-[12px] text-[color:var(--text-primary)] transition-colors hover:bg-[color:var(--bg-surface-hover)]"
         >
           <BarChart3 size={14} />
           查看完整统计
         </a>
       </header>
 
-      <section className="grid grid-cols-4 gap-4">
+      <section className="grid grid-cols-1 gap-4 min-[520px]:grid-cols-2 xl:grid-cols-4">
         <MetricCard
           icon={<Library size={16} />}
           label="追番总数"
@@ -88,8 +88,8 @@ export default async function ProfilePage() {
         />
       </section>
 
-      <section className="grid grid-cols-12 gap-6">
-        <GlassPanel variant="elevated" className="col-span-4 p-5">
+      <section className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+        <GlassPanel variant="elevated" className="p-4 sm:p-5 lg:col-span-4">
           <PanelHeader title="追番状态" subtitle="当前片单分布" />
           <div className="mt-5 space-y-3">
             {Object.entries(STATUS_LABEL).map(([status, label]) => (
@@ -104,9 +104,9 @@ export default async function ProfilePage() {
           </div>
         </GlassPanel>
 
-        <GlassPanel variant="elevated" className="col-span-4 p-5">
+        <GlassPanel variant="elevated" className="p-4 sm:p-5 lg:col-span-4">
           <PanelHeader title="观看节奏" subtitle={`${report.year} 年事件流`} />
-          <div className="mt-5 grid grid-cols-2 gap-3">
+          <div className="mt-5 grid grid-cols-2 gap-3 min-[520px]:grid-cols-4 lg:grid-cols-2">
             <MiniStat label="已看集数" value={report.overview.watchedEpisodes} />
             <MiniStat label="活跃观看日" value={report.overview.activeDays} />
             <MiniStat
@@ -117,7 +117,7 @@ export default async function ProfilePage() {
           </div>
         </GlassPanel>
 
-        <GlassPanel variant="elevated" className="col-span-4 p-5">
+        <GlassPanel variant="elevated" className="p-4 sm:p-5 lg:col-span-4">
           <PanelHeader title="继续观看" subtitle="最近更新的在看条目" />
           <div className="mt-4 space-y-3">
             {continueWatching.length === 0 ? (
@@ -137,8 +137,8 @@ export default async function ProfilePage() {
         </GlassPanel>
       </section>
 
-      <section className="grid grid-cols-12 gap-6">
-        <GlassPanel variant="elevated" className="col-span-7 p-5">
+      <section className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+        <GlassPanel variant="elevated" className="p-4 sm:p-5 lg:col-span-7">
           <PanelHeader title="最近活动" subtitle="按片单更新时间排序" />
           <div className="mt-3 divide-y divide-[color:var(--border-subtle)]">
             {recentItems.length === 0 ? (
@@ -148,7 +148,7 @@ export default async function ProfilePage() {
                 <a
                   key={item.anime.id}
                   href={`/anime/${item.anime.id}`}
-                  className="grid grid-cols-[48px_1fr_auto] items-center gap-3 py-3 first:pt-0 last:pb-0"
+                  className="grid grid-cols-[48px_1fr] items-center gap-3 py-3 first:pt-0 last:pb-0 sm:grid-cols-[48px_1fr_auto]"
                 >
                   <div className="h-12 w-12 overflow-hidden rounded-[6px]">
                     <AnimeCover
@@ -166,14 +166,16 @@ export default async function ProfilePage() {
                       {formatEpisode(item.userAnime.currentEpisode)}
                     </p>
                   </div>
-                  <StatusBadge status={item.userAnime.watchStatus} kind="watch" />
+                  <div className="col-start-2 sm:col-start-auto">
+                    <StatusBadge status={item.userAnime.watchStatus} kind="watch" />
+                  </div>
                 </a>
               ))
             )}
           </div>
         </GlassPanel>
 
-        <GlassPanel variant="elevated" className="col-span-5 p-5">
+        <GlassPanel variant="elevated" className="p-4 sm:p-5 lg:col-span-5">
           <PanelHeader title="年度摘要" subtitle="从统计页提炼" />
           <div className="mt-4 space-y-3">
             {report.completedTop.length === 0 ? (
@@ -210,16 +212,16 @@ function MetricCard({
 }) {
   return (
     <GlassPanel variant="elevated" className="p-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3">
         <span className="text-[color:var(--accent)]">{icon}</span>
         <span className="text-[11px] text-[color:var(--text-muted)]">
           {label}
         </span>
       </div>
-      <div className="mt-5 flex items-baseline gap-2">
+      <div className="mt-5 flex min-w-0 items-baseline gap-2">
         <span
           data-tabular
-          className="text-[30px] font-bold leading-none tracking-tight text-[color:var(--text-primary)]"
+          className="truncate text-[28px] font-bold leading-none tracking-tight text-[color:var(--text-primary)] sm:text-[30px]"
         >
           {value}
         </span>
@@ -302,7 +304,7 @@ function CompactAnimeRow({
   return (
     <a
       href={href}
-      className="grid grid-cols-[40px_1fr] items-center gap-3 rounded-[8px] p-2 transition-colors hover:bg-[color:var(--bg-surface-hover)]"
+      className="grid grid-cols-[40px_1fr] items-center gap-3 rounded-[8px] p-2 transition-colors touch-pan-y hover:bg-[color:var(--bg-surface-hover)]"
     >
       <div className="h-10 w-10 overflow-hidden rounded-[6px]">
         <AnimeCover src={coverUrl} alt={title} ratio="1/1" />

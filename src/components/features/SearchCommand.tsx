@@ -401,7 +401,7 @@ function RecommendationSections({
       items: recommendations.todayUpdates,
     },
     {
-      title: "Bangumi 热门",
+      title: "本季日本高分",
       items: recommendations.popular,
     },
   ].filter((section) => section.items.length > 0);

@@ -45,6 +45,10 @@ export function getRssTitleAliases(animeId: number): string[] {
   return store.aliasesByAnimeId[String(animeId)] ?? [];
 }
 
+export function getAllRssTitleAliases(): Record<string, string[]> {
+  return readStore().aliasesByAnimeId;
+}
+
 export function addRssTitleAlias(animeId: number, value: unknown): string[] {
   const alias = normalizeRssTitleAlias(value);
   if (!Number.isFinite(animeId) || !alias) return getRssTitleAliases(animeId);

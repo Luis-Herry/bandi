@@ -16,9 +16,19 @@ test("profile and settings routes exist", () => {
   assert.equal(existsSync("src/app/(main)/settings/page.tsx"), true);
 });
 
-test("profile and settings reuse the detail page back button placement", () => {
+test("profile and settings keep the back button visible across breakpoints", () => {
   for (const source of [profileSource, settingsSource]) {
     assert.match(source, /BackButton/);
-    assert.match(source, /fixed top-20 left-8 z-40/);
+    assert.match(source, /fixed left-4 top-20 z-40/);
+    assert.match(source, /sm:left-6/);
+    assert.match(source, /lg:left-8/);
   }
+});
+
+test("settings page keeps theme switching in the top nav only", () => {
+  assert.doesNotMatch(settingsSource, /id="appearance"/);
+  assert.doesNotMatch(settingsSource, /href: "#appearance"/);
+  assert.doesNotMatch(settingsSource, /当前主题/);
+  assert.doesNotMatch(settingsSource, /getUserTheme/);
+  assert.doesNotMatch(settingsSource, /THEME_OPTIONS/);
 });

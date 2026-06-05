@@ -2,7 +2,6 @@ import { redirect } from "next/navigation";
 import {
   currentSeason,
   isBangumiUnavailableError,
-  shiftSeason,
   type BgmSeason,
 } from "@/lib/bangumi";
 import {
@@ -15,6 +14,7 @@ import { BrowseClient } from "./BrowseClient";
 export const dynamic = "force-dynamic";
 
 const VALID_SEASONS: BgmSeason[] = ["WINTER", "SPRING", "SUMMER", "FALL"];
+const YEAR_OPTION_COUNT = 10;
 
 interface PageProps {
   searchParams: Promise<{ season?: string; year?: string }>;
@@ -27,13 +27,6 @@ export default async function BrowsePage({ searchParams }: PageProps) {
   const sp = await searchParams;
   const now = currentSeason();
 
-  // 三个标签：上一季 / 本季 / 下一季
-  const quarters = [
-    { ...shiftSeason(now, -1), labelKey: "prev" as const },
-    { ...now, labelKey: "current" as const },
-    { ...shiftSeason(now, 1), labelKey: "next" as const },
-  ];
-
   let season: BgmSeason = now.season;
   let year: number = now.year;
   const reqSeason = (sp.season ?? "").toUpperCase();
@@ -45,6 +38,9 @@ export default async function BrowsePage({ searchParams }: PageProps) {
     season = reqSeason as BgmSeason;
     year = reqYear;
   }
+
+  const quarters = VALID_SEASONS.map((season) => ({ season, year }));
+  const yearOptions = buildYearOptions(now.year, year);
 
   let dataStatus: "fresh" | "fallback" | "unavailable" = "fresh";
   let items: Awaited<ReturnType<typeof getSeasonalBrowse>>;
@@ -63,7 +59,17 @@ export default async function BrowsePage({ searchParams }: PageProps) {
       initialYear={year}
       initialItems={items}
       quarters={quarters}
+      yearOptions={yearOptions}
       dataStatus={dataStatus}
     />
   );
+}
+
+function buildYearOptions(currentYear: number, selectedYear: number): number[] {
+  const years = Array.from(
+    { length: YEAR_OPTION_COUNT },
+    (_, index) => currentYear - index,
+  );
+  if (!years.includes(selectedYear)) years.push(selectedYear);
+  return years.sort((a, b) => b - a);
 }

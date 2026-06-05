@@ -88,7 +88,7 @@ export function RatingNotes({
     <div className={cn("relative overflow-hidden", disabled && "opacity-60")}>
       <div className="pointer-events-none absolute right-0 top-0 h-28 w-28 rounded-full bg-[color:var(--accent-subtle)] blur-3xl" />
 
-      <div className="relative flex items-center justify-between border-b border-[color:var(--border-subtle)] pb-3">
+      <div className="relative flex flex-wrap items-center justify-between gap-2 border-b border-[color:var(--border-subtle)] pb-3">
         <h3 className="text-[14px] font-semibold tracking-tight text-[color:var(--text-primary)]">
           我的评分 + 笔记
         </h3>
@@ -97,13 +97,13 @@ export function RatingNotes({
         </span>
       </div>
 
-      <div className="relative mt-4 flex items-center justify-between gap-4">
+      <div className="relative mt-4 flex flex-col gap-3 min-[460px]:flex-row min-[460px]:items-center min-[460px]:justify-between min-[460px]:gap-4">
         <div className="flex min-w-0 items-center gap-2">
           <span className="shrink-0 text-[13px] text-[color:var(--text-secondary)]">
             我的评分:
           </span>
           <div
-            className="flex items-center gap-1"
+            className="flex min-w-0 flex-wrap items-center gap-1"
             onMouseLeave={() => setHoverRating(0)}
           >
             {[1, 2, 3, 4, 5].map((n) => {
@@ -204,7 +204,7 @@ export function RatingNotes({
         )}
       />
 
-      <div className="relative mt-4 flex items-center justify-between gap-3">
+      <div className="relative mt-4 flex flex-col gap-3 min-[460px]:flex-row min-[460px]:items-center min-[460px]:justify-between">
         <span className="flex min-w-0 items-center gap-1.5 text-[11px] text-[color:var(--text-muted)]">
           <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[color:var(--accent)]" />
           {saving
@@ -220,11 +220,12 @@ export function RatingNotes({
           onClick={() => save()}
           disabled={disabled || saving}
           className={cn(
-            "inline-flex h-9 shrink-0 items-center gap-1.5 rounded-[8px] px-4",
+            "inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-[8px] px-4",
             "bg-[color:var(--accent)] text-[color:var(--accent-contrast)]",
             "text-[12px] font-semibold transition-[filter,opacity,transform]",
             "hover:brightness-110 active:scale-[0.98]",
             "disabled:cursor-not-allowed disabled:opacity-60",
+            "max-[459px]:w-full",
           )}
         >
           {saving ? (

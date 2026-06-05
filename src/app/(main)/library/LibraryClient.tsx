@@ -134,8 +134,8 @@ export function LibraryClient({ items }: LibraryClientProps) {
   return (
     <>
       {/* tab + filter bar */}
-      <div className="flex flex-wrap items-center gap-3 mb-5">
-        <div className="flex items-center gap-1 p-1 rounded-[8px] bg-[color:var(--bg-surface)] border border-[color:var(--border-subtle)]">
+      <div className="mb-5 flex flex-col gap-3 min-[900px]:flex-row min-[900px]:flex-wrap min-[900px]:items-start xl:flex-nowrap">
+        <div className="flex w-full max-w-full flex-wrap items-center gap-1 overflow-visible rounded-[8px] border border-[color:var(--border-subtle)] bg-[color:var(--bg-surface)] p-1 min-[560px]:w-fit min-[900px]:shrink-0">
           {STATUS_TABS.map((t) => {
             const active = t.value === statusTab;
             const count =
@@ -149,7 +149,8 @@ export function LibraryClient({ items }: LibraryClientProps) {
                 type="button"
                 onClick={() => setStatusTab(t.value)}
                 className={cn(
-                  "h-7 px-3 rounded-[6px] text-[12px] font-medium transition-colors",
+                  "h-8 px-3 rounded-[6px] text-[12px] font-medium transition-colors",
+                  "shrink-0",
                   active
                     ? "bg-[color:var(--accent-subtle)] text-[color:var(--accent)]"
                     : "text-[color:var(--text-secondary)] hover:text-[color:var(--text-primary)] hover:bg-[color:var(--bg-surface-hover)]",
@@ -167,7 +168,7 @@ export function LibraryClient({ items }: LibraryClientProps) {
           })}
         </div>
 
-        <div className="ml-auto flex items-center gap-2">
+        <div className="grid w-full min-w-0 grid-cols-2 gap-2 min-[640px]:flex min-[640px]:flex-wrap min-[640px]:items-center min-[900px]:justify-start xl:ml-auto xl:w-auto xl:justify-end">
           <SelectInline
             value={typeFilter}
             onChange={setTypeFilter}
@@ -192,12 +193,12 @@ export function LibraryClient({ items }: LibraryClientProps) {
             onChange={(v) => setSort(v as SortKey)}
             options={SORT_OPTIONS}
           />
-          <div className="flex items-center p-0.5 rounded-[6px] bg-[color:var(--bg-surface)] border border-[color:var(--border-subtle)]">
+          <div className="flex h-9 w-full shrink-0 items-center justify-center self-start rounded-[6px] border border-[color:var(--border-subtle)] bg-[color:var(--bg-surface)] p-0.5 min-[640px]:w-auto min-[640px]:self-auto">
             <button
               type="button"
               onClick={() => setView("grid")}
               className={cn(
-                "h-7 w-7 inline-flex items-center justify-center rounded-[4px] transition-colors",
+                "inline-flex h-8 w-8 items-center justify-center rounded-[4px] transition-colors",
                 view === "grid"
                   ? "bg-[color:var(--bg-surface-hover)] text-[color:var(--accent)]"
                   : "text-[color:var(--text-muted)] hover:text-[color:var(--text-primary)]",
@@ -210,7 +211,7 @@ export function LibraryClient({ items }: LibraryClientProps) {
               type="button"
               onClick={() => setView("list")}
               className={cn(
-                "h-7 w-7 inline-flex items-center justify-center rounded-[4px] transition-colors",
+                "inline-flex h-8 w-8 items-center justify-center rounded-[4px] transition-colors",
                 view === "list"
                   ? "bg-[color:var(--bg-surface-hover)] text-[color:var(--accent)]"
                   : "text-[color:var(--text-muted)] hover:text-[color:var(--text-primary)]",
@@ -224,7 +225,7 @@ export function LibraryClient({ items }: LibraryClientProps) {
             type="button"
             onClick={() => (selectMode ? exitSelect() : setSelectMode(true))}
             className={cn(
-              "h-8 px-3 rounded-[6px] text-[12px] font-medium transition-colors border",
+              "h-9 w-full shrink-0 self-start px-3 rounded-[6px] text-[12px] font-medium transition-colors border min-[640px]:w-auto min-[640px]:self-auto",
               selectMode
                 ? "bg-[color:var(--accent-subtle)] text-[color:var(--accent)] border-[color:var(--accent-muted)]"
                 : "bg-[color:var(--bg-surface)] text-[color:var(--text-secondary)] border-[color:var(--border-subtle)] hover:text-[color:var(--text-primary)] hover:bg-[color:var(--bg-surface-hover)]",
@@ -253,7 +254,7 @@ export function LibraryClient({ items }: LibraryClientProps) {
             hidden: {},
             visible: { transition: { staggerChildren: 0.04 } },
           }}
-          className="grid grid-cols-3 gap-4"
+          className="grid grid-cols-1 gap-4 min-[560px]:grid-cols-2 xl:grid-cols-3"
         >
           {filtered.map((it) => {
             const isSelected = selected.has(it.anime.id);
@@ -290,7 +291,7 @@ export function LibraryClient({ items }: LibraryClientProps) {
           })}
         </motion.div>
       ) : (
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           {filtered.map((it) => {
             const isSelected = selected.has(it.anime.id);
             return (
@@ -332,8 +333,8 @@ export function LibraryClient({ items }: LibraryClientProps) {
           role="region"
           aria-label="批量操作"
           className={cn(
-            "fixed bottom-6 left-1/2 -translate-x-1/2 z-40",
-            "flex items-center gap-3 px-4 py-2 rounded-[10px]",
+            "fixed bottom-3 left-3 right-3 z-40 sm:bottom-6 sm:left-1/2 sm:right-auto sm:-translate-x-1/2",
+            "flex flex-wrap items-center justify-between gap-2 rounded-[10px] px-3 py-2 sm:justify-start sm:gap-3 sm:px-4",
             "border border-[color:var(--border-default)]",
             "shadow-[0_12px_36px_rgba(0,0,0,0.55)]",
           )}
@@ -343,46 +344,50 @@ export function LibraryClient({ items }: LibraryClientProps) {
             WebkitBackdropFilter: "blur(20px) saturate(160%)",
           }}
         >
-          <span
-            data-tabular
-            className="text-[12px] text-[color:var(--text-secondary)]"
-          >
-            已选 <span className="text-[color:var(--text-primary)] font-semibold">{selected.size}</span> 部
-          </span>
-          <button
-            type="button"
-            onClick={toggleSelectAll}
-            className="h-8 px-3 rounded-[6px] text-[12px] font-medium text-[color:var(--text-secondary)] hover:text-[color:var(--text-primary)] hover:bg-[color:var(--bg-surface-hover)] transition-colors"
-          >
-            {allSelected ? "取消全选" : "全选当前"}
-          </button>
-          <div className="w-px h-5 bg-[color:var(--border-subtle)]" />
-          <ConfirmDialog
-            title={`删除选中的 ${selected.size} 部番剧？`}
-            description="只会从你的追番列表移除，番剧元数据和下载记录都不会动。这个操作无法撤销。"
-            confirmLabel="删除"
-            destructive
-            onConfirm={handleBulkDelete}
-            trigger={
-              <Button
-                size="sm"
-                variant="secondary"
-                disabled={selected.size === 0}
-                leftIcon={<Trash2 size={12} />}
-                className="!bg-[rgba(239,68,68,0.12)] !text-[color:var(--status-error)] !border-[rgba(239,68,68,0.30)]"
-              >
-                删除
-              </Button>
-            }
-          />
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={exitSelect}
-            leftIcon={<X size={12} />}
-          >
-            取消
-          </Button>
+          <div className="flex w-full items-center justify-between gap-2 sm:w-auto sm:justify-start">
+            <span
+              data-tabular
+              className="text-[12px] text-[color:var(--text-secondary)]"
+            >
+              已选 <span className="font-semibold text-[color:var(--text-primary)]">{selected.size}</span> 部
+            </span>
+            <button
+              type="button"
+              onClick={toggleSelectAll}
+              className="h-8 px-3 rounded-[6px] text-[12px] font-medium text-[color:var(--text-secondary)] hover:text-[color:var(--text-primary)] hover:bg-[color:var(--bg-surface-hover)] transition-colors"
+            >
+              {allSelected ? "取消全选" : "全选当前"}
+            </button>
+          </div>
+          <div className="hidden h-5 w-px bg-[color:var(--border-subtle)] sm:block" />
+          <div className="flex w-full items-center justify-end gap-2 sm:w-auto">
+            <ConfirmDialog
+              title={`删除选中的 ${selected.size} 部番剧？`}
+              description="只会从你的追番列表移除，番剧元数据和下载记录都不会动。这个操作无法撤销。"
+              confirmLabel="删除"
+              destructive
+              onConfirm={handleBulkDelete}
+              trigger={
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  disabled={selected.size === 0}
+                  leftIcon={<Trash2 size={12} />}
+                  className="!bg-[rgba(239,68,68,0.12)] !text-[color:var(--status-error)] !border-[rgba(239,68,68,0.30)]"
+                >
+                  删除
+                </Button>
+              }
+            />
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={exitSelect}
+              leftIcon={<X size={12} />}
+            >
+              取消
+            </Button>
+          </div>
         </div>
       )}
     </>
@@ -445,12 +450,12 @@ function SelectInline({
       value={value}
       onChange={(e) => onChange(e.target.value)}
       className={cn(
-        "h-8 px-2.5 pr-7 rounded-[6px]",
+        "h-9 w-full min-w-0 rounded-[6px] px-2.5 pr-7 sm:w-auto sm:min-w-[104px]",
         "bg-[color:var(--bg-surface)] border border-[color:var(--border-subtle)]",
         "text-[12px] text-[color:var(--text-primary)] tracking-tight",
         "hover:bg-[color:var(--bg-surface-hover)] hover:border-[color:var(--border-default)]",
         "focus:outline-none focus:border-[color:var(--accent-muted)]",
-        "appearance-none cursor-pointer",
+        "appearance-none cursor-pointer touch-pan-y",
       )}
       style={{
         backgroundImage:

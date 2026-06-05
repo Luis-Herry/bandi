@@ -30,7 +30,7 @@ interface NavProps {
 }
 
 const TEXT = {
-  account: "\u8ffd\u756a\u4e2d\u5fc3\u8d26\u6237",
+  account: "Bandi \u8d26\u6237",
   config: "\u914d\u7f6e",
   downloads: "\u4e0b\u8f7d\u7ba1\u7406",
   home: "\u9996\u9875",
@@ -46,7 +46,7 @@ const TEXT = {
   signOut: "\u9000\u51fa\u767b\u5f55",
   stats: "\u7edf\u8ba1",
   theme: "\u4e3b\u9898",
-  titleHome: "\u8ffd\u756a\u4e2d\u5fc3 \u9996\u9875",
+  titleHome: "Bandi \u9996\u9875",
   user: "\u7528\u6237",
 } as const;
 
@@ -288,7 +288,7 @@ export function Nav({ username, currentTheme, notifications }: NavProps) {
             </a>
           </div>
 
-          <nav className="pointer-events-auto absolute top-1/2 left-[max(12rem,calc((100vw-1440px)*0.5+3rem))] hidden -translate-y-1/2 items-center gap-4 min-[1100px]:flex xl:gap-5">
+          <nav className="pointer-events-auto absolute top-1/2 left-[var(--app-page-gutter)] hidden -translate-y-1/2 items-center gap-4 min-[1100px]:flex xl:gap-5">
             {LINKS.map((l) => {
               const active =
                 l.match(pathname) ||
@@ -317,7 +317,7 @@ export function Nav({ username, currentTheme, notifications }: NavProps) {
             })}
           </nav>
 
-          <div className="pointer-events-none absolute top-1/2 right-[max(12rem,calc((100vw-1440px)*0.5+3rem))] hidden w-[280px] -translate-y-1/2 min-[1100px]:block lg:w-[320px] xl:w-[388px]">
+          <div className="pointer-events-none absolute top-1/2 right-[var(--app-page-gutter)] hidden w-[280px] -translate-y-1/2 min-[1100px]:block lg:w-[320px] xl:w-[388px]">
             <button
               type="button"
               onClick={openSearch}

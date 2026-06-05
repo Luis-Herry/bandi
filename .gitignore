@@ -10,6 +10,7 @@
 
 # testing
 /coverage
+/.playwright-cli/
 
 # next.js
 /.next/
@@ -30,6 +31,8 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 .start-log.txt
+.start-error-log.txt
+.next-start.log
 .tmp-*
 tmp-*.png
 .desktop-verify/
@@ -52,6 +55,12 @@ next-env.d.ts
 
 # runtime downloads
 /download/
+
+# generated local artifacts
+/output/
+/garden-gpt-image-2/
+/social-card-opus-gpt-orbit-bug/
+/小红书文章素材/
 
 # drizzle
 /drizzle/meta/

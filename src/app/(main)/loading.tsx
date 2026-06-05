@@ -63,7 +63,7 @@ export default function HomeLoading() {
               "linear-gradient(180deg, rgba(10,10,11,0.55) 0%, rgba(10,10,11,0.75) 60%, rgba(10,10,11,1) 100%)",
           }}
         />
-        <div className="relative mx-auto max-w-[1440px] h-full px-4 flex items-end pb-6 sm:px-6 lg:px-8">
+        <div className="app-page-container relative h-full flex items-end pb-6">
           <div className="space-y-3 w-full max-w-md">
             <ShimmerBlock className="h-9 w-2/3" />
             <ShimmerBlock className="h-3 w-1/2" />
@@ -71,7 +71,7 @@ export default function HomeLoading() {
         </div>
       </section>
 
-      <section className="mx-auto max-w-[1440px] px-4 py-8 space-y-8 sm:px-6 lg:px-8 lg:py-10 lg:space-y-10">
+      <section className="app-page-container py-8 space-y-8 lg:py-10 lg:space-y-10">
         {/* 今日更新 */}
         <div>
           <SectionHeader />
@@ -133,7 +133,7 @@ export default function HomeLoading() {
               <ShimmerBlock className="h-7 w-7" />
             </div>
           </div>
-          <div className="mt-3 grid grid-flow-col gap-3 overflow-x-auto pb-1 [grid-auto-columns:max(156px,calc((100%-60px)/6))] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="no-scrollbar mt-3 grid grid-flow-col gap-3 overflow-x-auto pb-1 [grid-auto-columns:max(156px,calc((100%-60px)/6))]">
             {Array.from({ length: 6 }).map((_, i) => (
               <CardSkel key={i} />
             ))}

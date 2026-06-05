@@ -79,7 +79,7 @@ export function LoginShell({
             欢迎回来
           </h1>
           <p className="mt-2 text-center text-[13px] text-[color:var(--text-secondary)]">
-            登录后访问你的个人追番中心
+            登录后进入你的私人放映厅
           </p>
 
           <form className="mt-6 space-y-3" onSubmit={onSubmit}>
@@ -133,7 +133,6 @@ export function LoginShell({
                 {error}
               </p>
             )}
-
             {desktopLoginHint && !error && (
               <p className="text-xs text-[color:var(--text-muted)] text-center pt-1">
                 {desktopLoginHint}
@@ -165,7 +164,7 @@ export function LoginShell({
               </Button>
 
               <p className="mt-5 text-center text-[11px] text-[color:var(--text-muted)]">
-                首次访问？联系个人媒体中心
+                首次访问？联系 Bandi 管理员
               </p>
             </>
           )}
@@ -174,7 +173,7 @@ export function LoginShell({
 
       {/* footer */}
       <footer className="absolute bottom-5 left-0 right-0 z-10 flex items-center justify-between px-10 text-[11px] text-[color:var(--text-muted)]">
-        <span>© 2026 追番中心 · 个人媒体中心</span>
+        <span>© 2026 Bandi</span>
         <div className="flex items-center gap-5">
           <a href="#" className="hover:text-[color:var(--text-secondary)] transition-colors">帮助</a>
           <a href="#" className="hover:text-[color:var(--text-secondary)] transition-colors">联系</a>

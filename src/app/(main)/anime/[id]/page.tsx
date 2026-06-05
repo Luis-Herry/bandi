@@ -76,7 +76,7 @@ export default async function AnimeDetailPage({ params }: PageProps) {
       style={visualVars as CSSProperties}
     >
       {/* ========== Hero ========== */}
-      <section className="relative h-[460px] w-full overflow-hidden">
+      <section className="relative min-h-[430px] w-full overflow-hidden sm:min-h-[460px] lg:h-[460px]">
         {anime.coverUrl && (
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -112,12 +112,12 @@ export default async function AnimeDetailPage({ params }: PageProps) {
         />
 
         {/* 返回按钮：浮在封面左上角 */}
-        <div className="fixed top-20 left-8 z-40">
+        <div className="fixed left-4 top-20 z-40 sm:left-6 lg:left-8">
           <BackButton />
         </div>
 
-        <div className="relative mx-auto max-w-[1440px] h-full px-8 flex flex-col justify-end pb-12">
-          <div className="flex items-center gap-2 mb-3 text-[12px] text-[color:var(--text-secondary)]">
+        <div className="relative mx-auto flex min-h-[430px] max-w-[1440px] flex-col justify-end px-4 pb-8 pt-20 sm:min-h-[460px] sm:px-6 sm:pb-10 lg:h-full lg:px-8 lg:pb-12 lg:pt-16">
+          <div className="mb-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-[color:var(--text-secondary)]">
             <span data-tabular>{anime.year ?? "—"}</span>
             <span>·</span>
             <span>{TYPE_LABEL[anime.type] ?? anime.type}</span>
@@ -134,18 +134,18 @@ export default async function AnimeDetailPage({ params }: PageProps) {
             )}
           </div>
           <h1
-            className="text-[56px] font-extrabold tracking-[-0.03em] leading-[1.05] text-[color:var(--text-primary)]"
+            className="max-w-[980px] text-[32px] font-extrabold leading-[1.08] tracking-[-0.025em] text-[color:var(--text-primary)] [overflow-wrap:anywhere] sm:text-[42px] lg:text-[56px] lg:tracking-[-0.03em]"
             style={{ textShadow: "0 4px 24px rgba(0,0,0,0.6)" }}
           >
             {anime.title}
           </h1>
           {anime.titleJa && (
-            <p className="mt-1 text-[14px] text-[color:var(--text-secondary)]">
+            <p className="mt-1 max-w-[760px] text-[13px] text-[color:var(--text-secondary)] [overflow-wrap:anywhere] sm:text-[14px]">
               {anime.titleJa}
             </p>
           )}
 
-          <div className="mt-4 flex items-center gap-5">
+          <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2">
             <div className="flex items-center gap-1.5">
               <Star
                 size={16}
@@ -174,7 +174,7 @@ export default async function AnimeDetailPage({ params }: PageProps) {
           </div>
 
           {anime.tags && anime.tags.length > 0 && (
-            <div className="mt-4 flex flex-wrap gap-1.5 max-w-[640px]">
+            <div className="mt-4 flex max-w-[640px] flex-wrap gap-1.5">
               {anime.tags.slice(0, 6).map((t) => (
                 <Tag key={t} variant="outline">
                   {t}
@@ -183,7 +183,7 @@ export default async function AnimeDetailPage({ params }: PageProps) {
             </div>
           )}
 
-          <div className="mt-6 flex items-center gap-3">
+          <div className="mt-6 flex flex-wrap items-center gap-2.5 sm:gap-3">
             {/* 继续观看：仅在已追番 + 下载队列有 completed 条目时显示。
                 "纯查看详情"链路（userAnime 为 null）和"还没下完"场景都不显示。 */}
             {userAnime && completedDownloads > 0 && (() => {
@@ -195,6 +195,8 @@ export default async function AnimeDetailPage({ params }: PageProps) {
                   label={`继续观看 EP.${String(playEp).padStart(2, "0")}`}
                   variant="primary"
                   size="md"
+                  className="max-sm:w-full"
+                  buttonClassName="max-sm:w-full"
                 />
               );
             })()}
@@ -210,7 +212,7 @@ export default async function AnimeDetailPage({ params }: PageProps) {
             {userAnime && totalDownloads > 0 && (
               <Link
                 href="/admin/downloads"
-                className="inline-flex items-center gap-2 h-10 px-4 rounded-[6px] border border-[color:var(--border-default)] bg-[color:var(--bg-surface)] text-[13px] text-[color:var(--text-primary)] hover:bg-[color:var(--bg-surface-hover)] transition-colors backdrop-blur-[12px]"
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-[6px] border border-[color:var(--border-default)] bg-[color:var(--bg-surface)] px-4 text-[13px] text-[color:var(--text-primary)] backdrop-blur-[12px] transition-colors hover:bg-[color:var(--bg-surface-hover)] max-sm:flex-[1_1_calc(50%-5px)]"
               >
                 <Download size={15} />
                 下载管理
@@ -221,7 +223,7 @@ export default async function AnimeDetailPage({ params }: PageProps) {
                 href={`https://bangumi.tv/subject/${anime.bangumiId}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 h-10 px-4 rounded-[6px] border border-[color:var(--border-default)] bg-[color:var(--bg-surface)] text-[13px] text-[color:var(--text-primary)] hover:bg-[color:var(--bg-surface-hover)] transition-colors backdrop-blur-[12px]"
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-[6px] border border-[color:var(--border-default)] bg-[color:var(--bg-surface)] px-4 text-[13px] text-[color:var(--text-primary)] backdrop-blur-[12px] transition-colors hover:bg-[color:var(--bg-surface-hover)] max-sm:flex-[1_1_calc(50%-5px)]"
               >
                 <ExternalLink size={15} />
                 Bangumi
@@ -232,9 +234,9 @@ export default async function AnimeDetailPage({ params }: PageProps) {
       </section>
 
       {/* ========== Body ========== */}
-      <section className="relative mx-auto max-w-[1440px] px-8 py-8 grid grid-cols-12 gap-6">
+      <section className="relative mx-auto grid max-w-[1440px] grid-cols-1 gap-6 px-4 py-6 sm:px-6 sm:py-8 lg:grid-cols-12 lg:px-8">
         {/* 左主区 */}
-        <div className="col-span-8 space-y-6">
+        <div className="min-w-0 space-y-6 lg:col-span-8">
           <AnimeCreditsTabs
             animeId={anime.id}
             synopsis={anime.synopsis}
@@ -244,8 +246,8 @@ export default async function AnimeDetailPage({ params }: PageProps) {
 
           {/* 剧集列表 */}
           <div>
-            <div className="flex items-center justify-between mb-4 gap-4">
-              <div className="flex items-baseline gap-3">
+            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+              <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
                 <h2 className="text-[18px] font-semibold tracking-[-0.01em] text-[color:var(--text-primary)]">
                   剧集列表
                 </h2>
@@ -292,7 +294,7 @@ export default async function AnimeDetailPage({ params }: PageProps) {
         </div>
 
         {/* 右栏 */}
-        <aside className="col-span-4 space-y-4">
+        <aside className="min-w-0 space-y-4 lg:col-span-4">
           <GlassPanel className="p-5">
             <RatingNotes
               animeId={anime.id}

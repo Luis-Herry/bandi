@@ -13,6 +13,7 @@ import {
   anime,
   downloadQueue,
   episodes,
+  playbackProgress,
   userAnime,
   type Anime,
   type Episode,
@@ -320,13 +321,56 @@ export interface ContinueWatching {
   userAnime: UserAnime;
   airedCount: number;
   watchedAiredCount: number;
+  playbackEpisodeNumber: number | null;
+  playbackPositionSeconds: number | null;
+  playbackDurationSeconds: number | null;
+  playbackCompleted: boolean;
 }
 
 /** Currently watching, sorted by recently updated. */
 export function getContinueWatching(userId: string, limit = 4): ContinueWatching[] {
-  const lib = getLibrary(userId);
+  const lib = getLibrary(userId).filter(
+    (it) => it.userAnime.watchStatus === "watching",
+  );
+  if (lib.length === 0) return [];
+
+  const progressRows = db
+    .select()
+    .from(playbackProgress)
+    .where(
+      and(
+        eq(playbackProgress.userId, userId),
+        inArray(playbackProgress.animeId, lib.map((it) => it.anime.id)),
+      ),
+    )
+    .orderBy(desc(playbackProgress.lastPlayedAt))
+    .all();
+  const latestProgressByAnime = new Map<number, (typeof progressRows)[number]>();
+  for (const progress of progressRows) {
+    if (latestProgressByAnime.has(progress.animeId)) continue;
+    latestProgressByAnime.set(progress.animeId, progress);
+  }
+
   return lib
-    .filter((it) => it.userAnime.watchStatus === "watching")
+    .map((it) => {
+      const progress = latestProgressByAnime.get(it.anime.id);
+      return {
+        ...it,
+        playbackEpisodeNumber: progress?.episodeNumber ?? null,
+        playbackPositionSeconds: progress?.positionSeconds ?? null,
+        playbackDurationSeconds: progress?.durationSeconds ?? null,
+        playbackCompleted: progress?.completed ?? false,
+      };
+    })
+    .sort((a, b) => {
+      const aTime =
+        latestProgressByAnime.get(a.anime.id)?.lastPlayedAt?.getTime() ??
+        a.userAnime.updatedAt.getTime();
+      const bTime =
+        latestProgressByAnime.get(b.anime.id)?.lastPlayedAt?.getTime() ??
+        b.userAnime.updatedAt.getTime();
+      return bTime - aTime;
+    })
     .slice(0, limit);
 }
 

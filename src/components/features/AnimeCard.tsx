@@ -55,6 +55,7 @@ export function AnimeCard({
         "rounded-[8px] overflow-hidden",
         "border border-[color:var(--border-subtle)]",
         "bg-[color:var(--bg-surface)]",
+        "touch-pan-y",
         className,
       )}
     >
@@ -62,7 +63,7 @@ export function AnimeCard({
       <a
         href={`/anime/${id}`}
         aria-label={`查看 ${title}`}
-        className="absolute inset-0 z-[8] rounded-[8px]"
+        className="absolute inset-0 z-[8] rounded-[8px] touch-pan-y"
       >
         <span className="sr-only">查看 {title}</span>
       </a>

@@ -61,6 +61,28 @@ test("desktop main keeps local qBit and userData runtime paths", () => {
   assert.match(mainSource, /ANIME_DESKTOP_APP: "1"/);
 });
 
+test("desktop qBit client only uses the injected URL in desktop mode", () => {
+  const qbitSource = readFileSync("src/lib/qbit.ts", "utf8");
+
+  assert.match(qbitSource, /process\.env\.ANIME_DESKTOP_APP === "1"/);
+  assert.match(qbitSource, /!isDesktopApp &&/);
+  assert.match(qbitSource, /if \(isDesktopApp\)/);
+  assert.match(
+    qbitSource,
+    /return configured\.length > 0 \? configured : \[DEFAULT_QBIT_URLS\[0\]\]/,
+  );
+});
+
+test("desktop bootstrap creates playback progress storage", () => {
+  const bootstrapSource = readFileSync("src/db/bootstrap.ts", "utf8");
+
+  assert.match(bootstrapSource, /CREATE TABLE IF NOT EXISTS playback_progress/);
+  assert.match(bootstrapSource, /position_seconds integer NOT NULL DEFAULT 0/);
+  assert.match(bootstrapSource, /duration_seconds integer NOT NULL DEFAULT 0/);
+  assert.match(bootstrapSource, /playback_progress_user_episode_idx/);
+  assert.match(bootstrapSource, /playback_progress_user_recent_idx/);
+});
+
 test("desktop qBit setup guide keeps screenshots and 8080 defaults", () => {
   const guideSource = readFileSync(
     "src/components/features/QbitSetupGuideDialog.tsx",

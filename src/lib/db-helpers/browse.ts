@@ -16,6 +16,7 @@ import {
   type BgmSeason,
   type BgmSubject,
 } from "@/lib/bangumi";
+import { selectBangumiImageByRole } from "@/lib/bangumi-image";
 
 export type SeasonalUpdateState = "updated" | "upcoming" | "pending";
 
@@ -37,7 +38,7 @@ export interface SeasonalBrowseItem {
 }
 
 function pickCover(s: BgmSubject): string | null {
-  return s.images?.large ?? s.images?.common ?? s.images?.medium ?? null;
+  return selectBangumiImageByRole(s.images, "card");
 }
 
 function pickEpisodes(s: BgmSubject): number | null {
