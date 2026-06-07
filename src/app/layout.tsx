@@ -25,7 +25,12 @@ export const metadata: Metadata = {
   applicationName: "Bandi",
   description: "你的私人放映厅",
   icons: {
-    icon: "/favicon.svg",
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/brand/app-logo.png", type: "image/png" },
+    ],
+    shortcut: "/favicon.ico",
+    apple: "/brand/app-logo.png",
   },
 };
 

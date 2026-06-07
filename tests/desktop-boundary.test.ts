@@ -12,6 +12,12 @@ test("desktop packaging boundary survives web sync", () => {
       files?: string[];
       extraResources?: Array<{ from?: string; to?: string }>;
       directories?: { output?: string };
+      win?: { icon?: string; target?: string[] };
+      nsis?: {
+        installerIcon?: string;
+        uninstallerIcon?: string;
+        installerHeaderIcon?: string;
+      };
     };
   };
   const nextConfig = readFileSync("next.config.ts", "utf8");
@@ -24,6 +30,12 @@ test("desktop packaging boundary survives web sync", () => {
   assert.equal(pkg.build?.directories?.output, "release");
   assert.equal(pkg.build?.asar, false);
   assert.equal(pkg.build?.npmRebuild, false);
+  assert.equal(pkg.build?.win?.icon, "desktop/assets/app-icon.ico");
+  assert.ok(pkg.build?.win?.target?.includes("nsis"));
+  assert.ok(pkg.build?.win?.target?.includes("portable"));
+  assert.equal(pkg.build?.nsis?.installerIcon, "desktop/assets/app-icon.ico");
+  assert.equal(pkg.build?.nsis?.uninstallerIcon, "desktop/assets/app-icon.ico");
+  assert.equal(pkg.build?.nsis?.installerHeaderIcon, "desktop/assets/app-icon.ico");
   assert.ok(pkg.build?.files?.includes(".next/standalone/**/*"));
   assert.ok(
     pkg.build?.extraResources?.some(
@@ -45,6 +57,11 @@ test("desktop packaging boundary survives web sync", () => {
   assert.match(gitignore, /\/release/);
   assert.match(gitignore, /\/dist/);
   assert.match(gitignore, /\.desktop-verify\//);
+  assert.ok(existsSync("desktop/assets/app-icon.ico"));
+  assert.ok(existsSync("desktop/assets/app-icon.png"));
+  assert.ok(existsSync("public/brand/app-logo.png"));
+  assert.ok(existsSync("public/favicon.ico"));
+  assert.ok(existsSync("public/favicon.png"));
 });
 
 test("desktop main keeps local qBit and userData runtime paths", () => {
@@ -59,6 +76,8 @@ test("desktop main keeps local qBit and userData runtime paths", () => {
   assert.match(mainSource, /DATABASE_URL: dbPath/);
   assert.match(mainSource, /QBIT_URL: `http:\/\/127\.0\.0\.1:\$\{desktopConfig\.qbitPort\}`/);
   assert.match(mainSource, /ANIME_DESKTOP_APP: "1"/);
+  assert.match(mainSource, /getAppIconPath\(\)/);
+  assert.match(mainSource, /icon: getAppIconPath\(\)/);
 });
 
 test("desktop qBit client only uses the injected URL in desktop mode", () => {

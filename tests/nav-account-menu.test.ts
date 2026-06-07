@@ -7,6 +7,10 @@ const brandLogoSource = readFileSync("src/components/features/BrandLogo.tsx", "u
 const globalsSource = readFileSync("src/app/globals.css", "utf8");
 const layoutSource = readFileSync("src/app/layout.tsx", "utf8");
 const loginSource = readFileSync("src/app/(auth)/login/LoginShell.tsx", "utf8");
+const duskBackdropSource = readFileSync(
+  "src/components/features/DuskBackdrop.tsx",
+  "utf8",
+);
 const homeSource = readFileSync("src/app/(main)/page.tsx", "utf8");
 const chineseBrandPattern = new RegExp(String.fromCharCode(0x756a, 0x90b8));
 
@@ -32,12 +36,14 @@ test("Nav keeps brand and compact actions in a single-row header", () => {
   assert.doesNotMatch(navSource, /h-12 w-full items-center/);
   assert.doesNotMatch(navSource, /border-t border-\[color:var\(--border-subtle\)\]/);
   assert.doesNotMatch(navSource, /overflow-x-auto/);
-  assert.match(brandLogoSource, /Tv/);
-  assert.match(brandLogoSource, /strokeWidth=\{2\}/);
+  assert.match(brandLogoSource, /brandLogoSrc = "\/brand\/app-logo\.png"/);
+  assert.match(brandLogoSource, /<img/);
   assert.match(brandLogoSource, /brand-logo-mark/);
   assert.match(brandLogoSource, /brand-logo-float/);
-  assert.match(brandLogoSource, /color:\s*"white"/);
+  assert.match(brandLogoSource, /object-cover/);
   assert.match(globalsSource, /@keyframes brand-logo-float/);
+  assert.doesNotMatch(brandLogoSource, /from "lucide-react"/);
+  assert.doesNotMatch(brandLogoSource, /strokeWidth=\{2\}/);
   assert.doesNotMatch(brandLogoSource, /var\(--accent\) 58%, white/);
   assert.doesNotMatch(brandLogoSource, /brand-logo-icon-shell/);
   assert.doesNotMatch(brandLogoSource, /group-hover:-translate-y/);
@@ -51,13 +57,15 @@ test("Brand copy uses Bandi across metadata, nav, logo, and login", () => {
   assert.match(layoutSource, /default:\s*"Bandi"/);
   assert.match(layoutSource, /template:\s*"%s · Bandi"/);
   assert.match(layoutSource, /applicationName:\s*"Bandi"/);
+  assert.match(layoutSource, /\/favicon\.ico/);
+  assert.match(layoutSource, /\/brand\/app-logo\.png/);
   assert.match(layoutSource, /description:\s*"你的私人放映厅"/);
   assert.match(brandLogoSource, /Bandi/);
   assert.match(brandLogoSource, /subtitle = "你的私人放映厅"/);
   assert.match(navSource, /account:\s*"Bandi \\u8d26\\u6237"/);
   assert.match(navSource, /titleHome:\s*"Bandi \\u9996\\u9875"/);
   assert.match(loginSource, /登录后进入你的私人放映厅/);
-  assert.match(loginSource, /© 2026 Bandi/);
+  assert.doesNotMatch(loginSource, /© 2026 Bandi/);
   assert.match(homeSource, /<Tag variant="accent">Bandi<\/Tag>/);
 
   for (const source of [layoutSource, brandLogoSource, loginSource, homeSource]) {
@@ -68,10 +76,25 @@ test("Brand copy uses Bandi across metadata, nav, logo, and login", () => {
   }
 });
 
-test("Login reuses the animated brand mark", () => {
-  assert.match(loginSource, /<BrandLogo markSize="md" \/>/);
+test("Login keeps only the centered brand mark", () => {
+  assert.doesNotMatch(loginSource, /<BrandLogo markSize="md" \/>/);
   assert.match(loginSource, /<BrandLogo showText=\{false\} markSize="lg" \/>/);
   assert.doesNotMatch(loginSource, /Flame/);
+});
+
+test("Login backdrop uses a three-scene invisible-core sequence", () => {
+  assert.match(duskBackdropSource, /login-scene-1\.mp4/);
+  assert.match(duskBackdropSource, /login-scene-2\.mp4/);
+  assert.match(duskBackdropSource, /login-scene-3\.mp4/);
+  assert.match(duskBackdropSource, /SCENE_TWO_AUDIO_FADE_SECONDS = 0\.7/);
+  assert.match(duskBackdropSource, /<video[\s\S]*src=\{SCENE_THREE_SRC\}[\s\S]*loop[\s\S]*muted/);
+  assert.match(duskBackdropSource, /applySceneTwoVolume/);
+  assert.match(duskBackdropSource, /aria-label="开始播放登录动画"/);
+  assert.match(duskBackdropSource, /opacity-0/);
+  assert.match(duskBackdropSource, /CROSSFADE_MS = 700/);
+  assert.doesNotMatch(duskBackdropSource, /login-background\.mp4/);
+  assert.doesNotMatch(duskBackdropSource, /开启放映/);
+  assert.match(loginSource, /showCard \? "pointer-events-auto" : "pointer-events-none"/);
 });
 
 test("Nav exposes an account menu from the avatar", () => {

@@ -94,6 +94,7 @@
       }
     ],
     "win": {
+      "icon": "desktop/assets/app-icon.ico",
       "target": [
         "nsis",
         "portable"
@@ -103,6 +104,9 @@
       "oneClick": false,
       "perMachine": false,
       "allowToChangeInstallationDirectory": true,
+      "installerIcon": "desktop/assets/app-icon.ico",
+      "uninstallerIcon": "desktop/assets/app-icon.ico",
+      "installerHeaderIcon": "desktop/assets/app-icon.ico",
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "追番中心",

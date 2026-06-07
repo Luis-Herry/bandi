@@ -1,147 +1,367 @@
-/**
- * Pure-CSS + inline-SVG dusk backdrop for the login page.
- *
- * Layers (back → front):
- *   1. radial gradient horizon (theme accent glow against deep slate)
- *   2. atmospheric haze (low-opacity accent mist)
- *   3. SVG mountain silhouette (mid-ground)
- *   4. SVG forest silhouette (foreground tree line)
- *   5. drifting embers (CSS-animated tiny dots)
- *
- * Sized to fill its parent. Pointer-events:none so it never eats clicks.
- */
+"use client";
 
-export function DuskBackdrop() {
+import { useEffect, useRef, useState } from "react";
+
+const SCENE_ONE_SRC = "/media/login-scene-1.mp4";
+const SCENE_TWO_SRC = "/media/login-scene-2.mp4";
+const SCENE_THREE_SRC = "/media/login-scene-3.mp4";
+const CROSSFADE_SECONDS = 0.55;
+const CROSSFADE_MS = 700;
+const SCENE_TWO_AUDIO_FADE_SECONDS = 0.7;
+const IDLE_RETRY_MS = 500;
+
+type LayerIndex = 0 | 1;
+type LoginScene = "idle" | "sequence" | "hold" | "failed";
+
+interface DuskBackdropProps {
+  onReveal?: () => void;
+}
+
+export function DuskBackdrop({ onReveal }: DuskBackdropProps) {
+  const idleVideoRefs = useRef<Array<HTMLVideoElement | null>>([null, null]);
+  const sequenceVideoRef = useRef<HTMLVideoElement>(null);
+  const holdVideoRef = useRef<HTMLVideoElement>(null);
+  const onRevealRef = useRef(onReveal);
+  const revealedRef = useRef(false);
+  const idleLayerRef = useRef<LayerIndex>(0);
+  const sceneRef = useRef<LoginScene>("idle");
+  const idleTransitioningRef = useRef(false);
+  const idleRetryRef = useRef<number | null>(null);
+  const audioFrameRef = useRef<number | null>(null);
+  const timersRef = useRef<number[]>([]);
+  onRevealRef.current = onReveal;
+
+  const [idleLayer, setIdleLayer] = useState<LayerIndex>(0);
+  const [scene, setScene] = useState<LoginScene>("idle");
+
+  const setSceneState = (nextScene: LoginScene) => {
+    sceneRef.current = nextScene;
+    setScene(nextScene);
+  };
+
+  const reveal = () => {
+    if (revealedRef.current) return;
+    revealedRef.current = true;
+    onRevealRef.current?.();
+  };
+
+  const clearTimer = (timer: number) => {
+    window.clearTimeout(timer);
+    timersRef.current = timersRef.current.filter((item) => item !== timer);
+  };
+
+  const queueTimer = (callback: () => void, delay: number) => {
+    const timer = window.setTimeout(() => {
+      clearTimer(timer);
+      callback();
+    }, delay);
+    timersRef.current.push(timer);
+  };
+
+  const stopSceneTwoAudioFade = () => {
+    if (audioFrameRef.current === null) return;
+    window.cancelAnimationFrame(audioFrameRef.current);
+    audioFrameRef.current = null;
+  };
+
+  const clearTimers = () => {
+    for (const timer of timersRef.current) {
+      window.clearTimeout(timer);
+    }
+    timersRef.current = [];
+    if (idleRetryRef.current !== null) {
+      window.clearInterval(idleRetryRef.current);
+      idleRetryRef.current = null;
+    }
+    stopSceneTwoAudioFade();
+  };
+
+  const playVideo = async (
+    video: HTMLVideoElement,
+    {
+      muted,
+      restart = true,
+      volume = muted ? 0 : 1,
+    }: { muted: boolean; restart?: boolean; volume?: number },
+  ) => {
+    video.muted = muted;
+    video.defaultMuted = muted;
+    video.volume = volume;
+    if (restart) {
+      try {
+        video.currentTime = 0;
+      } catch {
+        /* metadata may still be loading */
+      }
+    }
+    try {
+      await video.play();
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const applySceneTwoVolume = (video: HTMLVideoElement) => {
+    const duration = video.duration;
+    if (!Number.isFinite(duration) || duration <= 0) {
+      video.volume = 0;
+      return;
+    }
+    const fadeIn = Math.min(1, video.currentTime / SCENE_TWO_AUDIO_FADE_SECONDS);
+    const fadeOut = Math.min(
+      1,
+      Math.max(0, duration - video.currentTime) / SCENE_TWO_AUDIO_FADE_SECONDS,
+    );
+    video.volume = Math.max(0, Math.min(1, fadeIn, fadeOut));
+  };
+
+  const startSceneTwoAudioFade = (video: HTMLVideoElement) => {
+    stopSceneTwoAudioFade();
+    const tick = () => {
+      if (sceneRef.current !== "sequence" || video.paused) {
+        stopSceneTwoAudioFade();
+        return;
+      }
+      applySceneTwoVolume(video);
+      audioFrameRef.current = window.requestAnimationFrame(tick);
+    };
+    applySceneTwoVolume(video);
+    audioFrameRef.current = window.requestAnimationFrame(tick);
+  };
+
+  const crossfadeIdleLoop = async () => {
+    if (sceneRef.current !== "idle" || idleTransitioningRef.current) return;
+    idleTransitioningRef.current = true;
+    const currentLayer = idleLayerRef.current;
+    const nextLayer = (currentLayer === 0 ? 1 : 0) as LayerIndex;
+    const currentVideo = idleVideoRefs.current[currentLayer];
+    const nextVideo = idleVideoRefs.current[nextLayer];
+    if (!nextVideo) {
+      idleTransitioningRef.current = false;
+      return;
+    }
+    const didPlay = await playVideo(nextVideo, { muted: true, volume: 0 });
+    if (!didPlay) {
+      idleTransitioningRef.current = false;
+      return;
+    }
+    idleLayerRef.current = nextLayer;
+    setIdleLayer(nextLayer);
+    queueTimer(() => {
+      currentVideo?.pause();
+      idleTransitioningRef.current = false;
+    }, CROSSFADE_MS);
+  };
+
+  const playHoldScene = async () => {
+    stopSceneTwoAudioFade();
+    const sequenceVideo = sequenceVideoRef.current;
+    const holdVideo = holdVideoRef.current;
+    if (!holdVideo) {
+      setSceneState("failed");
+      reveal();
+      return;
+    }
+    const didPlay = await playVideo(holdVideo, { muted: true, volume: 0 });
+    setSceneState(didPlay ? "hold" : "failed");
+    reveal();
+    queueTimer(() => {
+      sequenceVideo?.pause();
+    }, CROSSFADE_MS);
+  };
+
+  const activateSequence = () => {
+    if (sceneRef.current !== "idle") return;
+    const sequenceVideo = sequenceVideoRef.current;
+    if (!sequenceVideo) return;
+    clearTimers();
+    void (async () => {
+      sequenceVideo.muted = false;
+      sequenceVideo.defaultMuted = false;
+      const didPlay = await playVideo(sequenceVideo, {
+        muted: false,
+        volume: 0,
+      });
+      if (!didPlay) {
+        await playHoldScene();
+        return;
+      }
+      setSceneState("sequence");
+      startSceneTwoAudioFade(sequenceVideo);
+      queueTimer(() => {
+        for (const video of idleVideoRefs.current) video?.pause();
+      }, CROSSFADE_MS);
+    })();
+  };
+
+  useEffect(() => {
+    const idleVideos = idleVideoRefs.current.filter(
+      Boolean,
+    ) as HTMLVideoElement[];
+    const sequenceVideo = sequenceVideoRef.current;
+    const holdVideo = holdVideoRef.current;
+    if (idleVideos.length < 2 || !sequenceVideo || !holdVideo) return;
+
+    const reduceMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+
+    if (reduceMotion) {
+      holdVideo.pause();
+      setSceneState("hold");
+      reveal();
+      return clearTimers;
+    }
+
+    const onIdleTime = (event: Event) => {
+      const video = event.currentTarget as HTMLVideoElement;
+      if (video !== idleVideoRefs.current[idleLayerRef.current]) return;
+      const duration = video.duration;
+      if (!Number.isFinite(duration) || duration <= CROSSFADE_SECONDS) return;
+      if (duration - video.currentTime <= CROSSFADE_SECONDS) {
+        void crossfadeIdleLoop();
+      }
+    };
+
+    const onIdleEnded = (event: Event) => {
+      const video = event.currentTarget as HTMLVideoElement;
+      if (video !== idleVideoRefs.current[idleLayerRef.current]) return;
+      void crossfadeIdleLoop();
+    };
+
+    const onSequenceTime = () => {
+      if (sceneRef.current === "sequence") applySceneTwoVolume(sequenceVideo);
+    };
+
+    const onSequenceEnded = () => {
+      void playHoldScene();
+    };
+
+    const onHoldError = () => {
+      setSceneState("failed");
+      reveal();
+    };
+
+    for (const video of idleVideos) {
+      video.addEventListener("timeupdate", onIdleTime);
+      video.addEventListener("ended", onIdleEnded);
+    }
+    sequenceVideo.addEventListener("timeupdate", onSequenceTime);
+    sequenceVideo.addEventListener("ended", onSequenceEnded);
+    holdVideo.addEventListener("error", onHoldError);
+
+    void playVideo(idleVideos[0], {
+      muted: true,
+      restart: false,
+      volume: 0,
+    });
+    idleRetryRef.current = window.setInterval(() => {
+      if (sceneRef.current !== "idle") return;
+      const activeVideo = idleVideoRefs.current[idleLayerRef.current];
+      if (activeVideo?.paused) {
+        void playVideo(activeVideo, {
+          muted: true,
+          restart: false,
+          volume: 0,
+        });
+      }
+    }, IDLE_RETRY_MS);
+
+    return () => {
+      for (const video of idleVideos) {
+        video.removeEventListener("timeupdate", onIdleTime);
+        video.removeEventListener("ended", onIdleEnded);
+      }
+      sequenceVideo.removeEventListener("timeupdate", onSequenceTime);
+      sequenceVideo.removeEventListener("ended", onSequenceEnded);
+      holdVideo.removeEventListener("error", onHoldError);
+      clearTimers();
+    };
+  }, []);
+
+  const videoTransition = `opacity ${CROSSFADE_MS}ms cubic-bezier(0.16, 1, 0.3, 1)`;
+
   return (
-    <div
-      aria-hidden
-      className="pointer-events-none absolute inset-0 overflow-hidden"
-      style={{ background: "var(--bg-base)" }}
-    >
-      {/* sky + sun */}
-      <div
-        className="absolute inset-0"
-        style={{
-          background: `
-            radial-gradient(ellipse 80% 50% at 75% 88%, rgb(var(--accent-rgb) / 0.55) 0%, rgb(var(--accent-rgb) / 0.20) 28%, transparent 60%),
-            radial-gradient(ellipse 110% 60% at 70% 100%, rgb(var(--accent-rgb) / 0.30) 0%, transparent 55%),
-            linear-gradient(180deg, var(--bg-base) 0%, color-mix(in srgb, var(--bg-base) 88%, var(--accent) 12%) 45%, color-mix(in srgb, var(--bg-base) 78%, var(--accent) 22%) 75%, color-mix(in srgb, var(--bg-base) 68%, var(--accent) 32%) 100%)
-          `,
-        }}
-      />
-
-      {/* atmospheric haze near horizon */}
-      <div
-        className="absolute inset-x-0 bottom-0 h-2/3"
-        style={{
-          background:
-            "linear-gradient(180deg, transparent 0%, rgb(var(--accent-rgb) / 0.10) 60%, rgb(var(--accent-rgb) / 0.18) 100%)",
-        }}
-      />
-
-      {/* far mountain silhouette */}
-      <svg
-        className="absolute inset-x-0"
-        style={{ bottom: "26%" }}
-        viewBox="0 0 1600 200"
-        preserveAspectRatio="none"
-        width="100%"
-        height="120"
-      >
-        <path
-          d="M0,200 L0,150 L120,90 L240,130 L380,60 L520,120 L680,80 L820,140 L960,70 L1120,110 L1280,90 L1440,130 L1600,100 L1600,200 Z"
-          fill="rgba(20, 14, 10, 0.85)"
-        />
-      </svg>
-
-      {/* foreground forest silhouette */}
-      <svg
-        className="absolute inset-x-0 bottom-0"
-        viewBox="0 0 1600 220"
-        preserveAspectRatio="none"
-        width="100%"
-        height="240"
-      >
-        <defs>
-          <pattern
-            id="tree-row"
-            x="0"
-            y="0"
-            width="80"
-            height="220"
-            patternUnits="userSpaceOnUse"
-          >
-            <path
-              d="
-                M5,220 L5,140
-                L0,140 L8,90 L3,90 L12,40 L16,40 L20,90 L13,90 L21,140 L8,140 L8,220 Z
-                M40,220 L40,160
-                L34,160 L42,120 L37,120 L46,70 L51,70 L54,120 L48,120 L55,160 L43,160 L43,220 Z
-                M65,220 L65,150
-                L60,150 L67,108 L62,108 L70,60 L74,60 L77,108 L71,108 L78,150 L67,150 L67,220 Z
-              "
-              fill="rgba(5, 4, 3, 0.95)"
-            />
-          </pattern>
-        </defs>
-        <rect width="100%" height="220" fill="url(#tree-row)" />
-      </svg>
-
-      {/* drifting embers */}
-      <div className="absolute inset-0">
-        {EMBERS.map((e, i) => (
-          <span
-            key={i}
-            className="absolute rounded-full"
-            style={{
-              left: `${e.x}%`,
-              bottom: `${e.y}%`,
-              width: `${e.s}px`,
-              height: `${e.s}px`,
-              background: "rgb(var(--accent-rgb) / 0.60)",
-              boxShadow: "0 0 6px rgb(var(--accent-rgb) / 0.45)",
-              animation: `ember-rise ${e.d}s ease-in ${e.delay}s infinite`,
-              opacity: 0,
+    <div className="absolute inset-0 overflow-hidden bg-[color:var(--bg-base)]">
+      {scene !== "failed" && (
+        <>
+          <video
+            aria-hidden
+            ref={(node) => {
+              idleVideoRefs.current[0] = node;
             }}
+            className="pointer-events-none absolute inset-0 h-full w-full object-cover"
+            src={SCENE_ONE_SRC}
+            style={{
+              opacity: scene === "idle" && idleLayer === 0 ? 1 : 0,
+              transition: videoTransition,
+            }}
+            autoPlay
+            muted
+            playsInline
+            preload="auto"
           />
-        ))}
-      </div>
-
-      <style>{`
-        @keyframes ember-rise {
-          0%   { transform: translateY(0) translateX(0); opacity: 0; }
-          15%  { opacity: 0.8; }
-          90%  { opacity: 0.4; }
-          100% { transform: translateY(-220px) translateX(12px); opacity: 0; }
-        }
-        @media (prefers-reduced-motion: reduce) {
-          [style*="ember-rise"] { animation: none !important; opacity: 0.35 !important; }
-        }
-      `}</style>
+          <video
+            aria-hidden
+            ref={(node) => {
+              idleVideoRefs.current[1] = node;
+            }}
+            className="pointer-events-none absolute inset-0 h-full w-full object-cover"
+            src={SCENE_ONE_SRC}
+            style={{
+              opacity: scene === "idle" && idleLayer === 1 ? 1 : 0,
+              transition: videoTransition,
+            }}
+            muted
+            playsInline
+            preload="auto"
+          />
+          <video
+            aria-hidden
+            ref={sequenceVideoRef}
+            className="pointer-events-none absolute inset-0 h-full w-full object-cover"
+            src={SCENE_TWO_SRC}
+            style={{
+              opacity: scene === "sequence" ? 1 : 0,
+              transition: videoTransition,
+            }}
+            playsInline
+            preload="auto"
+          />
+          <video
+            aria-hidden
+            ref={holdVideoRef}
+            className="pointer-events-none absolute inset-0 h-full w-full object-cover"
+            src={SCENE_THREE_SRC}
+            style={{
+              opacity: scene === "hold" ? 1 : 0,
+              transition: videoTransition,
+            }}
+            loop
+            muted
+            playsInline
+            preload="auto"
+          />
+        </>
+      )}
+      {scene === "idle" && (
+        <button
+          type="button"
+          aria-label="开始播放登录动画"
+          onClick={activateSequence}
+          className="absolute left-1/2 top-1/2 z-20 h-[clamp(96px,18vw,220px)] w-[clamp(96px,18vw,220px)] -translate-x-1/2 -translate-y-1/2 cursor-pointer rounded-full opacity-0"
+        />
+      )}
+      {scene === "failed" && (
+        <div
+          className="absolute inset-0"
+          style={{
+            background:
+              "radial-gradient(ellipse 60% 50% at 50% 50%, rgb(var(--accent-rgb) / 0.16) 0%, transparent 62%), var(--bg-base)",
+          }}
+        />
+      )}
     </div>
   );
 }
-
-// 30 embers, hand-distributed so they cluster around the sun
-const EMBERS = [
-  { x: 60, y: 8, s: 2, d: 7, delay: 0 },
-  { x: 65, y: 12, s: 1.5, d: 9, delay: 1.2 },
-  { x: 70, y: 6, s: 2, d: 6, delay: 0.5 },
-  { x: 75, y: 18, s: 3, d: 8, delay: 2 },
-  { x: 78, y: 10, s: 2, d: 7, delay: 3.5 },
-  { x: 82, y: 14, s: 1.5, d: 9, delay: 1.8 },
-  { x: 85, y: 5, s: 2.5, d: 6, delay: 4 },
-  { x: 55, y: 16, s: 2, d: 8, delay: 2.7 },
-  { x: 48, y: 8, s: 1.5, d: 10, delay: 0.9 },
-  { x: 88, y: 22, s: 2, d: 7, delay: 3.2 },
-  { x: 72, y: 24, s: 1.5, d: 9, delay: 5 },
-  { x: 90, y: 12, s: 2, d: 6, delay: 1.5 },
-  { x: 42, y: 12, s: 1.5, d: 11, delay: 4.5 },
-  { x: 68, y: 30, s: 2.5, d: 7, delay: 2.2 },
-  { x: 78, y: 32, s: 1.5, d: 8, delay: 0.3 },
-  { x: 30, y: 20, s: 2, d: 12, delay: 3.8 },
-  { x: 92, y: 28, s: 2, d: 9, delay: 1 },
-  { x: 22, y: 14, s: 1.5, d: 13, delay: 5.5 },
-  { x: 58, y: 26, s: 2, d: 8, delay: 4.2 },
-  { x: 73, y: 38, s: 1.5, d: 7, delay: 0.6 },
-];

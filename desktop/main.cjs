@@ -136,6 +136,10 @@ function getStandaloneDir() {
   return path.join(getAppRoot(), ".next", "standalone");
 }
 
+function getAppIconPath() {
+  return path.join(getAppRoot(), "desktop", "assets", "app-icon.ico");
+}
+
 function getQbitExePath() {
   if (app.isPackaged) {
     return path.join(
@@ -333,6 +337,7 @@ function createWindow(appUrl) {
     minHeight: 720,
     backgroundColor: "#0f0d0a",
     title: "追番中心",
+    icon: getAppIconPath(),
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,

@@ -40,6 +40,6 @@ export default auth((req) => {
 export const config = {
   matcher: [
     // Match everything except: Next internals, static files, favicon, noise asset, auth endpoints
-    "/((?!_next/|api/auth|favicon.ico|noise.svg|.*\\.png$|.*\\.jpg$|.*\\.svg$).*)",
+    "/((?!_next/|api/auth|favicon.ico|noise.svg|.*\\.png$|.*\\.jpg$|.*\\.svg$|.*\\.mp4$).*)",
   ],
 };
