@@ -8,6 +8,7 @@ import { User, Lock } from "lucide-react";
 import { Button, TextField } from "@/components/ui";
 import { BrandLogo } from "@/components/features/BrandLogo";
 import { DuskBackdrop } from "@/components/features/DuskBackdrop";
+import { RevealBurst } from "@/components/features/RevealBurst";
 
 interface LoginShellProps {
   from: string;
@@ -54,6 +55,8 @@ export function LoginShell({
   return (
     <main className="relative min-h-screen w-full overflow-hidden bg-[color:var(--bg-base)]">
       <DuskBackdrop onReveal={() => setRevealed(true)} />
+
+      {revealed && !shouldReduceMotion && <RevealBurst />}
 
       <div
         className={`relative z-10 flex min-h-screen w-full items-center justify-center px-5 py-24 sm:px-6 ${
