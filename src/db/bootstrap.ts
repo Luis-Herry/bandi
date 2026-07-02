@@ -4,6 +4,53 @@ import type Database from "better-sqlite3";
 
 type SqliteDatabase = Database.Database;
 
+interface ColumnMigration {
+  name: string;
+  ddl: string;
+}
+
+function ensureColumns(
+  sqlite: SqliteDatabase,
+  table: string,
+  columns: ColumnMigration[],
+) {
+  const existing = new Set(
+    (
+      sqlite.prepare(`PRAGMA table_info(${table})`).all() as Array<{
+        name: string;
+      }>
+    ).map((column) => column.name),
+  );
+
+  for (const column of columns) {
+    if (!existing.has(column.name)) {
+      sqlite.exec(`ALTER TABLE ${table} ADD COLUMN ${column.ddl}`);
+    }
+  }
+}
+
+function ensureLegacyColumns(sqlite: SqliteDatabase) {
+  ensureColumns(sqlite, "anime", [
+    { name: "media_type", ddl: "media_type text NOT NULL DEFAULT 'anime'" },
+    { name: "tmdb_id", ddl: "tmdb_id integer" },
+    { name: "douban_id", ddl: "douban_id text" },
+    { name: "imdb_id", ddl: "imdb_id text" },
+    { name: "tmdb_rating", ddl: "tmdb_rating real" },
+    { name: "douban_rating", ddl: "douban_rating real" },
+    { name: "douban_rating_fetched_at", ddl: "douban_rating_fetched_at integer" },
+    { name: "watch_providers", ddl: "watch_providers text" },
+    { name: "is_adult", ddl: "is_adult integer NOT NULL DEFAULT 0" },
+  ]);
+
+  ensureColumns(sqlite, "episodes", [
+    { name: "is_downloaded", ddl: "is_downloaded integer NOT NULL DEFAULT 0" },
+  ]);
+
+  ensureColumns(sqlite, "download_queue", [
+    { name: "episode_id", ddl: "episode_id integer REFERENCES episodes(id) ON DELETE SET NULL" },
+  ]);
+}
+
 export function ensureDatabaseSchema(sqlite: SqliteDatabase) {
   sqlite.exec(`
     CREATE TABLE IF NOT EXISTS users (
@@ -30,6 +77,15 @@ export function ensureDatabaseSchema(sqlite: SqliteDatabase) {
       year integer,
       tags text,
       accent_color text,
+      media_type text NOT NULL DEFAULT 'anime',
+      tmdb_id integer,
+      douban_id text,
+      imdb_id text,
+      tmdb_rating real,
+      douban_rating real,
+      douban_rating_fetched_at integer,
+      watch_providers text,
+      is_adult integer NOT NULL DEFAULT 0,
       created_at integer NOT NULL DEFAULT (unixepoch()),
       updated_at integer NOT NULL DEFAULT (unixepoch())
     );
@@ -128,6 +184,8 @@ export function ensureDatabaseSchema(sqlite: SqliteDatabase) {
       updated_at integer NOT NULL DEFAULT (unixepoch())
     );
   `);
+
+  ensureLegacyColumns(sqlite);
 }
 
 export function ensureDesktopDefaults(sqlite: SqliteDatabase) {

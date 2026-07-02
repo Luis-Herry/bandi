@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { test } from "node:test";
+import Database from "better-sqlite3";
+import { ensureDatabaseSchema } from "../src/db/bootstrap";
 
 test("desktop packaging boundary survives web sync", () => {
   const pkg = JSON.parse(readFileSync("package.json", "utf8")) as {
@@ -100,6 +104,67 @@ test("desktop bootstrap creates playback progress storage", () => {
   assert.match(bootstrapSource, /duration_seconds integer NOT NULL DEFAULT 0/);
   assert.match(bootstrapSource, /playback_progress_user_episode_idx/);
   assert.match(bootstrapSource, /playback_progress_user_recent_idx/);
+});
+
+test("desktop bootstrap migrates old anime rows for cinema fields", () => {
+  const dir = mkdtempSync(join(tmpdir(), "anime-desktop-bootstrap-"));
+  const sqlite = new Database(join(dir, "anime.db"));
+  sqlite.exec(`
+    CREATE TABLE anime (
+      id integer PRIMARY KEY AUTOINCREMENT,
+      bangumi_id integer UNIQUE,
+      anilist_id integer,
+      title text NOT NULL,
+      title_ja text,
+      cover_url text,
+      synopsis text,
+      type text NOT NULL,
+      status text NOT NULL DEFAULT 'airing',
+      total_episodes integer,
+      airing_day integer,
+      airing_time text,
+      season text,
+      year integer,
+      tags text,
+      accent_color text,
+      created_at integer NOT NULL DEFAULT (unixepoch()),
+      updated_at integer NOT NULL DEFAULT (unixepoch())
+    );
+
+    INSERT INTO anime (id, title, type, status)
+    VALUES (1, '旧库番剧', 'TV', 'completed');
+  `);
+
+  ensureDatabaseSchema(sqlite);
+
+  const columns = new Set(
+    (sqlite.prepare("PRAGMA table_info(anime)").all() as Array<{ name: string }>)
+      .map((column) => column.name),
+  );
+  for (const column of [
+    "media_type",
+    "tmdb_id",
+    "douban_id",
+    "imdb_id",
+    "tmdb_rating",
+    "douban_rating",
+    "douban_rating_fetched_at",
+    "watch_providers",
+    "is_adult",
+  ]) {
+    assert.equal(columns.has(column), true);
+  }
+
+  const row = sqlite
+    .prepare("SELECT title, media_type, is_adult FROM anime WHERE id = 1")
+    .get() as { title: string; media_type: string; is_adult: number };
+  assert.deepEqual(row, {
+    title: "旧库番剧",
+    media_type: "anime",
+    is_adult: 0,
+  });
+
+  sqlite.close();
 });
 
 test("desktop qBit setup guide keeps screenshots and 8080 defaults", () => {
