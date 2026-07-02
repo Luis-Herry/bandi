@@ -13,6 +13,7 @@ import {
   WifiOff,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { NotificationBadge, NumberPop } from "@/components/ui";
 import type {
   NavNotificationItem,
   NavNotificationSummary,
@@ -43,6 +44,7 @@ export function NotificationMenu({ notifications }: NotificationMenuProps) {
   const [summary, setSummary] = useState(notifications);
   const hasItems = summary.items.length > 0;
   const unreadCount = summary.unreadCount;
+  const badgeValue = unreadCount > 99 ? "99+" : unreadCount;
 
   useEffect(() => {
     setSummary(notifications);
@@ -112,18 +114,15 @@ export function NotificationMenu({ notifications }: NotificationMenuProps) {
           )}
         >
           <Bell />
-          {unreadCount > 0 && (
-            <span
-              data-tabular
-              className={cn(
-                "absolute -right-1 -top-1 min-w-4 rounded-full px-1",
-                "border border-[color:var(--bg-base)] bg-[color:var(--accent)]",
-                "text-center text-[9px] font-bold leading-4 text-[color:var(--accent-contrast)]",
-              )}
-            >
-              {unreadCount > 99 ? "99+" : unreadCount}
-            </span>
-          )}
+          <NotificationBadge
+            open={unreadCount > 0}
+            dotClassName={cn(
+              "border border-[color:var(--bg-base)] bg-[color:var(--accent)] px-1",
+              "text-center text-[9px] font-bold leading-4 text-[color:var(--accent-contrast)]",
+            )}
+          >
+            <NumberPop value={badgeValue} dirY={-1} />
+          </NotificationBadge>
         </button>
       </DropdownMenu.Trigger>
       <DropdownMenu.Portal>
@@ -131,7 +130,7 @@ export function NotificationMenu({ notifications }: NotificationMenuProps) {
           align="end"
           sideOffset={8}
           className={cn(
-            "z-50 w-[min(calc(100vw-24px),360px)] rounded-[8px] p-1.5",
+            "t-dropdown z-50 w-[min(calc(100vw-24px),360px)] rounded-[8px] p-1.5",
             "border border-[color:var(--border-default)] bg-[color:var(--bg-elevated)]",
             "shadow-[0_12px_36px_rgba(0,0,0,0.45)]",
           )}

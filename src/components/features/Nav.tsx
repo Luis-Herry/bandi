@@ -1,6 +1,6 @@
 "use client";
 
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { signOut } from "next-auth/react";
@@ -16,6 +16,7 @@ import {
 import { setThemeAction } from "@/app/(main)/actions";
 import { BrandLogo } from "@/components/features/BrandLogo";
 import { NotificationMenu } from "@/components/features/NotificationMenu";
+import { SpaceSwitcher } from "@/components/features/SpaceSwitcher";
 import SearchCommand from "@/components/features/SearchCommand";
 import { Avatar, IconButton } from "@/components/ui";
 import { cn } from "@/lib/cn";
@@ -55,7 +56,12 @@ const LINKS: { href: string; label: string; match: (p: string) => boolean }[] = 
   {
     href: "/library",
     label: TEXT.library,
-    match: (p) => p.startsWith("/library"),
+    match: (p) => p === "/library",
+  },
+  {
+    href: "/library/local",
+    label: "\u672c\u5730\u5e93",
+    match: (p) => p.startsWith("/library/local"),
   },
   {
     href: "/browse",
@@ -74,6 +80,19 @@ const LINKS: { href: string; label: string; match: (p: string) => boolean }[] = 
   },
 ];
 
+// 影视空间的子导航（进入 /cinema* 时替换动漫链接）。两块：
+// 「本地库」= 有本地文件、可直接播（/cinema，切到影视的默认落地页）；
+// 「影视库」= 公开影视资料 + 个人标记 + 在哪合法看（/cinema-library）。
+const CINEMA_LINKS: { href: string; label: string; match: (p: string) => boolean }[] =
+  [
+    { href: "/cinema", label: "本地库", match: (p) => p === "/cinema" },
+    {
+      href: "/cinema-library",
+      label: "影视库",
+      match: (p) => p.startsWith("/cinema-library"),
+    },
+  ];
+
 function getDetailAnimeId(pathname: string): number | null {
   const match = /^\/anime\/(\d+)(?:\/|$)/.exec(pathname);
   if (!match) return null;
@@ -83,12 +102,20 @@ function getDetailAnimeId(pathname: string): number | null {
 
 export function Nav({ username, currentTheme, notifications }: NavProps) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const router = useRouter();
   const [theme, setTheme] = useState<UserTheme>(currentTheme);
   const [savingTheme, setSavingTheme] = useState(false);
   const [isTrackedAnimeDetail, setIsTrackedAnimeDetail] = useState(false);
   const [, startTransition] = useTransition();
   const detailAnimeId = getDetailAnimeId(pathname);
+  const isLocalAnimeDetail =
+    detailAnimeId != null && searchParams.get("from") === "local";
+  const cinemaDetailSource = pathname.startsWith("/cinema/")
+    ? searchParams.get("from")
+    : null;
+  const isCinemaSpace = pathname.startsWith("/cinema");
+  const navLinks = isCinemaSpace ? CINEMA_LINKS : LINKS;
 
   useEffect(() => {
     setTheme(currentTheme);
@@ -289,10 +316,17 @@ export function Nav({ username, currentTheme, notifications }: NavProps) {
           </div>
 
           <nav className="pointer-events-auto absolute top-1/2 left-[var(--app-page-gutter)] hidden -translate-y-1/2 items-center gap-4 min-[1100px]:flex xl:gap-5">
-            {LINKS.map((l) => {
+            <SpaceSwitcher active={isCinemaSpace ? "cinema" : "anime"} />
+            {navLinks.map((l) => {
               const active =
                 l.match(pathname) ||
-                (l.href === "/library" && isTrackedAnimeDetail);
+                (l.href === "/cinema" && cinemaDetailSource === "local") ||
+                (l.href === "/cinema-library" &&
+                  cinemaDetailSource === "library") ||
+                (l.href === "/library/local" && isLocalAnimeDetail) ||
+                (l.href === "/library" &&
+                  isTrackedAnimeDetail &&
+                  !isLocalAnimeDetail);
               return (
                 <a
                   key={l.href}
@@ -360,7 +394,7 @@ export function Nav({ username, currentTheme, notifications }: NavProps) {
                   align="end"
                   sideOffset={8}
                   className={cn(
-                    "z-50 w-[220px] rounded-[8px] p-1.5",
+                    "t-dropdown z-50 w-[220px] rounded-[8px] p-1.5",
                     "border border-[color:var(--border-default)]",
                     "bg-[color:var(--bg-elevated)]",
                     "shadow-[0_12px_36px_rgba(0,0,0,0.45)]",
@@ -396,7 +430,7 @@ export function Nav({ username, currentTheme, notifications }: NavProps) {
                   align="end"
                   sideOffset={8}
                   className={cn(
-                    "z-50 w-[220px] rounded-[8px] p-1.5",
+                    "t-dropdown z-50 w-[220px] rounded-[8px] p-1.5",
                     "border border-[color:var(--border-default)]",
                     "bg-[color:var(--bg-elevated)]",
                     "shadow-[0_12px_36px_rgba(0,0,0,0.45)]",
@@ -443,7 +477,7 @@ export function Nav({ username, currentTheme, notifications }: NavProps) {
                   align="end"
                   sideOffset={8}
                   className={cn(
-                    "z-50 w-[220px] rounded-[8px] p-1.5",
+                    "t-dropdown z-50 w-[220px] rounded-[8px] p-1.5",
                     "border border-[color:var(--border-default)]",
                     "bg-[color:var(--bg-elevated)]",
                     "shadow-[0_12px_36px_rgba(0,0,0,0.45)]",
@@ -477,40 +511,56 @@ export function Nav({ username, currentTheme, notifications }: NavProps) {
                   align="end"
                   sideOffset={8}
                   className={cn(
-                    "z-50 max-h-[calc(100vh-72px)] w-[min(calc(100vw-24px),360px)] overflow-y-auto rounded-[8px] p-1.5",
+                    "t-dropdown z-50 max-h-[calc(100vh-72px)] w-[min(calc(100vw-24px),360px)] overflow-y-auto rounded-[8px] p-1.5",
                     "border border-[color:var(--border-default)]",
                     "bg-[color:var(--bg-elevated)]",
                     "shadow-[0_12px_36px_rgba(0,0,0,0.45)]",
                   )}
                 >
-                  <div className="px-2 py-2 text-[11px] font-medium uppercase tracking-[0.14em] text-[color:var(--text-muted)]">
-                    {TEXT.nav}
+                  <div className="px-1 pb-1.5 pt-1">
+                    <SpaceSwitcher
+                      active={isCinemaSpace ? "cinema" : "anime"}
+                      variant="mobile"
+                    />
                   </div>
-                  {LINKS.map((l) => {
-                    const active =
-                      l.match(pathname) ||
-                      (l.href === "/library" && isTrackedAnimeDetail);
-                    return (
-                      <DropdownMenu.Item
-                        key={l.href}
-                        asChild
-                        className={cn(
-                          "grid grid-cols-[1fr_auto] items-center gap-2 rounded-[6px] px-2 py-2",
-                          "cursor-pointer outline-none",
-                          "text-[12px] text-[color:var(--text-secondary)]",
-                          "data-[highlighted]:bg-[color:var(--bg-surface-hover)] data-[highlighted]:text-[color:var(--text-primary)]",
-                          active && "text-[color:var(--text-primary)]",
-                        )}
-                      >
-                        <a href={l.href}>
-                          <span>{l.label}</span>
-                          {active && (
-                            <span className="h-1.5 w-1.5 rounded-full bg-[color:var(--accent)]" />
-                          )}
-                        </a>
-                      </DropdownMenu.Item>
-                    );
-                  })}
+                  <>
+                    <div className="px-2 py-2 text-[11px] font-medium uppercase tracking-[0.14em] text-[color:var(--text-muted)]">
+                      {TEXT.nav}
+                    </div>
+                    {navLinks.map((l) => {
+                        const active =
+                          l.match(pathname) ||
+                          (l.href === "/cinema" &&
+                            cinemaDetailSource === "local") ||
+                          (l.href === "/cinema-library" &&
+                            cinemaDetailSource === "library") ||
+                          (l.href === "/library/local" &&
+                            isLocalAnimeDetail) ||
+                          (l.href === "/library" &&
+                            isTrackedAnimeDetail &&
+                            !isLocalAnimeDetail);
+                        return (
+                          <DropdownMenu.Item
+                            key={l.href}
+                            asChild
+                            className={cn(
+                              "grid grid-cols-[1fr_auto] items-center gap-2 rounded-[6px] px-2 py-2",
+                              "cursor-pointer outline-none",
+                              "text-[12px] text-[color:var(--text-secondary)]",
+                              "data-[highlighted]:bg-[color:var(--bg-surface-hover)] data-[highlighted]:text-[color:var(--text-primary)]",
+                              active && "text-[color:var(--text-primary)]",
+                            )}
+                          >
+                            <a href={l.href}>
+                              <span>{l.label}</span>
+                              {active && (
+                                <span className="h-1.5 w-1.5 rounded-full bg-[color:var(--accent)]" />
+                              )}
+                            </a>
+                          </DropdownMenu.Item>
+                        );
+                      })}
+                    </>
 
                   <DropdownMenu.Separator className="my-1 h-px bg-[color:var(--border-subtle)]" />
                   {renderAccountItems()}

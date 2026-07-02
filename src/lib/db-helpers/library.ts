@@ -24,6 +24,7 @@ import {
   getCompletedDownloadEpisodeIds,
 } from "@/lib/download-cleanup";
 import { dedupeEpisodesByNumber } from "@/lib/episode-normalize";
+import { getLocalLibraryAnimeIds } from "@/lib/cinema-import";
 
 export interface LibraryItem {
   anime: Anime;
@@ -32,7 +33,13 @@ export interface LibraryItem {
   watchedAiredCount: number;
 }
 
-/** All `userAnime` rows for a user, joined with anime + an aired-count. */
+/**
+ * All `userAnime` rows for a user, joined with anime + an aired-count.
+ *
+ * 只返回 mediaType='anime' 的追踪记录——影视（drama/movie）的个人维度走
+ * 影视个人维度（本地库 / 清单），两边互不污染。所有调用方（我的追番列表、首页
+ * 今日更新/继续观看/漏看/本季 feed）都只关心动漫，过滤在这里收口。
+ */
 export function getLibrary(userId: string): LibraryItem[] {
   const rows = db
     .select({
@@ -41,7 +48,7 @@ export function getLibrary(userId: string): LibraryItem[] {
     })
     .from(userAnime)
     .innerJoin(anime, eq(userAnime.animeId, anime.id))
-    .where(eq(userAnime.userId, userId))
+    .where(and(eq(userAnime.userId, userId), eq(anime.mediaType, "anime")))
     .orderBy(desc(userAnime.updatedAt))
     .all();
 
@@ -182,7 +189,8 @@ export function getTodayUpdates(userId: string): TodayUpdate[] {
   const userRows = db
     .select({ animeId: userAnime.animeId, current: userAnime.currentEpisode })
     .from(userAnime)
-    .where(eq(userAnime.userId, userId))
+    .innerJoin(anime, eq(userAnime.animeId, anime.id))
+    .where(and(eq(userAnime.userId, userId), eq(anime.mediaType, "anime")))
     .all();
   const animeIds = userRows.map((r) => r.animeId);
   if (animeIds.length === 0) return [];
@@ -246,7 +254,8 @@ export function getUpcomingEpisodes(
   const userRows = db
     .select({ animeId: userAnime.animeId })
     .from(userAnime)
-    .where(eq(userAnime.userId, userId))
+    .innerJoin(anime, eq(userAnime.animeId, anime.id))
+    .where(and(eq(userAnime.userId, userId), eq(anime.mediaType, "anime")))
     .all();
   const animeIds = userRows.map((r) => r.animeId);
   if (animeIds.length === 0) return [];
@@ -511,4 +520,56 @@ export function getHeroCandidates(userId: string, limit = 4): LibraryItem[] {
   return getLibrary(userId)
     .filter((it) => it.userAnime.watchStatus === "watching")
     .slice(0, limit);
+}
+
+/* ─── 动漫本地库（番剧侧自有片，独立于追番）────────────────────── */
+
+export interface LocalAnimeItem {
+  anime: Anime;
+  totalEpisodes: number;
+  downloadedEpisodes: number;
+  userAnime: UserAnime | null;
+}
+
+/**
+ * 番剧侧「本地库」：mediaType=anime 且有本地自有片（local-file 完成记录）的条目。
+ * 与「我的追番」（追的）、「番剧库」（发现新番）互不重叠；不要求加入追番即可播放。
+ */
+export function getAnimeLocalLibrary(userId: string): LocalAnimeItem[] {
+  const localIds = [...getLocalLibraryAnimeIds()];
+  if (localIds.length === 0) return [];
+  const rows = db
+    .select()
+    .from(anime)
+    .where(and(eq(anime.mediaType, "anime"), inArray(anime.id, localIds)))
+    .orderBy(desc(anime.updatedAt))
+    .all();
+  if (rows.length === 0) return [];
+
+  const ids = rows.map((r) => r.id);
+  const epRows = db
+    .select({ animeId: episodes.animeId, isDownloaded: episodes.isDownloaded })
+    .from(episodes)
+    .where(inArray(episodes.animeId, ids))
+    .all();
+  const totalByAnime = new Map<number, number>();
+  const dlByAnime = new Map<number, number>();
+  for (const e of epRows) {
+    totalByAnime.set(e.animeId, (totalByAnime.get(e.animeId) ?? 0) + 1);
+    if (e.isDownloaded)
+      dlByAnime.set(e.animeId, (dlByAnime.get(e.animeId) ?? 0) + 1);
+  }
+  const uaRows = db
+    .select()
+    .from(userAnime)
+    .where(and(eq(userAnime.userId, userId), inArray(userAnime.animeId, ids)))
+    .all();
+  const uaByAnime = new Map(uaRows.map((u) => [u.animeId, u]));
+
+  return rows.map((a) => ({
+    anime: a,
+    totalEpisodes: totalByAnime.get(a.id) ?? 0,
+    downloadedEpisodes: dlByAnime.get(a.id) ?? 0,
+    userAnime: uaByAnime.get(a.id) ?? null,
+  }));
 }

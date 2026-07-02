@@ -251,10 +251,10 @@ export function EpisodeSourceDialog({
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 bg-black/65 backdrop-blur-[6px] z-50" />
+        <Dialog.Overlay className="t-modal-overlay fixed inset-0 bg-black/65 backdrop-blur-[6px] z-50" />
         <Dialog.Content
           className={cn(
-            "fixed left-1/2 top-[14%] -translate-x-1/2 z-50",
+            "t-modal t-modal-top fixed left-1/2 top-[14%] z-50",
             "w-[760px] max-w-[94vw] max-h-[78vh] flex flex-col",
             "rounded-[10px] overflow-hidden",
             "border border-[color:var(--border-default)]",

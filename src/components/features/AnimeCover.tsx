@@ -35,7 +35,7 @@ interface AnimeCoverProps {
  * 优化器自己的 timeout 也不可靠。这里 8 秒兜底强制翻到 failed 状态，避免卡片
  * 一直转 shimmer。
  */
-const TIMEOUT_MS = 8000;
+const TIMEOUT_MS = 15000;
 const PLACEHOLDER_SRC = "/cover-placeholder.svg";
 
 export function AnimeCover({
@@ -49,19 +49,45 @@ export function AnimeCover({
 }: AnimeCoverProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement | null>(null);
-  const resolvedSrc = src ? resizeBangumiImageUrl(src, imageRole) : null;
+  const rawResolved = src ? resizeBangumiImageUrl(src, imageRole) : null;
+  // DMM 封面经自有代理端点（服务器走代理抓，浏览器只访问同源 /api/img，不直连 DMM）
+  const resolvedSrc =
+    rawResolved && /^https:\/\/pics\.dmm\.co\.jp\//.test(rawResolved)
+      ? `/api/img?url=${encodeURIComponent(rawResolved)}`
+      : rawResolved;
   const [loaded, setLoaded] = useState(false);
   const [failed, setFailed] = useState(!resolvedSrc);
   const [shouldLoad, setShouldLoad] = useState(priority);
+  const [resetting, setResetting] = useState(false);
+  const resetFrameRef = useRef<number | null>(null);
+  // bgm 直连图 + 同源 /api/img（DMM 代理）走原生 <img>；其余走 next/image 优化。
   const bypassOptimization =
     resolvedSrc != null &&
-    /^https:\/\/(?:lain\.bgm\.tv|bangumi\.tv)\//.test(resolvedSrc);
+    (/^https:\/\/(?:lain\.bgm\.tv|bangumi\.tv)\//.test(resolvedSrc) ||
+      resolvedSrc.startsWith("/api/img"));
 
   // src 变化时重置状态（卡片复用 / 列表过滤会切 src）
   useEffect(() => {
+    if (resetFrameRef.current != null) {
+      window.cancelAnimationFrame(resetFrameRef.current);
+    }
+    setResetting(true);
     setLoaded(false);
     setFailed(!resolvedSrc);
     setShouldLoad(priority);
+    resetFrameRef.current = window.requestAnimationFrame(() => {
+      resetFrameRef.current = window.requestAnimationFrame(() => {
+        setResetting(false);
+        resetFrameRef.current = null;
+      });
+    });
+
+    return () => {
+      if (resetFrameRef.current != null) {
+        window.cancelAnimationFrame(resetFrameRef.current);
+        resetFrameRef.current = null;
+      }
+    };
   }, [resolvedSrc, priority]);
 
   const attachImageRef = useCallback((node: HTMLImageElement | null) => {
@@ -110,22 +136,18 @@ export function AnimeCover({
     <div
       ref={rootRef}
       className={cn(
-        "relative overflow-hidden bg-[color:var(--bg-elevated)]",
+        "t-skel relative overflow-hidden bg-[color:var(--bg-elevated)]",
+        loaded && !failed && "is-revealed",
+        resetting && "is-resetting",
         className,
       )}
       style={{ aspectRatio: ratio }}
     >
       {/* loading shimmer：仅在有 src 且还没失败、没加载完时显示 */}
       {resolvedSrc && shouldLoad && !loaded && !failed && (
-        <div
-          className="absolute inset-0"
-          style={{
-            background:
-              "linear-gradient(110deg, rgba(255,255,255,0.02) 30%, rgba(255,255,255,0.05) 50%, rgba(255,255,255,0.02) 70%)",
-            backgroundSize: "200% 100%",
-            animation: "cover-shimmer 1.6s linear infinite",
-          }}
-        />
+        <div className="t-skel-skeleton is-pulsing">
+          <div className="t-skel-block" />
+        </div>
       )}
 
       {resolvedSrc && shouldLoad && !failed && bypassOptimization && (
@@ -160,10 +182,7 @@ export function AnimeCover({
           loading={priority ? undefined : "eager"}
           onLoad={() => setLoaded(true)}
           onError={() => setFailed(true)}
-          className={cn(
-            "object-cover transition-opacity duration-300",
-            loaded ? "opacity-100" : "opacity-0",
-          )}
+          className="t-skel-content object-cover"
         />
       )}
 
@@ -177,13 +196,6 @@ export function AnimeCover({
           className="absolute inset-0 w-full h-full object-cover"
         />
       )}
-
-      <style>{`
-        @keyframes cover-shimmer {
-          0% { background-position: 200% 0; }
-          100% { background-position: -200% 0; }
-        }
-      `}</style>
     </div>
   );
 }

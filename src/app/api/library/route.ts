@@ -27,7 +27,11 @@ export async function GET(req: Request) {
   const url = new URL(req.url);
   const status = url.searchParams.get("status");
 
-  const filters = [eq(userAnime.userId, user.id)];
+  // 只返回动漫追踪记录；影视（drama/movie）的个人维度走 /cinema-library，互不污染
+  const filters = [
+    eq(userAnime.userId, user.id),
+    eq(anime.mediaType, "anime"),
+  ];
   if (isWatchStatus(status)) filters.push(eq(userAnime.watchStatus, status));
 
   const rows = await db

@@ -37,6 +37,12 @@ const buttonVariants = cva(
           "bg-transparent text-[color:var(--text-secondary)]",
           "hover:bg-[color:var(--bg-surface)] hover:text-[color:var(--text-primary)]",
         ],
+        // 不透明实底次要按钮：用于裸贴页面渐变背景的操作按钮（如影视区顶部扫描/刮削），
+        // 避免 secondary 的半透明玻璃透出背景渐变形成上下分层。
+        solid: [
+          "border border-[color:var(--border-default)] bg-[color:var(--bg-elevated)] text-[color:var(--text-primary)]",
+          "hover:border-[color:var(--border-strong)] hover:bg-[color:var(--bg-elevated)] hover:brightness-150",
+        ],
       },
       size: {
         sm: "h-8 px-3 text-xs",

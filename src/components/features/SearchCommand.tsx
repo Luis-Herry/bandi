@@ -13,7 +13,7 @@
  *   - 登录态会附带 inLibrary 标记
  *
  * 点击/回车行为：
- *   - 本地命中  → 直接跳 /anime/[id]
+ *   - 本地命中  → 动漫跳 /anime/[id]；影视跳 /cinema/[id]
  *   - Bangumi 命中 → POST /api/anime/sync 同步元数据（不创建 userAnime）→ 跳详情页
  *     "想看"是用户的主动决策，搜索只负责查看详情。
  *
@@ -31,12 +31,14 @@ import { useRouter } from "next/navigation";
 import * as Dialog from "@radix-ui/react-dialog";
 import { Loader2, Search } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { ClearableInput, ShimmerText } from "@/components/ui";
 import { showToast } from "@/components/features/ToastHost";
 
 interface SearchHit {
   source: "local" | "bangumi";
   id: number | null;
   bangumiId: number | null;
+  mediaType: "anime" | "drama" | "movie";
   title: string;
   titleJa: string | null;
   year: number | null;
@@ -169,7 +171,9 @@ export default function SearchCommand() {
     async (hit: SearchHit) => {
       if (adding) return;
       if (hit.source === "local" && hit.id != null) {
-        router.push(`/anime/${hit.id}`);
+        const href =
+          hit.mediaType === "anime" ? `/anime/${hit.id}` : `/cinema/${hit.id}`;
+        router.push(href);
         setOpen(false);
         return;
       }
@@ -223,11 +227,12 @@ export default function SearchCommand() {
   useEffect(() => {
     const list = listRef.current;
     if (!list) return;
+    const pageId = debouncedQ ? "2" : "1";
     const row = list.querySelector<HTMLElement>(
-      `[data-row="${active}"]`,
+      `.t-page[data-page-id="${pageId}"] [data-row="${active}"]`,
     );
     row?.scrollIntoView({ block: "nearest" });
-  }, [active]);
+  }, [active, debouncedQ]);
 
   const showEmpty = useMemo(
     () => !loading && debouncedQ.length > 0 && hits.length === 0,
@@ -237,11 +242,88 @@ export default function SearchCommand() {
     () => flattenRecommendations(recommendations),
     [recommendations],
   );
+  const searchPageId = debouncedQ ? "2" : "1";
+
+  function renderSearchResultsPage() {
+    return (
+      <>
+        {hits.length > 0 && (
+          <ul className="p-1.5">
+            {hits.map((hit, i) => (
+              <Row
+                key={`${hit.source}-${hit.id ?? hit.bangumiId}-${i}`}
+                hit={hit}
+                index={i}
+                active={i === active}
+                busy={adding && i === active}
+                onHover={() => setActive(i)}
+                onSelect={() => void go(hit)}
+              />
+            ))}
+          </ul>
+        )}
+
+        {loading && hits.length === 0 && (
+          <div className="px-6 py-10 text-center">
+            <p className="text-[13px] text-[color:var(--text-muted)]">
+              <ShimmerText text="正在搜索" />
+            </p>
+          </div>
+        )}
+
+        {showEmpty && (
+          <div className="t-stagger is-shown px-6 py-10 text-center">
+            <p className="t-stagger-line t-stagger-line--1 text-[13px] text-[color:var(--text-muted)]">
+              没有找到匹配「
+              <span className="text-[color:var(--text-secondary)]">
+                {debouncedQ}
+              </span>
+              」的番剧
+            </p>
+            <p className="t-stagger-line t-stagger-line--2 mt-1 text-[11px] text-[color:var(--text-muted)]">
+              试试用日文原名或更短的关键字
+            </p>
+          </div>
+        )}
+      </>
+    );
+  }
+
+  function renderRecommendationsPage() {
+    return (
+      <div className="p-2">
+        {recommendationsLoading && suggestionRows.length === 0 ? (
+          <div className="px-6 py-8 text-center">
+            <p className="text-[13px] text-[color:var(--text-muted)]">
+              <ShimmerText text="正在整理推荐" />
+            </p>
+          </div>
+        ) : suggestionRows.length > 0 ? (
+          <RecommendationSections
+            recommendations={recommendations}
+            active={active}
+            busy={adding}
+            onHover={setActive}
+            onSelect={(hit) => void go(hit)}
+          />
+        ) : (
+          <div className="t-stagger is-shown px-6 py-8 text-center">
+            <p className="t-stagger-line t-stagger-line--1 text-[13px] text-[color:var(--text-muted)]">
+              输入关键字开始搜索
+            </p>
+            <p className="t-stagger-line t-stagger-line--2 mt-1 text-[11px] text-[color:var(--text-muted)]">
+              本地未命中时自动联网查 Bangumi
+            </p>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <Dialog.Root open={open} onOpenChange={setOpen}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 bg-black/65 backdrop-blur-[6px] z-50" />
+        <Dialog.Overlay className="t-modal-overlay fixed inset-0 bg-black/65 backdrop-blur-[6px] z-50" />
         <Dialog.Content
           onOpenAutoFocus={(e) => {
             // 让我们手动聚焦输入框，避免 Radix 默认聚焦到第一个可聚焦元素
@@ -250,7 +332,7 @@ export default function SearchCommand() {
             inputRef.current?.select();
           }}
           className={cn(
-            "fixed left-1/2 top-[18%] -translate-x-1/2 z-50",
+            "t-modal t-modal-top fixed left-1/2 top-[18%] z-50",
             "w-[640px] max-w-[92vw] focus:outline-none",
             "rounded-[10px] overflow-hidden",
             "border border-[color:var(--border-default)]",
@@ -264,34 +346,28 @@ export default function SearchCommand() {
           </Dialog.Description>
 
           {/* 输入框 */}
-          <div className="flex items-center gap-3 px-4 h-12 border-b border-[color:var(--border-subtle)]">
-            <Search
-              size={16}
-              className="text-[color:var(--text-muted)] shrink-0"
-            />
-            <input
-              ref={inputRef}
-              data-no-focus-ring
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              onKeyDown={onInputKey}
-              placeholder="搜索番剧、日文原名、Bangumi…"
-              className={cn(
-                "flex-1 bg-transparent border-0 h-full",
-                "outline-none focus:outline-none focus-visible:outline-none",
-                "text-[14px] text-[color:var(--text-primary)]",
-                "placeholder:text-[color:var(--text-muted)]",
-              )}
-              autoComplete="off"
-              spellCheck={false}
-            />
-            {loading && (
-              <Loader2
-                size={14}
-                className="text-[color:var(--text-muted)] shrink-0 animate-spin"
-              />
-            )}
-          </div>
+          <ClearableInput
+            ref={inputRef}
+            variant="bare"
+            data-no-focus-ring
+            value={q}
+            onValueChange={setQ}
+            onKeyDown={onInputKey}
+            placeholder="搜索番剧、日文原名、Bangumi…"
+            prefixIcon={<Search size={16} />}
+            suffix={
+              loading ? (
+                <Loader2
+                  size={14}
+                  className="shrink-0 animate-spin text-[color:var(--text-muted)]"
+                />
+              ) : null
+            }
+            className="h-12 border-b border-[color:var(--border-subtle)]"
+            inputClassName="h-full text-[14px]"
+            autoComplete="off"
+            spellCheck={false}
+          />
 
           {/* 结果列表 */}
           <div
@@ -300,61 +376,19 @@ export default function SearchCommand() {
             role="listbox"
             aria-label="搜索结果"
           >
-            {hits.length > 0 && (
-              <ul className="p-1.5">
-                {hits.map((hit, i) => (
-                  <Row
-                    key={`${hit.source}-${hit.id ?? hit.bangumiId}-${i}`}
-                    hit={hit}
-                    index={i}
-                    active={i === active}
-                    busy={adding && i === active}
-                    onHover={() => setActive(i)}
-                    onSelect={() => void go(hit)}
-                  />
-                ))}
-              </ul>
-            )}
-
-            {showEmpty && (
-              <div className="px-6 py-10 text-center">
-                <p className="text-[13px] text-[color:var(--text-muted)]">
-                  没有找到匹配「<span className="text-[color:var(--text-secondary)]">{debouncedQ}</span>」的番剧
-                </p>
-                <p className="mt-1 text-[11px] text-[color:var(--text-muted)]">
-                  试试用日文原名或更短的关键字
-                </p>
+            <div className="t-page-slide" data-page={searchPageId}>
+              <div className="t-page-measure" aria-hidden>
+                {debouncedQ
+                  ? renderSearchResultsPage()
+                  : renderRecommendationsPage()}
               </div>
-            )}
-
-            {!debouncedQ && (
-              <div className="p-2">
-                {recommendationsLoading && suggestionRows.length === 0 ? (
-                  <div className="px-6 py-8 text-center">
-                    <p className="text-[13px] text-[color:var(--text-muted)]">
-                      正在整理推荐
-                    </p>
-                  </div>
-                ) : suggestionRows.length > 0 ? (
-                  <RecommendationSections
-                    recommendations={recommendations}
-                    active={active}
-                    busy={adding}
-                    onHover={setActive}
-                    onSelect={(hit) => void go(hit)}
-                  />
-                ) : (
-                  <div className="px-6 py-8 text-center">
-                    <p className="text-[13px] text-[color:var(--text-muted)]">
-                      输入关键字开始搜索
-                    </p>
-                    <p className="mt-1 text-[11px] text-[color:var(--text-muted)]">
-                      本地未命中时自动联网查 Bangumi
-                    </p>
-                  </div>
-                )}
-              </div>
-            )}
+              <section className="t-page" data-page-id="1">
+                {renderRecommendationsPage()}
+              </section>
+              <section className="t-page" data-page-id="2">
+                {renderSearchResultsPage()}
+              </section>
+            </div>
           </div>
 
         </Dialog.Content>

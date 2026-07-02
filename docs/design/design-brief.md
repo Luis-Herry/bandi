@@ -83,7 +83,7 @@
 │                                                 │
 │  ── 今日更新 ──  横向滚动卡片行                    │
 │  ── 继续观看 ──  横版缩略 + 进度条                 │
-│  ── 本季新番 ──  按星期分组，超出首屏可横滑          │
+│  ── 本季新番 ──  星期 tabs + 横向轨道，滚轮/触控板可横滑看完整日 │
 │  ── 漏看提醒 ──  有更新但未看的番                  │
 └─────────────────────────────────────────────────┘
 ```
@@ -99,7 +99,7 @@
 ├─────────────────────────────────────────────────┤
 │  Tab: 简介 | 制作组 | 声优                       │
 │  集数列表: ✓已看 ●当前 ○未看 ○未播出               │
-│  我的评分 + 笔记                                  │
+│  我的评分 + 笔记（半星评分）                         │
 └─────────────────────────────────────────────────┘
 ```
 
@@ -125,18 +125,17 @@
 | 卡片 hover | translateY(-4px) + scale(1.02) + 阴影加深, 0.2s ease-out |
 | 页面进入 | stagger fade-in, 间隔 50ms, 0.4s |
 | 滚动 | scroll reveal, y:20px opacity:0 → visible |
-| 本季新番横向轨道 | 每个星期首屏 6 张，超出后左右箭头 / 触控板横滑，卡片 snap 对齐 |
+| 本季新番 tabs 轨道 | 星期 tabs 切换，每天首屏 6 张，超出后左右箭头 / 鼠标滚轮 / 触控板横滑，卡片 snap 对齐 |
 | 追番状态切换 | 按钮形变 + 颜色过渡, 0.3s |
 | 集数标记 | checkmark draw animation, 0.3s |
 | Hero 轮播 | crossfade, 0.6s |
 | 页面切换 | layout animation, 共享封面过渡 |
 
-### 3D 背景（首页 + 登录页）
-- React Three Fiber particle field
-- 粒子 < 200, opacity 0.3-0.5
-- 颜色从 Hero 封面取
-- 缓慢漂浮 + 鼠标视差
-- 降级：prefers-reduced-motion → CSS radial-gradient
+### 氛围背景（首页 + 登录页）
+- 首页使用灰烬 canvas，粒子颜色读取当前 accent
+- 画布只作为首页背景层，不抢卡片和文字层级
+- 登录页可以保留轻量 3D / CSS 氛围层
+- 降级：prefers-reduced-motion → 静态 radial-gradient
 
 ### 关键流程
 
@@ -169,10 +168,10 @@
 1. **AnimeCard** — 封面+标题+进度+状态（竖版/横版）
 2. **GlassPanel** — 通用玻璃拟态容器
 3. **HeroSpotlight** — 全出血轮播
-4. **EpisodeGrid** — 集数网格（✓●○🔒）
+4. **EpisodeGrid** — 集数网格（已看 / 当前 / 未看 / 未播出）
 5. **StatusBadge** — 追番状态切换器
 6. **ProgressBar** — 观看进度条（颜色从番剧强调色取）
-7. **SearchCommand** — Cmd+K 全局搜索
+7. **SearchCommand** — 顶部搜索，本地优先 + Bangumi fallback + 空态推荐
 
 ## 9. Open Questions
 

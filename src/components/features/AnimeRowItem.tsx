@@ -16,6 +16,7 @@ interface AnimeRowItemProps {
   /** trailing slot, e.g. a button */
   action?: ReactNode;
   className?: string;
+  href?: string;
 }
 
 /**
@@ -30,6 +31,7 @@ export function AnimeRowItem({
   progress,
   action,
   className,
+  href,
 }: AnimeRowItemProps) {
   return (
     <motion.div
@@ -45,7 +47,7 @@ export function AnimeRowItem({
       )}
     >
       <a
-        href={`/anime/${id}`}
+        href={href ?? `/anime/${id}`}
         aria-label={`查看 ${title}`}
         className="absolute inset-0 z-[1] rounded-[8px] touch-pan-y"
       >

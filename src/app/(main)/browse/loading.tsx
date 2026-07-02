@@ -35,15 +35,9 @@ function ShimmerInline({
       className={`relative overflow-hidden bg-[color:var(--bg-elevated)] rounded-[8px] ${className ?? ""}`}
       style={style}
     >
-      <div
-        className="absolute inset-0"
-        style={{
-          background:
-            "linear-gradient(110deg, rgba(255,255,255,0.02) 30%, rgba(255,255,255,0.06) 50%, rgba(255,255,255,0.02) 70%)",
-          backgroundSize: "200% 100%",
-          animation: "skeleton-shimmer 1.4s linear infinite",
-        }}
-      />
+      <div className="t-skel-skeleton is-pulsing">
+        <div className="t-skel-block" />
+      </div>
     </div>
   );
 }
@@ -126,13 +120,6 @@ export default function BrowseLoading() {
           ))}
         </div>
       </section>
-
-      <style>{`
-        @keyframes skeleton-shimmer {
-          0% { background-position: 200% 0; }
-          100% { background-position: -200% 0; }
-        }
-      `}</style>
     </div>
   );
 }

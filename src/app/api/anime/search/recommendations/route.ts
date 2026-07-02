@@ -18,6 +18,7 @@ interface RecommendationItem {
   source: "local" | "bangumi";
   id: number | null;
   bangumiId: number | null;
+  mediaType: "anime" | "drama" | "movie";
   title: string;
   titleJa: string | null;
   year: number | null;
@@ -45,6 +46,7 @@ export async function GET() {
       source: "local" as const,
       id: item.anime.id,
       bangumiId: item.anime.bangumiId,
+      mediaType: "anime" as const,
       title: item.anime.title,
       titleJa: item.anime.titleJa,
       year: item.anime.year,
@@ -64,6 +66,7 @@ export async function GET() {
       source: "local" as const,
       id: item.anime.id,
       bangumiId: item.anime.bangumiId,
+      mediaType: "anime" as const,
       title: item.anime.title,
       titleJa: item.anime.titleJa,
       year: item.anime.year,
@@ -94,6 +97,7 @@ export async function GET() {
       source: item.localAnimeId ? "local" : "bangumi",
       id: item.localAnimeId,
       bangumiId: item.bangumiId > 0 ? item.bangumiId : null,
+      mediaType: "anime",
       title: item.title,
       titleJa: item.titleJa,
       year: season.year,

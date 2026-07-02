@@ -43,6 +43,13 @@ export interface ExternalDownloadImport {
   episodeId: number | null;
 }
 
+interface DownloadListRowRef {
+  animeId?: number | null;
+  episodeId?: number | null;
+  magnetUrl: string;
+  status?: string | null;
+}
+
 interface PlanExternalDownloadImportsInput {
   downloadRoot: string;
   existingDownloads: ExistingDownloadRef[];
@@ -75,6 +82,11 @@ const COMPLETED_QBIT_STATES = new Set([
   "checkingUP",
   "pausedUP",
   "stoppedUP",
+]);
+const VISIBLE_QBIT_DOWNLOAD_STATUSES = new Set([
+  "pending",
+  "downloading",
+  "completed",
 ]);
 
 function tokenizeReleaseName(value: string) {
@@ -212,14 +224,17 @@ export function planExternalDownloadImports(
   for (const torrent of input.liveTorrents) {
     if (!isProjectDownloadTorrent(torrent, input.downloadRoot)) continue;
 
+    for (const titleKey of getLiveTorrentFileTitleKeys(
+      torrent,
+      input.downloadRoot,
+    )) {
+      liveFileNamesInDownloadRoot.add(titleKey);
+    }
+
     const hash = normalizeHash(torrent.hash);
     if (!hash || existingHashes.has(hash)) continue;
     const titleKey = normalizeTitleKey(torrent.name);
     if (existingTitles.has(titleKey)) continue;
-
-    if (isPathInsideRoot(torrent.save_path ?? "", input.downloadRoot)) {
-      liveFileNamesInDownloadRoot.add(titleKey);
-    }
 
     const inferred = inferAnimeEpisode(
       torrent.name,
@@ -272,6 +287,26 @@ export function planExternalDownloadImports(
   }
 
   return imports;
+}
+
+export function filterShadowLocalFileDownloads<T extends DownloadListRowRef>(
+  rows: T[],
+): T[] {
+  const qbitEpisodeKeys = new Set<string>();
+  for (const row of rows) {
+    if (!extractMagnetHash(row.magnetUrl)) continue;
+    if (!isVisibleQbitDownloadStatus(row.status)) continue;
+
+    const key = getEpisodeDownloadKey(row);
+    if (key) qbitEpisodeKeys.add(key);
+  }
+
+  return rows.filter((row) => {
+    if (!parseLocalFileDownloadUrl(row.magnetUrl)) return true;
+
+    const key = getEpisodeDownloadKey(row);
+    return !key || !qbitEpisodeKeys.has(key);
+  });
 }
 
 export function deriveQbitDownloadStatus(t: QbitTorrent): DownloadImportStatus {
@@ -433,7 +468,32 @@ function isContiguousEpisodeSequence(rows: DownloadEpisodeRef[]): boolean {
 
 function isProjectDownloadTorrent(torrent: QbitTorrent, downloadRoot: string): boolean {
   if ((torrent.category ?? "").toLowerCase() === "anime") return true;
+  if (isPathInsideRoot(torrent.content_path ?? "", downloadRoot)) return true;
   return isPathInsideRoot(torrent.save_path ?? "", downloadRoot);
+}
+
+function getLiveTorrentFileTitleKeys(
+  torrent: QbitTorrent,
+  downloadRoot: string,
+): string[] {
+  const keys = new Set<string>();
+  if (isPathInsideRoot(torrent.save_path ?? "", downloadRoot)) {
+    keys.add(normalizeTitleKey(torrent.name));
+  }
+  if (isPathInsideRoot(torrent.content_path ?? "", downloadRoot)) {
+    keys.add(normalizeTitleKey(path.basename(torrent.content_path!)));
+  }
+  return [...keys];
+}
+
+function getEpisodeDownloadKey(row: DownloadListRowRef): string | null {
+  if (row.animeId == null || row.episodeId == null) return null;
+  return `${row.animeId}:${row.episodeId}`;
+}
+
+function isVisibleQbitDownloadStatus(status: string | null | undefined): boolean {
+  if (status == null) return true;
+  return VISIBLE_QBIT_DOWNLOAD_STATUSES.has(status);
 }
 
 function isPathInsideRoot(value: string, root: string): boolean {

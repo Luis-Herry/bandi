@@ -6,13 +6,21 @@ import {
   Trash2,
   Activity,
   Download,
+  HelpCircle,
   Pause,
   Play,
-  HelpCircle,
 } from "lucide-react";
-import { GlassPanel, Button, StatusBadge, Tag } from "@/components/ui";
+import {
+  AccordionDisclosure,
+  Button,
+  GlassPanel,
+  NumberPop,
+  StatusBadge,
+  Tag,
+} from "@/components/ui";
 import { AnimeCover } from "@/components/features/AnimeCover";
 import { ConfirmDialog } from "@/components/features/ConfirmDialog";
+import { PlayButton } from "@/components/features/PlayButton";
 import { QbitSetupGuideDialog } from "@/components/features/QbitSetupGuideDialog";
 import { showToast } from "@/components/features/ToastHost";
 import { cn } from "@/lib/cn";
@@ -30,6 +38,7 @@ interface DownloadRow {
   liveProgress: number | null;
   liveSpeed: number | null;
   liveState: string | null;
+  episodeNumber: number | null;
   anime: { id: number; title: string; coverUrl: string | null } | null;
   createdAt: string | number;
 }
@@ -317,7 +326,7 @@ export function DownloadsAdminClient() {
                       leftIcon={<Trash2 size={12} />}
                       className="h-7 px-2.5 text-[11px] !text-[color:var(--status-error,#ef4444)] hover:!border-[rgba(239,68,68,0.35)]"
                     >
-                      删除所选 {selectedCount}
+                      删除所选 <NumberPop value={selectedCount} dirY={-1} />
                     </Button>
                   }
                 />
@@ -357,8 +366,8 @@ export function DownloadsAdminClient() {
                     )}
                   >
                     {tabLabel(t)}
-                    <span data-tabular className="ml-1 opacity-60">
-                      {counts[t] ?? 0}
+                    <span className="ml-1 opacity-60">
+                      <NumberPop value={counts[t] ?? 0} dirY={-1} />
                     </span>
                   </button>
                 ),
@@ -429,7 +438,7 @@ function QbitStatusCard({
               qBittorrent {connected ? "已连接" : "未连接"}
             </p>
             <p className="mt-0.5 text-[11px] text-[color:var(--text-muted)]">
-              {qbit?.url ?? "默认 127.0.0.1:8080"}
+              {qbit?.url ?? "—"}
               {qbit?.version && ` · v${qbit.version}`}
               {qbit?.error && ` · ${qbit.error}`}
             </p>
@@ -441,7 +450,7 @@ function QbitStatusCard({
             {adviceReason && <QbitConnectionAdvice reason={adviceReason} />}
           </div>
         </div>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+        <div className="flex flex-col items-start gap-3 sm:items-end">
           <div className="grid grid-cols-3 gap-3 text-[12px] sm:flex sm:items-center sm:gap-6">
             <StatCell label="下载" value={formatSpeed(qbit?.dlSpeed)} accent />
             <StatCell label="上传" value={formatSpeed(qbit?.upSpeed)} />
@@ -481,27 +490,25 @@ function qbitConnectionAdviceReason(
 
 function QbitConnectionAdvice({ reason }: { reason: string }) {
   return (
-    <details className="group mt-2 border-t border-[color:var(--border-subtle)] pt-2">
-      <summary className="inline-flex cursor-pointer list-none items-center gap-1.5 text-[11px] font-medium text-[color:var(--accent)] transition-colors hover:text-[color:var(--text-primary)]">
-        查看连接建议
-        <span className="text-[color:var(--text-muted)] group-open:hidden">展开</span>
-        <span className="hidden text-[color:var(--text-muted)] group-open:inline">收起</span>
-      </summary>
-      <div className="mt-2 max-w-[520px] space-y-1 text-[11px] leading-5 text-[color:var(--text-muted)]">
+    <AccordionDisclosure
+      title="查看连接建议"
+      className="mt-2 max-w-[520px] border-t border-[color:var(--border-subtle)] pt-2"
+      buttonClassName="text-[11px] font-medium text-[color:var(--accent)] transition-colors hover:text-[color:var(--text-primary)]"
+      bodyClassName="mt-2 space-y-1 text-[11px] leading-5 text-[color:var(--text-muted)]"
+    >
         <p>当前状态：{reason}</p>
         <p>安全下载模式会限制上传，并在下载完成后暂停 torrent。</p>
         <p>
           如果正在使用 VPN / TUN / 代理，建议在代理软件里将 qbittorrent.exe
           设为直连，qBittorrent 自身代理保持“无”。
         </p>
-      </div>
-    </details>
+    </AccordionDisclosure>
   );
 }
 
 function qbitErrorHint(error: string): string {
   if (error === "webui_unreachable") {
-    return "qBittorrent 进程可能已启动，但 Web UI 没有监听；桌面版默认使用 127.0.0.1:8080，若端口被占用，可在本地配置里改 qbitPort 后重启。";
+    return "qBittorrent 进程可能已启动，但 Web UI 没有监听；桌面版默认 127.0.0.1:8080，若端口被占用，可在本地配置里改 qbitPort 后重启。";
   }
   if (error === "auth_failed" || error === "auth_cookie_missing") {
     return "Web UI 能访问，但登录失败；检查 QBIT_USER / QBIT_PASS 是否和 qBit Web UI 一致。";
@@ -552,8 +559,10 @@ function SectionHeader({
         <span className="text-[color:var(--accent)]">{icon}</span>
         {title}
         {count !== undefined && (
-          <span data-tabular className="text-[11px] text-[color:var(--text-muted)] font-normal">
-            ({count})
+          <span className="inline-flex items-center text-[11px] font-normal text-[color:var(--text-muted)]">
+            (
+            <NumberPop value={count} dirY={-1} />
+            )
           </span>
         )}
       </h2>
@@ -597,6 +606,14 @@ function DownloadRowItem({
     row.liveState != null
       ? row.liveState !== "error" && row.liveState !== "missingFiles"
       : row.status === "downloading";
+  const episodeLabel =
+    row.episodeNumber != null
+      ? String(row.episodeNumber).padStart(2, "0")
+      : null;
+  const playerHref =
+    row.status === "completed" && row.anime && row.episodeNumber != null
+      ? `/player/${row.anime.id}/${row.episodeNumber}`
+      : null;
 
   return (
     <div
@@ -632,13 +649,29 @@ function DownloadRowItem({
         </label>
         {row.anime && (
           <div className="w-full shrink-0 pt-0.5 sm:w-[96px]">
-            <AnimeCover
-              src={row.anime.coverUrl}
-              alt={row.anime.title}
-              ratio="16/9"
-              sizes="(min-width: 640px) 96px, 100vw"
-              className="rounded-[6px]"
-            />
+            {playerHref && episodeLabel ? (
+              <a
+                href={playerHref}
+                aria-label={`播放 ${row.anime.title} EP.${episodeLabel}`}
+                className="group block rounded-[6px] focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--accent)]"
+              >
+                <AnimeCover
+                  src={row.anime.coverUrl}
+                  alt={row.anime.title}
+                  ratio="16/9"
+                  sizes="(min-width: 640px) 96px, 100vw"
+                  className="rounded-[6px] transition-[filter] duration-150 group-hover:brightness-110"
+                />
+              </a>
+            ) : (
+              <AnimeCover
+                src={row.anime.coverUrl}
+                alt={row.anime.title}
+                ratio="16/9"
+                sizes="(min-width: 640px) 96px, 100vw"
+                className="rounded-[6px]"
+              />
+            )}
           </div>
         )}
         <div className="flex-1 min-w-0">
@@ -653,9 +686,20 @@ function DownloadRowItem({
               <Tag variant="default">{row.anime.title}</Tag>
             )}
           </div>
-          <p className="text-[12px] text-[color:var(--text-primary)] truncate" title={row.title}>
-            {row.title}
-          </p>
+          {playerHref && row.anime && episodeLabel ? (
+            <a
+              href={playerHref}
+              aria-label={`播放 ${row.anime.title} EP.${episodeLabel}`}
+              className="block rounded-[4px] text-[12px] text-[color:var(--text-primary)] transition-colors hover:text-[color:var(--accent)] focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--accent)]"
+              title={row.title}
+            >
+              <span className="block truncate">{row.title}</span>
+            </a>
+          ) : (
+            <p className="text-[12px] text-[color:var(--text-primary)] truncate" title={row.title}>
+              {row.title}
+            </p>
+          )}
           {row.errorMessage && (
             <p className="mt-1 text-[10px] text-[color:var(--status-error,#ef4444)]">
               {row.errorMessage}
@@ -663,6 +707,17 @@ function DownloadRowItem({
           )}
         </div>
         <div className="flex shrink-0 items-center gap-1 self-start sm:self-auto">
+          {playerHref && row.anime && episodeLabel && row.episodeNumber != null && (
+            <PlayButton
+              animeId={row.anime.id}
+              episode={row.episodeNumber}
+              label={`播放 EP.${episodeLabel}`}
+              variant="secondary"
+              size="sm"
+              iconOnly
+              buttonClassName="h-7 w-7 rounded-[6px] text-[color:var(--accent)] hover:brightness-110"
+            />
+          )}
           {canControl && (
             isPaused ? (
               <button

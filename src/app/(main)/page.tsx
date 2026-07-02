@@ -335,13 +335,13 @@ function Section({
   return (
     <section className={className}>
       <header className="flex flex-wrap items-end justify-between gap-3 mb-4">
-        <div>
-          <h2 className="flex items-center gap-2 text-[18px] font-bold tracking-[-0.02em] text-[color:var(--text-primary)]">
+        <div className="t-stagger is-shown">
+          <h2 className="t-stagger-line t-stagger-line--1 flex items-center gap-2 text-[18px] font-bold tracking-[-0.02em] text-[color:var(--text-primary)]">
             <span className="text-[color:var(--accent)]">{icon}</span>
             {title}
           </h2>
           {subtitle && (
-            <p className="mt-1 text-[12px] text-[color:var(--text-muted)]">
+            <p className="t-stagger-line t-stagger-line--2 mt-1 text-[12px] text-[color:var(--text-muted)]">
               {subtitle}
             </p>
           )}
@@ -366,13 +366,15 @@ function EmptyHome({ username }: { username: string }) {
       />
 
       <div className="relative z-10 mx-auto max-w-[720px] px-4 pt-28 pb-20 text-center sm:px-8 sm:pt-32 sm:pb-24">
-        <Tag variant="accent">Bandi</Tag>
-        <h1 className="mt-5 text-[40px] font-extrabold tracking-[-0.03em] leading-[1.1] text-[color:var(--text-primary)]">
-          {username}，欢迎回来
-        </h1>
-        <p className="mt-3 text-[14px] text-[color:var(--text-secondary)] leading-relaxed">
-          你的追番库还是空的。添加第一部番剧，开始管理你的追番清单。
-        </p>
+        <div className="t-stagger is-shown">
+          <Tag variant="accent">Bandi</Tag>
+          <h1 className="t-stagger-line t-stagger-line--1 mt-5 text-[40px] font-extrabold tracking-[-0.03em] leading-[1.1] text-[color:var(--text-primary)]">
+            {username}，欢迎回来
+          </h1>
+          <p className="t-stagger-line t-stagger-line--2 mt-3 text-[14px] text-[color:var(--text-secondary)] leading-relaxed">
+            你的追番库还是空的。添加第一部番剧，开始管理你的追番清单。
+          </p>
+        </div>
 
         <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
           <Button variant="primary" size="lg" leftIcon={<Search size={14} />}>

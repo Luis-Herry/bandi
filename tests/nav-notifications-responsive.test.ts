@@ -81,6 +81,7 @@ test("notification menu can mark one item or every item as read", () => {
 test("notifications include download queue status and qbit interruption signals", () => {
   assert.match(notificationHelperSource, /downloadQueue/);
   assert.match(notificationHelperSource, /getDownloadNotificationItems/);
+  assert.match(notificationHelperSource, /filterShadowLocalFileDownloads/);
   assert.match(notificationHelperSource, /下载完成/);
   assert.match(notificationHelperSource, /下载失败/);
   assert.match(notificationHelperSource, /下载连接中断/);

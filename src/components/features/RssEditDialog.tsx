@@ -3,7 +3,7 @@
 import { useState, type ReactNode } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import * as Switch from "@radix-ui/react-switch";
-import { Button, TextField } from "@/components/ui";
+import { Button, ShimmerText, TextField } from "@/components/ui";
 import type { RssFilters } from "@/db/schema";
 import { cn } from "@/lib/cn";
 
@@ -58,10 +58,10 @@ export function RssEditDialog({ trigger, initial, onSave }: RssEditDialogProps) 
     >
       <Dialog.Trigger asChild>{trigger}</Dialog.Trigger>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50" />
+        <Dialog.Overlay className="t-modal-overlay fixed inset-0 bg-black/70 backdrop-blur-sm z-50" />
         <Dialog.Content
           className={cn(
-            "fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50",
+            "t-modal t-modal-center fixed left-1/2 top-1/2 z-50",
             "w-[520px] max-w-[92vw] glass-panel-elevated p-6 focus:outline-none",
           )}
         >
@@ -141,7 +141,7 @@ export function RssEditDialog({ trigger, initial, onSave }: RssEditDialogProps) 
               onClick={handleSave}
               disabled={busy || !draft.name.trim() || !draft.url.trim()}
             >
-              {busy ? "保存中..." : "保存"}
+              {busy ? <ShimmerText text="保存中..." /> : "保存"}
             </Button>
           </div>
         </Dialog.Content>

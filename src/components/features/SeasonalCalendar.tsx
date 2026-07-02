@@ -4,6 +4,7 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { AnimeCard } from "./AnimeCard";
 import { cn } from "@/lib/cn";
+import { useCardGlow } from "@/hooks/useCardGlow";
 import type { SeasonalByDay } from "@/lib/db-helpers/library";
 
 interface SeasonalCalendarProps {
@@ -26,6 +27,7 @@ export function SeasonalCalendar({ data }: SeasonalCalendarProps) {
 
   const byDay = new Map(data.map((d) => [d.day, d.items]));
   const current = byDay.get(active) ?? [];
+  const gridRef = useCardGlow<HTMLDivElement>([current, active]);
 
   return (
     <div>
@@ -88,7 +90,7 @@ export function SeasonalCalendar({ data }: SeasonalCalendarProps) {
               这一天没有追番更新
             </div>
           ) : (
-            <div className="grid grid-cols-4 gap-3">
+            <div ref={gridRef} className="grid grid-cols-4 gap-3">
               {current.map((it) => (
                 <AnimeCard
                   key={it.anime.id}

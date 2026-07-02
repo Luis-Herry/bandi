@@ -16,7 +16,14 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { Button, GlassPanel, TextField } from "@/components/ui";
+import {
+  AccordionDisclosure,
+  Button,
+  GlassPanel,
+  ShimmerText,
+  TextField,
+  TextSwap,
+} from "@/components/ui";
 import { ConfirmDialog } from "@/components/features/ConfirmDialog";
 import { QbitSetupGuideDialog } from "@/components/features/QbitSetupGuideDialog";
 import { RssEditDialog, type RssSourceDraft } from "@/components/features/RssEditDialog";
@@ -170,7 +177,9 @@ export function AutomationSettingsClient() {
         >
           <div className="rounded-[8px] border border-[color:var(--border-subtle)] bg-[color:var(--bg-surface)] p-2">
             {loading ? (
-              <EmptyText>加载 RSS 源中…</EmptyText>
+              <EmptyText>
+                <ShimmerText text="加载 RSS 源中…" />
+              </EmptyText>
             ) : rssList.length === 0 ? (
               <EmptyText>还没有 RSS 源</EmptyText>
             ) : (
@@ -197,7 +206,7 @@ export function AutomationSettingsClient() {
           title="qBittorrent"
           subtitle="连接配置由本地环境变量提供，页面负责检测当前可用性"
           action={
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center justify-start gap-2 sm:justify-end">
               <QbitSetupGuideDialog
                 trigger={
                   <Button
@@ -299,14 +308,17 @@ function PreferencesCard() {
             size="sm"
             disabled={loading || saving || !prefs}
             onClick={handleSave}
+            className="min-w-[72px]"
           >
-            {saving ? "保存中…" : "保存"}
+            <TextSwap value={saving ? "保存中…" : "保存"} shimmer={saving} />
           </Button>
         </div>
       }
     >
       {loading || !prefs ? (
-        <EmptyText>加载下载偏好中…</EmptyText>
+        <EmptyText>
+          <ShimmerText text="加载下载偏好中…" />
+        </EmptyText>
       ) : (
         <div className="space-y-4">
           <TagListField
@@ -473,7 +485,11 @@ function QbitStatusPanel({
   const connected = qbit?.connected ?? false;
 
   if (loading && !qbit) {
-    return <EmptyText>检测 qBittorrent 中…</EmptyText>;
+    return (
+      <EmptyText>
+        <ShimmerText text="检测 qBittorrent 中…" />
+      </EmptyText>
+    );
   }
 
   return (
@@ -486,7 +502,7 @@ function QbitStatusPanel({
         />
         <SummaryTile
           label="Web UI"
-          value={qbit?.url ?? "默认 127.0.0.1:8080"}
+          value={qbit?.url ?? "自动检测本机 Web UI"}
           compact
         />
         <SummaryTile label="当前下载" value={formatSpeed(qbit?.dlSpeed)} />
@@ -497,23 +513,20 @@ function QbitStatusPanel({
       <div className="rounded-[8px] border border-[color:var(--border-subtle)] bg-[color:var(--bg-surface)] p-3">
         <p className="flex items-center gap-2 text-[12px] font-medium text-[color:var(--text-primary)]">
           <Activity size={14} className="text-[color:var(--accent)]" />
-          连接配置读取 QBIT_URL / QBIT_USER / QBIT_PASS
+          桌面版默认 127.0.0.1:8080；连接配置由桌面主进程注入，可通过本地配置 qbitPort 调整。
         </p>
-        <details className="group mt-3 border-t border-[color:var(--border-subtle)] pt-3">
-          <summary className="flex cursor-pointer list-none items-center gap-2 text-[12px] font-medium text-[color:var(--text-secondary)] transition-colors hover:text-[color:var(--text-primary)]">
+        <AccordionDisclosure
+          title="高级连接说明"
+          icon={
             <ShieldCheck
               size={14}
               className="shrink-0 text-[color:var(--accent)]"
             />
-            <span>高级连接说明</span>
-            <span className="ml-auto text-[11px] text-[color:var(--text-muted)] group-open:hidden">
-              展开
-            </span>
-            <span className="ml-auto hidden text-[11px] text-[color:var(--text-muted)] group-open:inline">
-              收起
-            </span>
-          </summary>
-          <div className="mt-2 space-y-1.5 text-[12px] leading-5 text-[color:var(--text-muted)]">
+          }
+          className="mt-3 border-t border-[color:var(--border-subtle)] pt-3"
+          buttonClassName="text-[12px] font-medium text-[color:var(--text-secondary)] transition-colors hover:text-[color:var(--text-primary)]"
+          bodyClassName="mt-2 space-y-1.5 text-[12px] leading-5 text-[color:var(--text-muted)]"
+        >
             <p>
               安全下载模式会限制上传，并在下载完成后暂停 torrent，减少后台做种对网络的占用。
             </p>
@@ -521,8 +534,7 @@ function QbitStatusPanel({
               如果正在使用 VPN / TUN / 代理，建议在代理软件里将 qbittorrent.exe
               设为直连，qBittorrent 自身代理保持“无”。
             </p>
-          </div>
-        </details>
+        </AccordionDisclosure>
         {qbit?.error && (
           <p className="mt-2 text-[12px] text-[color:var(--status-warning)]">
             {qbit.error}

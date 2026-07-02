@@ -35,6 +35,8 @@ export default async function PlayerPage({ params, searchParams }: PageProps) {
     notFound();
   }
 
+  // userAnime 用 LEFT JOIN：本地库 / 成人区的内容多半没被「想看」追踪过（userAnime 行不存在），
+  // 但有本地文件就该能播（不要求先追踪）。INNER JOIN 会让这些未追踪内容 404。
   const row = db
     .select({
       anime,
@@ -43,7 +45,7 @@ export default async function PlayerPage({ params, searchParams }: PageProps) {
     })
     .from(episodes)
     .innerJoin(anime, eq(episodes.animeId, anime.id))
-    .innerJoin(
+    .leftJoin(
       userAnime,
       and(eq(userAnime.animeId, anime.id), eq(userAnime.userId, user.id)),
     )
@@ -51,6 +53,7 @@ export default async function PlayerPage({ params, searchParams }: PageProps) {
     .get();
 
   if (!row) notFound();
+  const currentEpisode = row.userAnime?.currentEpisode ?? 0;
 
   const progress = db
     .select()
@@ -120,8 +123,8 @@ export default async function PlayerPage({ params, searchParams }: PageProps) {
       number: episode.number,
       title: episode.title,
       isPlayable: playableEpisodeIds.has(episode.id),
-      isWatched: episode.number < row.userAnime.currentEpisode,
-      isTrackingCurrent: episode.number === row.userAnime.currentEpisode,
+      isWatched: episode.number < currentEpisode,
+      isTrackingCurrent: episode.number === currentEpisode,
       playbackPositionSeconds: playback?.positionSeconds ?? 0,
       playbackDurationSeconds: playback?.durationSeconds ?? 0,
       playbackCompleted: playback?.completed ?? false,
@@ -140,6 +143,7 @@ export default async function PlayerPage({ params, searchParams }: PageProps) {
     <PlayerClient
       animeId={animeId}
       episodeNumber={episodeNumber}
+      mediaType={row.anime.mediaType}
       animeTitle={row.anime.title}
       episodeTitle={row.episode.title}
       coverUrl={row.anime.coverUrl}

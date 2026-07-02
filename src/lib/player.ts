@@ -311,23 +311,17 @@ export async function resolvePlayableEpisodeFile({
     };
   }
 
+  // 本地库 / 成人区内容多半没被「想看」追踪过（无 userAnime 行），但有本地文件就该能播。
+  // userAnime 仅用于兜底没传集号时的默认集；不存在就默认 EP.1，不再强制要求先加入追番。
   const ua = db
     .select()
     .from(userAnime)
     .where(and(eq(userAnime.userId, userId), eq(userAnime.animeId, animeId)))
     .get();
-  if (!ua) {
-    return {
-      ok: false,
-      error: "not_in_library",
-      status: 404,
-      message: "请先把这部番加入追番列表",
-    };
-  }
 
   let targetNumber = Number(episode);
   if (!Number.isFinite(targetNumber)) {
-    targetNumber = ua.currentEpisode > 0 ? ua.currentEpisode : 1;
+    targetNumber = ua && ua.currentEpisode > 0 ? ua.currentEpisode : 1;
   }
   targetNumber = Math.floor(targetNumber);
 

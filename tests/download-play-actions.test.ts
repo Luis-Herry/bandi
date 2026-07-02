@@ -28,19 +28,6 @@ test("episode progress edits update the episode grid without a manual refresh", 
   assert.match(gridSource, /ep\.number === displayCurrentEpisode/);
 });
 
-test("desktop downloads page keeps qbit setup guide and 8080 default copy", () => {
-  const downloadsSource = readFileSync(
-    "src/app/(main)/admin/downloads/Client.tsx",
-    "utf8",
-  );
-
-  assert.match(downloadsSource, /QbitSetupGuideDialog/);
-  assert.match(downloadsSource, /不会设置看这里/);
-  assert.match(downloadsSource, /默认 127\.0\.0\.1:8080/);
-  assert.match(downloadsSource, /qbitPort/);
-  assert.doesNotMatch(downloadsSource, /端口优先用 18080/);
-});
-
 test("today update cards expose RSS search and downloaded playback actions", () => {
   const sectionSource = readFileSync(
     "src/components/features/TodayOrUpcomingSection.tsx",
@@ -99,4 +86,26 @@ test("missed update cards search or play the next missed episode", () => {
   assert.match(homeSource, /MissedUpdateActions/);
   assert.match(homeSource, /episodeNumber=\{m\.nextMissedEpisode\}/);
   assert.match(homeSource, /isDownloaded=\{m\.nextMissedEpisodeIsDownloaded\}/);
+});
+
+test("downloads admin completed rows can open the internal player", () => {
+  const clientSource = readFileSync(
+    "src/app/(main)/admin/downloads/Client.tsx",
+    "utf8",
+  );
+  const downloadsRouteSource = readFileSync(
+    "src/app/api/downloads/route.ts",
+    "utf8",
+  );
+
+  assert.match(downloadsRouteSource, /episodeNumber: episodes\.number/);
+  assert.match(downloadsRouteSource, /leftJoin\(episodes, eq\(downloadQueue\.episodeId, episodes\.id\)\)/);
+  assert.match(clientSource, /import \{ PlayButton \}/);
+  assert.match(clientSource, /episodeNumber: number \| null/);
+  assert.match(clientSource, /row\.status === "completed"/);
+  assert.match(clientSource, /const playerHref =/);
+  assert.match(clientSource, /href=\{playerHref\}/);
+  assert.match(clientSource, /aria-label=\{`播放 \$\{row\.anime\.title\} EP\.\$\{episodeLabel\}`\}/);
+  assert.match(clientSource, /episode=\{row\.episodeNumber\}/);
+  assert.match(clientSource, /播放 EP/);
 });

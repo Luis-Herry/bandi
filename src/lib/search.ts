@@ -14,6 +14,7 @@ export interface SearchHit {
   source: "local" | "bangumi";
   id: number | null; // local anime.id when source=local; null otherwise
   bangumiId: number | null;
+  mediaType: "anime" | "drama" | "movie";
   title: string;
   titleJa: string | null;
   year: number | null;
@@ -35,6 +36,7 @@ export async function searchAnime(q: string): Promise<SearchHit[]> {
       bangumiId: animeTable.bangumiId,
       title: animeTable.title,
       titleJa: animeTable.titleJa,
+      mediaType: animeTable.mediaType,
       year: animeTable.year,
       coverUrl: animeTable.coverUrl,
     })
@@ -49,6 +51,7 @@ export async function searchAnime(q: string): Promise<SearchHit[]> {
     bangumiId: row.bangumiId,
     title: row.title,
     titleJa: row.titleJa,
+    mediaType: row.mediaType,
     year: row.year,
     coverUrl: row.coverUrl,
   }));
@@ -69,6 +72,7 @@ export async function searchAnime(q: string): Promise<SearchHit[]> {
       bangumiId: r.id,
       title: r.name_cn || r.name,
       titleJa: r.name,
+      mediaType: "anime",
       year:
         r.date && /^\d{4}/.test(r.date)
           ? parseInt(r.date.slice(0, 4), 10)

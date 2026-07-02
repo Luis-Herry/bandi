@@ -197,6 +197,7 @@ export interface QbitTorrent {
   state: string;
   category?: string;
   save_path?: string;
+  content_path?: string;
 }
 
 export async function getStatus(): Promise<QbitStatus> {

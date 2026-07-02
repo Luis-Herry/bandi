@@ -10,6 +10,7 @@ import { ConfirmDialog } from "@/components/features/ConfirmDialog";
 import { Button, Tag } from "@/components/ui";
 import { cn } from "@/lib/cn";
 import { useCardGlow } from "@/hooks/useCardGlow";
+import { useSlidingTabs } from "@/hooks/useSlidingTabs";
 import type { WatchStatus } from "@/components/ui";
 import type { LibraryItem } from "@/lib/db-helpers/library";
 
@@ -130,12 +131,22 @@ export function LibraryClient({ items }: LibraryClientProps) {
   const allSelected = filtered.length > 0 && selected.size === filtered.length;
 
   const gridRef = useCardGlow<HTMLDivElement>([filtered, view]);
+  const statusTabsRef = useSlidingTabs<HTMLDivElement>([
+    statusTab,
+    items.length,
+  ]);
 
   return (
     <>
       {/* tab + filter bar */}
       <div className="mb-5 flex flex-col gap-3 min-[900px]:flex-row min-[900px]:flex-wrap min-[900px]:items-start xl:flex-nowrap">
-        <div className="flex w-full max-w-full flex-wrap items-center gap-1 overflow-visible rounded-[8px] border border-[color:var(--border-subtle)] bg-[color:var(--bg-surface)] p-1 min-[560px]:w-fit min-[900px]:shrink-0">
+        <div
+          ref={statusTabsRef}
+          role="tablist"
+          aria-label="追番状态"
+          className="t-tabs t-tabs-segmented flex w-full max-w-full flex-wrap items-center gap-1 overflow-visible rounded-[8px] border border-[color:var(--border-subtle)] p-1 min-[560px]:w-fit min-[900px]:shrink-0"
+        >
+          <span className="t-tabs-pill" aria-hidden="true" />
           {STATUS_TABS.map((t) => {
             const active = t.value === statusTab;
             const count =
@@ -147,13 +158,13 @@ export function LibraryClient({ items }: LibraryClientProps) {
               <button
                 key={t.value}
                 type="button"
+                role="tab"
+                aria-selected={active}
                 onClick={() => setStatusTab(t.value)}
                 className={cn(
-                  "h-8 px-3 rounded-[6px] text-[12px] font-medium transition-colors",
+                  "t-tab h-8 px-3 rounded-[6px] text-[12px] font-medium",
                   "shrink-0",
-                  active
-                    ? "bg-[color:var(--accent-subtle)] text-[color:var(--accent)]"
-                    : "text-[color:var(--text-secondary)] hover:text-[color:var(--text-primary)] hover:bg-[color:var(--bg-surface-hover)]",
+                  active && "text-[color:var(--accent)]",
                 )}
               >
                 {t.label}

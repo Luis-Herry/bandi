@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { BarChart3, CalendarDays, CheckCircle2, Clock } from "lucide-react";
-import { GlassPanel } from "@/components/ui";
+import { GlassPanel, NumberPop } from "@/components/ui";
 import { AnimeCover } from "@/components/features/AnimeCover";
 import { StatsBarChart } from "@/components/features/StatsBarChart";
 import { getStatsReport } from "@/lib/db-helpers/stats";
@@ -18,11 +18,11 @@ export default async function StatsPage() {
   return (
     <div className="app-page-container space-y-6 py-6 sm:py-8">
       <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div className="min-w-0">
-          <p className="text-[12px] text-[color:var(--text-muted)]">
+        <div className="t-stagger is-shown min-w-0">
+          <p className="t-stagger-line t-stagger-line--1 text-[12px] text-[color:var(--text-muted)]">
             {report.year} 年度报告
           </p>
-          <h1 className="mt-2 text-[34px] font-extrabold tracking-tight text-[color:var(--text-primary)]">
+          <h1 className="t-stagger-line t-stagger-line--2 mt-2 text-[34px] font-extrabold tracking-tight text-[color:var(--text-primary)]">
             统计
           </h1>
         </div>
@@ -34,7 +34,7 @@ export default async function StatsPage() {
             data-tabular
             className="mt-1 text-[24px] font-bold text-[color:var(--text-primary)]"
           >
-            {report.overview.activeDays}
+            <NumberPop value={report.overview.activeDays} dirY={-1} />
           </p>
         </div>
       </header>
@@ -200,7 +200,7 @@ function MetricCard({
           data-tabular
           className="truncate text-[28px] font-bold leading-none tracking-tight text-[color:var(--text-primary)] sm:text-[30px]"
         >
-          {value}
+          <NumberPop value={value} dirY={-1} />
         </span>
         <span className="text-[12px] text-[color:var(--text-muted)]">
           {suffix}

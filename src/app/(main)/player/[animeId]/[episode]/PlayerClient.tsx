@@ -29,7 +29,7 @@ import {
   Volume2,
   VolumeX,
 } from "lucide-react";
-import { Button } from "@/components/ui";
+import { Button, IconSwap } from "@/components/ui";
 import { BackButton } from "@/components/features/BackButton";
 import { showToast } from "@/components/features/ToastHost";
 import { cn } from "@/lib/cn";
@@ -37,6 +37,7 @@ import { cn } from "@/lib/cn";
 interface PlayerClientProps {
   animeId: number;
   episodeNumber: number;
+  mediaType: "anime" | "drama" | "movie";
   animeTitle: string;
   episodeTitle: string | null;
   coverUrl: string | null;
@@ -85,6 +86,7 @@ const PLAYBACK_RATES = [0.75, 1, 1.25, 1.5, 2];
 export function PlayerClient({
   animeId,
   episodeNumber,
+  mediaType,
   animeTitle,
   coverUrl,
   initialPositionSeconds,
@@ -116,6 +118,7 @@ export function PlayerClient({
     null,
   );
   const [episodePanelOpen, setEpisodePanelOpen] = useState(false);
+  const [episodePanelMounted, setEpisodePanelMounted] = useState(false);
   const [settingsPanelOpen, setSettingsPanelOpen] = useState(false);
   const [subtitleTracks, setSubtitleTracks] = useState<SubtitleTrackItem[]>([]);
   const [subtitlesEnabled, setSubtitlesEnabled] = useState(false);
@@ -127,6 +130,10 @@ export function PlayerClient({
     () => `/api/player/stream?animeId=${animeId}&episode=${episodeNumber}`,
     [animeId, episodeNumber],
   );
+  const detailHref =
+    mediaType === "anime" ? `/anime/${animeId}` : `/cinema/${animeId}`;
+  const episodeUnit = mediaType === "anime" ? "话" : "集";
+  const episodeHeading = `第 ${String(episodeNumber).padStart(2, "0")} ${episodeUnit}`;
   const progressRatio = duration > 0 ? Math.min(1, position / duration) : 0;
   const progressPercent = Math.round(progressRatio * 100);
   const hasReachedEpisodeEnd = duration > 0 && position >= duration - 1;
@@ -142,6 +149,16 @@ export function PlayerClient({
     initialCompleted && initialDurationSeconds - initialPositionSeconds <= 90
       ? 0
       : initialPositionSeconds;
+
+  const openEpisodePanel = useCallback(() => {
+    setSettingsPanelOpen(false);
+    setEpisodePanelMounted(true);
+    setEpisodePanelOpen(true);
+  }, []);
+
+  const closeEpisodePanel = useCallback(() => {
+    setEpisodePanelOpen(false);
+  }, []);
 
   useEffect(() => {
     setVolume(readStoredNumber(PLAYER_VOLUME_KEY, 80, 0, 100));
@@ -178,6 +195,18 @@ export function PlayerClient({
   useEffect(() => {
     writeStoredBoolean(PLAYER_SUBTITLES_KEY, subtitlesEnabled);
   }, [subtitlesEnabled]);
+
+  useEffect(() => {
+    if (episodePanelOpen) {
+      setEpisodePanelMounted(true);
+      return;
+    }
+    if (!episodePanelMounted) return;
+    const timer = window.setTimeout(() => {
+      setEpisodePanelMounted(false);
+    }, readRootDurationMs("--panel-close-dur", 350));
+    return () => window.clearTimeout(timer);
+  }, [episodePanelMounted, episodePanelOpen]);
 
   useEffect(() => {
     let cancelled = false;
@@ -664,7 +693,7 @@ export function PlayerClient({
       )}
       <div className="absolute inset-0 bg-[rgba(0,0,0,0.82)]" />
       <div className="fixed left-4 top-20 z-40 sm:left-6 lg:left-8">
-        <BackButton fallbackHref={`/anime/${animeId}`} />
+        <BackButton fallbackHref={detailHref} />
       </div>
 
       <div className="relative mx-auto flex min-h-[calc(100vh-104px)] max-w-[1180px] items-center">
@@ -684,7 +713,7 @@ export function PlayerClient({
                 data-tabular
                 className="hidden rounded-[6px] bg-[rgb(var(--accent-rgb)/0.12)] px-2 py-0.5 text-[10px] font-bold text-[color:var(--accent)] sm:inline-flex"
               >
-                第 {String(episodeNumber).padStart(2, "0")} 话
+                {episodeHeading}
               </span>
               <span
                 data-tabular
@@ -709,7 +738,7 @@ export function PlayerClient({
                 leftIcon={<Info size={13} />}
                 className="text-white/55 hover:text-white"
               >
-                <a href={`/anime/${animeId}`}>详情页</a>
+                <a href={detailHref}>详情页</a>
               </Button>
               <Button
                 type="button"
@@ -822,16 +851,18 @@ export function PlayerClient({
               </div>
             )}
 
-            {episodePanelOpen && (
+            {episodePanelMounted && (
               <div className="absolute inset-0 z-30">
                 <button
                   type="button"
                   aria-label="关闭选集遮罩"
-                  className="absolute inset-0 cursor-default bg-black/28 backdrop-blur-[2px]"
-                  onClick={() => setEpisodePanelOpen(false)}
+                  data-open={episodePanelOpen ? "true" : "false"}
+                  className="t-panel-scrim absolute inset-0 cursor-default bg-black/28 backdrop-blur-[2px]"
+                  onClick={closeEpisodePanel}
                 />
                 <aside
-                  className="player-panel-reveal absolute inset-y-0 right-0 flex h-full w-full max-w-[380px] flex-col border-l border-white/10 bg-[rgba(18,19,22,0.94)] shadow-[0_24px_72px_rgba(0,0,0,0.5)] backdrop-blur-[20px]"
+                  data-open={episodePanelOpen ? "true" : "false"}
+                  className="t-panel-slide player-episode-panel absolute inset-y-0 right-0 flex h-full w-full max-w-[380px] flex-col border-l border-white/10 bg-[rgba(18,19,22,0.94)] shadow-[0_24px_72px_rgba(0,0,0,0.5)] backdrop-blur-[20px]"
                   onClick={(event) => event.stopPropagation()}
                 >
                   <div className="flex items-center justify-between border-b border-white/8 px-4 py-3">
@@ -843,7 +874,7 @@ export function PlayerClient({
                     </div>
                     <button
                       type="button"
-                      onClick={() => setEpisodePanelOpen(false)}
+                      onClick={closeEpisodePanel}
                       aria-label="关闭选集"
                       className="flex h-8 w-8 items-center justify-center rounded-[6px] text-white/55 transition-colors hover:bg-white/8 hover:text-white"
                     >
@@ -857,7 +888,7 @@ export function PlayerClient({
                         type="button"
                         disabled={!episode.isPlayable}
                         onClick={() => {
-                          setEpisodePanelOpen(false);
+                          closeEpisodePanel();
                           void navigateToEpisode(episode.number);
                         }}
                         className={cn(
@@ -952,7 +983,8 @@ export function PlayerClient({
                     onClick={() => setSettingsPanelOpen(false)}
                   />
                   <div
-                    className="absolute bottom-[88px] right-5 z-20 w-[min(360px,calc(100vw-40px))] rounded-[8px] border border-white/10 bg-[rgba(18,19,22,0.94)] p-3 text-[12px] text-white shadow-[0_18px_52px_rgba(0,0,0,0.42)] backdrop-blur-[18px]"
+                    data-origin="bottom-right"
+                    className="t-dropdown is-open absolute bottom-[88px] right-5 z-20 w-[min(360px,calc(100vw-40px))] rounded-[8px] border border-white/10 bg-[rgba(18,19,22,0.94)] p-3 text-[12px] text-white shadow-[0_18px_52px_rgba(0,0,0,0.42)] backdrop-blur-[18px]"
                     onClick={(event) => event.stopPropagation()}
                   >
                   <div className="mb-3 flex items-center justify-between">
@@ -1065,11 +1097,16 @@ export function PlayerClient({
                     aria-label={isPlaying ? "暂停" : "播放"}
                     className="flex h-6 w-6 items-center justify-center text-white transition-colors hover:text-white/80 active:text-white/65"
                   >
-                    {isPlaying ? (
-                      <Pause size={17} className="fill-current" />
-                    ) : (
-                      <Play size={17} className="translate-x-[1px] fill-current" />
-                    )}
+                    <IconSwap
+                      state={isPlaying ? "b" : "a"}
+                      iconA={
+                        <Play
+                          size={17}
+                          className="translate-x-[1px] fill-current"
+                        />
+                      }
+                      iconB={<Pause size={17} className="fill-current" />}
+                    />
                   </button>
 
                   <button
@@ -1098,11 +1135,11 @@ export function PlayerClient({
                       aria-label={muted ? "取消静音" : "静音"}
                       className="text-white/85 transition-colors hover:text-white"
                     >
-                      {muted || volume === 0 ? (
-                        <VolumeX size={16} />
-                      ) : (
-                        <Volume2 size={16} />
-                      )}
+                      <IconSwap
+                        state={muted || volume === 0 ? "b" : "a"}
+                        iconA={<Volume2 size={16} />}
+                        iconB={<VolumeX size={16} />}
+                      />
                     </button>
                     <input
                       type="range"
@@ -1123,10 +1160,7 @@ export function PlayerClient({
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => {
-                      setSettingsPanelOpen(false);
-                      setEpisodePanelOpen(true);
-                    }}
+                    onClick={openEpisodePanel}
                     aria-label="打开选集"
                     className="flex h-7 items-center gap-1.5 rounded-[6px] px-2 text-[11px] font-medium text-white/72 transition-colors hover:bg-white/8 hover:text-white"
                   >
@@ -1136,7 +1170,7 @@ export function PlayerClient({
                   <button
                     type="button"
                     onClick={() => {
-                      setEpisodePanelOpen(false);
+                      closeEpisodePanel();
                       setSettingsPanelOpen((value) => !value);
                     }}
                     aria-label="播放设置"
@@ -1273,6 +1307,19 @@ function readStoredBoolean(key: string, fallback: boolean) {
 function writeStoredBoolean(key: string, value: boolean) {
   if (typeof window === "undefined") return;
   window.localStorage.setItem(key, value ? "true" : "false");
+}
+
+function readRootDurationMs(name: string, fallbackMs: number) {
+  if (typeof window === "undefined") return fallbackMs;
+  const raw = getComputedStyle(document.documentElement)
+    .getPropertyValue(name)
+    .trim();
+  if (!raw) return fallbackMs;
+  const match = /^([\d.]+)(ms|s)$/.exec(raw);
+  if (!match) return fallbackMs;
+  const value = Number(match[1]);
+  if (!Number.isFinite(value)) return fallbackMs;
+  return match[2] === "s" ? value * 1000 : value;
 }
 
 function isEditableTarget(target: EventTarget | null) {

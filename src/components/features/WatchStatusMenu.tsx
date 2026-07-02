@@ -147,7 +147,7 @@ export function WatchStatusMenu({ animeId, current }: WatchStatusMenuProps) {
           align="start"
           sideOffset={6}
           className={cn(
-            "z-50 min-w-[160px] p-1 rounded-[8px]",
+            "t-dropdown z-50 min-w-[160px] p-1 rounded-[8px]",
             "bg-[color:var(--bg-elevated)] border border-[color:var(--border-default)]",
             "shadow-[0_12px_36px_rgba(0,0,0,0.45)]",
           )}

@@ -2,6 +2,8 @@
 
 import { useEffect, useRef } from "react";
 
+const TILT_MAX = 8;
+
 /**
  * 给 `.anime-card-glow` 卡片接上两层动效：
  *   1. 进场扫描环：IntersectionObserver 触发 .is-revealed → CSS 跑一次性 keyframe
@@ -76,26 +78,52 @@ export function useCardGlow<T extends HTMLElement = HTMLElement>(
     // —— 鼠标跟随描边
     const moveHandlers: Array<{
       el: HTMLElement;
-      onMove: (e: MouseEvent) => void;
+      trackHost: HTMLElement;
+      tiltCard: HTMLElement | null;
+      onMove: (e: PointerEvent) => void;
       onLeave: () => void;
     }> = [];
 
     if (isFinePointer && !reduceMotion) {
       cards.forEach((el) => {
-        const onMove = (e: MouseEvent) => {
-          const r = el.getBoundingClientRect();
-          const mx = ((e.clientX - r.left) / r.width) * 100;
-          const my = ((e.clientY - r.top) / r.height) * 100;
-          el.style.setProperty("--mx", `${mx}%`);
-          el.style.setProperty("--my", `${my}%`);
+        const trackHost = el.closest<HTMLElement>(".t-tilt") ?? el;
+        const tiltCard = trackHost.querySelector<HTMLElement>(".t-tilt-card");
+        const onMove = (e: PointerEvent) => {
+          if (e.pointerType !== "mouse" && e.pointerType !== "pen") return;
+          const r = trackHost.getBoundingClientRect();
+          if (r.width === 0 || r.height === 0) return;
+          const px = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
+          const py = Math.min(1, Math.max(0, (e.clientY - r.top) / r.height));
+          const mx = px * 100;
+          const my = py * 100;
+          el.style.setProperty("--mx", `${mx.toFixed(1)}%`);
+          el.style.setProperty("--my", `${my.toFixed(1)}%`);
+          if (!tiltCard) return;
+          trackHost.classList.add("is-hover");
+          tiltCard.classList.add("is-tilting");
+          tiltCard.style.setProperty(
+            "--tilt-ry",
+            `${((px - 0.5) * TILT_MAX).toFixed(2)}deg`,
+          );
+          tiltCard.style.setProperty(
+            "--tilt-rx",
+            `${((0.5 - py) * TILT_MAX).toFixed(2)}deg`,
+          );
+          tiltCard.style.setProperty("--tilt-gx", `${mx.toFixed(1)}%`);
+          tiltCard.style.setProperty("--tilt-gy", `${my.toFixed(1)}%`);
         };
         const onLeave = () => {
           el.style.removeProperty("--mx");
           el.style.removeProperty("--my");
+          trackHost.classList.remove("is-hover");
+          if (!tiltCard) return;
+          tiltCard.classList.remove("is-tilting");
+          tiltCard.style.setProperty("--tilt-rx", "0deg");
+          tiltCard.style.setProperty("--tilt-ry", "0deg");
         };
-        el.addEventListener("mousemove", onMove);
-        el.addEventListener("mouseleave", onLeave);
-        moveHandlers.push({ el, onMove, onLeave });
+        trackHost.addEventListener("pointermove", onMove);
+        trackHost.addEventListener("pointerleave", onLeave);
+        moveHandlers.push({ el, trackHost, tiltCard, onMove, onLeave });
       });
     }
 
@@ -103,11 +131,17 @@ export function useCardGlow<T extends HTMLElement = HTMLElement>(
       io?.disconnect();
       revealTimers.forEach((timer) => window.clearTimeout(timer));
       revealFrames.forEach((frame) => window.cancelAnimationFrame(frame));
-      moveHandlers.forEach(({ el, onMove, onLeave }) => {
-        el.removeEventListener("mousemove", onMove);
-        el.removeEventListener("mouseleave", onLeave);
+      moveHandlers.forEach(({ el, trackHost, tiltCard, onMove, onLeave }) => {
+        trackHost.removeEventListener("pointermove", onMove);
+        trackHost.removeEventListener("pointerleave", onLeave);
         el.style.removeProperty("--mx");
         el.style.removeProperty("--my");
+        trackHost.classList.remove("is-hover");
+        tiltCard?.classList.remove("is-tilting");
+        tiltCard?.style.removeProperty("--tilt-rx");
+        tiltCard?.style.removeProperty("--tilt-ry");
+        tiltCard?.style.removeProperty("--tilt-gx");
+        tiltCard?.style.removeProperty("--tilt-gy");
       });
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps

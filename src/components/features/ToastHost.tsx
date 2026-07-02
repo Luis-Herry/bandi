@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   AlertCircle,
   CheckCircle2,
@@ -70,7 +70,7 @@ export function ToastHost() {
           toneClass(toast.tone ?? "info"),
         )}
       >
-        {toastIcon(toast.tone ?? "info")}
+        <ToastIcon tone={toast.tone ?? "info"} toastId={toast.id} />
       </span>
       <span className="min-w-0 flex-1">
         <span className="block truncate text-[13px] font-medium text-[color:var(--text-primary)]">
@@ -99,8 +99,35 @@ function toneClass(tone: ToastTone) {
   return "border-[color:var(--accent-muted)] bg-[color:var(--accent-subtle)] text-[color:var(--accent)]";
 }
 
-function toastIcon(tone: ToastTone) {
-  if (tone === "success") return <CheckCircle2 size={15} />;
+function ToastIcon({ tone, toastId }: { tone: ToastTone; toastId: number }) {
+  const checkRef = useRef<HTMLSpanElement>(null);
+
+  useEffect(() => {
+    if (tone !== "success") return;
+    const root = checkRef.current;
+    if (!root) return;
+
+    root
+      .querySelectorAll<SVGGeometryElement>("path,circle,polyline")
+      .forEach((path) => {
+        if (typeof path.getTotalLength !== "function") return;
+        const length = Math.ceil(path.getTotalLength()) + 1;
+        path.style.strokeDasharray = String(length);
+        path.style.strokeDashoffset = String(length);
+      });
+
+    root.setAttribute("data-state", "out");
+    void root.offsetWidth;
+    root.setAttribute("data-state", "in");
+  }, [tone, toastId]);
+
+  if (tone === "success") {
+    return (
+      <span ref={checkRef} className="t-success-check" data-state="out">
+        <CheckCircle2 size={15} />
+      </span>
+    );
+  }
   if (tone === "warning" || tone === "error") return <AlertCircle size={15} />;
   if (tone === "download") return <Download size={15} />;
   if (tone === "play") return <Play size={15} fill="currentColor" />;

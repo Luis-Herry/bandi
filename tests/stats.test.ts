@@ -25,6 +25,7 @@ before(() => {
       cover_url text,
       synopsis text,
       type text not null,
+      media_type text not null default 'anime',
       status text not null,
       total_episodes integer,
       airing_day integer,
@@ -88,6 +89,18 @@ before(() => {
     updatedAt: toUnixSeconds(new Date(2026, 0, 1)),
   });
   insertAnime.run({
+    id: 2,
+    title: "Extra Anime",
+    titleJa: null,
+    coverUrl: null,
+    type: "TV",
+    status: "completed",
+    totalEpisodes: 1,
+    tags: JSON.stringify(["extra"]),
+    createdAt: toUnixSeconds(new Date(2026, 0, 1)),
+    updatedAt: toUnixSeconds(new Date(2026, 0, 1)),
+  });
+  insertAnime.run({
     id: 10,
     title: "完结番",
     titleJa: "完結アニメ",
@@ -123,6 +136,19 @@ before(() => {
     createdAt: toUnixSeconds(new Date(2026, 0, 1)),
     updatedAt: toUnixSeconds(new Date(2026, 0, 1)),
   });
+  insertAnime.run({
+    id: 20,
+    title: "Drama Leak",
+    titleJa: null,
+    coverUrl: null,
+    type: "TV",
+    status: "airing",
+    totalEpisodes: 2,
+    tags: JSON.stringify(["live-action"]),
+    createdAt: toUnixSeconds(new Date(2026, 0, 1)),
+    updatedAt: toUnixSeconds(new Date(2026, 0, 1)),
+  });
+  sqlite.prepare("update anime set media_type = 'drama' where id = 20").run();
 
   const insertUserAnime = sqlite.prepare(`
     insert into user_anime
@@ -162,6 +188,14 @@ before(() => {
     rating: 4.5,
     updatedAt: toUnixSeconds(new Date(2026, 3, 6)),
   });
+  insertUserAnime.run({
+    userId: "report-user",
+    animeId: 20,
+    watchStatus: "completed",
+    currentEpisode: 2,
+    rating: 2,
+    updatedAt: toUnixSeconds(new Date(2026, 3, 8)),
+  });
 
   const insertEpisode = sqlite.prepare(`
     insert into episodes (anime_id, number, title, aired_at, is_downloaded)
@@ -174,6 +208,8 @@ before(() => {
     [11, 13],
     [11, 14],
     [12, 1],
+    [20, 1],
+    [20, 2],
   ] as const) {
     insertEpisode.run({ animeId: row[0], number: row[1] });
   }
@@ -202,6 +238,8 @@ before(() => {
     ["report-user", 11, null, 14, "watch", 24, new Date(2026, 2, 4, 20)],
     ["report-user", 11, null, 12.5, "watch", 24, new Date(2026, 2, 5, 20)],
     ["report-user", 12, null, 1, "watch", 24, new Date(2026, 3, 5, 20)],
+    ["report-user", 20, null, 1, "watch", 45, new Date(2026, 3, 7, 20)],
+    ["report-user", 20, null, 2, "watch", 45, new Date(2026, 3, 8, 20)],
   ] as const) {
     insert.run({
       userId: row[0],
@@ -286,6 +324,34 @@ test("getStatsReport overview completed count is not limited by top N", async ()
 
   assert.equal(report.overview.completedAnime, 2);
   assert.equal(report.completedTop.length, 1);
+});
+
+test("stats helpers ignore cinema watch events and ratings", async () => {
+  const { getMonthHours, getWeekDailyHours, getStatsReport } = await import(
+    "../src/lib/db-helpers/stats"
+  );
+
+  const report = getStatsReport("report-user", { year: 2026, topLimit: 5 });
+
+  assert.equal(getMonthHours("report-user", new Date(2026, 3, 8, 21)), 0.4);
+  assert.deepEqual(getWeekDailyHours("report-user", new Date(2026, 3, 5, 21)), [
+    0, 0, 0, 0, 0, 0, 0.4,
+  ]);
+  assert.equal(report.overview.totalHours, 1.6);
+  assert.equal(report.overview.watchedEpisodes, 4);
+  assert.equal(report.overview.completedAnime, 2);
+  assert.equal(
+    report.ratingDistribution.find((item) => item.rating === 2)?.count,
+    0,
+  );
+  assert.equal(
+    report.completedTop.some((item) => item.title === "Drama Leak"),
+    false,
+  );
+  assert.equal(
+    report.tagDistribution.some((item) => item.tag === "live-action"),
+    false,
+  );
 });
 
 test("getStatsReport returns stable empty shapes", async () => {

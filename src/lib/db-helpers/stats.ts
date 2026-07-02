@@ -112,9 +112,11 @@ export function getMonthHours(userId: string, refDate = new Date()) {
       minutes: watchEvents.minutes,
     })
     .from(watchEvents)
+    .innerJoin(anime, eq(watchEvents.animeId, anime.id))
     .where(
       and(
         eq(watchEvents.userId, userId),
+        eq(anime.mediaType, "anime"),
         wholeEpisodeOnly,
         gte(watchEvents.watchedAt, startOfMonth(refDate)),
         lt(watchEvents.watchedAt, startOfNextMonth(refDate)),
@@ -141,9 +143,11 @@ export function getWeekDailyHours(userId: string, refDate = new Date()) {
       watchedAt: watchEvents.watchedAt,
     })
     .from(watchEvents)
+    .innerJoin(anime, eq(watchEvents.animeId, anime.id))
     .where(
       and(
         eq(watchEvents.userId, userId),
+        eq(anime.mediaType, "anime"),
         wholeEpisodeOnly,
         gte(watchEvents.watchedAt, start),
         lt(watchEvents.watchedAt, end),
@@ -189,6 +193,7 @@ function getYearEventRows(userId: string, year: number) {
     .where(
       and(
         eq(watchEvents.userId, userId),
+        eq(anime.mediaType, "anime"),
         wholeEpisodeOnly,
         gte(watchEvents.watchedAt, startOfYear(year)),
         lt(watchEvents.watchedAt, startOfNextYear(year)),
@@ -224,6 +229,7 @@ function getEventsUntilYearEnd(userId: string, year: number) {
     .where(
       and(
         eq(watchEvents.userId, userId),
+        eq(anime.mediaType, "anime"),
         wholeEpisodeOnly,
         lt(watchEvents.watchedAt, startOfNextYear(year)),
       ),
@@ -285,7 +291,8 @@ function getRatingDistribution(userId: string): StatsReport["ratingDistribution"
   const rows = db
     .select({ rating: userAnime.rating })
     .from(userAnime)
-    .where(eq(userAnime.userId, userId))
+    .innerJoin(anime, eq(userAnime.animeId, anime.id))
+    .where(and(eq(userAnime.userId, userId), eq(anime.mediaType, "anime")))
     .all();
 
   for (const row of rows) {

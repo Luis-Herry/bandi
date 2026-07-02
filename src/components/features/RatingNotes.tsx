@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { Check, FileEdit, Loader2, Star } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { showToast } from "@/components/features/ToastHost";
+import { TextSwap } from "@/components/ui";
 import {
   formatRatingScore,
   formatStarRatingLabel,
@@ -17,6 +18,12 @@ interface RatingNotesProps {
   initialNotes?: string | null;
   initialUpdatedAt?: string | null;
   disabled?: boolean;
+  title?: string;
+  eyebrow?: string;
+  placeholder?: string;
+  disabledPlaceholder?: string;
+  savedToastTitle?: string;
+  errorToastTitle?: string;
 }
 
 export function RatingNotes({
@@ -25,6 +32,12 @@ export function RatingNotes({
   initialNotes,
   initialUpdatedAt,
   disabled,
+  title = "我的评分 + 笔记",
+  eyebrow = "追番记录本",
+  placeholder = "写点观看感受...",
+  disabledPlaceholder = "追番后可记录观看感受",
+  savedToastTitle = "评分笔记已保存",
+  errorToastTitle = "笔记保存失败",
 }: RatingNotesProps) {
   const [rating, setRating] = useState<number>(initialRating ?? 0);
   const [hoverRating, setHoverRating] = useState<number>(0);
@@ -37,6 +50,18 @@ export function RatingNotes({
 
   const display = hoverRating || rating;
   const score = formatRatingScore(rating);
+  const saveStateText = saving
+    ? "保存中…"
+    : saved === "ok"
+      ? "已保存"
+      : saved === "err"
+        ? "保存失败"
+        : `上一次编辑：${formatSavedAt(lastSavedAt)}`;
+  const saveButtonText = saving
+    ? "同步中..."
+    : saved === "ok"
+      ? "已保存"
+      : "编辑笔记";
 
   const save = (
     next?: { rating?: number; notes?: string },
@@ -56,7 +81,7 @@ export function RatingNotes({
         if (!res.ok) {
           setSaved("err");
           if (!options?.quiet) {
-            showToast({ title: "笔记保存失败", tone: "error" });
+            showToast({ title: errorToastTitle, tone: "error" });
           }
           setTimeout(() => setSaved("idle"), 1500);
           return;
@@ -64,13 +89,13 @@ export function RatingNotes({
         setSaved("ok");
         setLastSavedAt(new Date().toISOString());
         if (!options?.quiet) {
-          showToast({ title: "评分笔记已保存", tone: "success" });
+          showToast({ title: savedToastTitle, tone: "success" });
         }
         setTimeout(() => setSaved("idle"), 1500);
       } catch {
         setSaved("err");
         if (!options?.quiet) {
-          showToast({ title: "笔记保存失败", description: "网络连接异常", tone: "error" });
+          showToast({ title: errorToastTitle, description: "网络连接异常", tone: "error" });
         }
         setTimeout(() => setSaved("idle"), 1500);
       }
@@ -90,10 +115,10 @@ export function RatingNotes({
 
       <div className="relative flex flex-wrap items-center justify-between gap-2 border-b border-[color:var(--border-subtle)] pb-3">
         <h3 className="text-[14px] font-semibold tracking-tight text-[color:var(--text-primary)]">
-          我的评分 + 笔记
+          {title}
         </h3>
         <span className="text-[11px] text-[color:var(--text-muted)]">
-          追番记录本
+          {eyebrow}
         </span>
       </div>
 
@@ -193,7 +218,7 @@ export function RatingNotes({
         onBlur={() => save(undefined, { quiet: true })}
         disabled={disabled}
         rows={4}
-        placeholder={disabled ? "追番后可记录观看感受" : "写点观看感受..."}
+        placeholder={disabled ? disabledPlaceholder : placeholder}
         className={cn(
           "relative mt-4 h-24 w-full resize-none rounded-[8px] px-3 py-2.5",
           "border border-[color:var(--border-subtle)] bg-black/25",
@@ -207,13 +232,7 @@ export function RatingNotes({
       <div className="relative mt-4 flex flex-col gap-3 min-[460px]:flex-row min-[460px]:items-center min-[460px]:justify-between">
         <span className="flex min-w-0 items-center gap-1.5 text-[11px] text-[color:var(--text-muted)]">
           <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[color:var(--accent)]" />
-          {saving
-            ? "保存中…"
-            : saved === "ok"
-              ? "已保存"
-              : saved === "err"
-                ? "保存失败"
-                : `上一次编辑：${formatSavedAt(lastSavedAt)}`}
+          <TextSwap value={saveStateText} className="truncate" shimmer={saving} />
         </span>
         <button
           type="button"
@@ -235,7 +254,7 @@ export function RatingNotes({
           ) : (
             <FileEdit size={14} />
           )}
-          {saving ? "同步中..." : saved === "ok" ? "已保存" : "编辑笔记"}
+          <TextSwap value={saveButtonText} shimmer={saving} />
         </button>
       </div>
     </div>

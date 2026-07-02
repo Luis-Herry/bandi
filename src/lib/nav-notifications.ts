@@ -6,6 +6,7 @@ import {
 import { desc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { anime, appSettings, downloadQueue } from "@/db/schema";
+import { filterShadowLocalFileDownloads } from "@/lib/download-reconcile";
 
 export type NavNotificationTone =
   | "alert"
@@ -201,6 +202,9 @@ function getDownloadNotificationItems(): NavNotificationItem[] {
       status: downloadQueue.status,
       progress: downloadQueue.progress,
       errorMessage: downloadQueue.errorMessage,
+      magnetUrl: downloadQueue.magnetUrl,
+      animeId: downloadQueue.animeId,
+      episodeId: downloadQueue.episodeId,
       updatedAt: downloadQueue.updatedAt,
       animeTitle: anime.title,
     })
@@ -210,11 +214,17 @@ function getDownloadNotificationItems(): NavNotificationItem[] {
     .limit(8)
     .all();
 
-  return rows
+  const visibleRows = filterShadowLocalFileDownloads(
+    rows.map((row) => ({
+      ...row,
+      status: row.status as DownloadStatus,
+    })),
+  );
+
+  return visibleRows
     .map((row) =>
       downloadRowToNotification({
         ...row,
-        status: row.status as DownloadStatus,
       }),
     )
     .filter((item): item is NavNotificationItem => item !== null)

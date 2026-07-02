@@ -6,6 +6,7 @@ import { GlassPanel, Tag } from "@/components/ui";
 import { CharacterCard } from "@/components/features/CharacterCard";
 import { CreditCardGrid } from "@/components/features/CreditCardGrid";
 import { StaffCard } from "@/components/features/StaffCard";
+import { useSlidingTabs } from "@/hooks/useSlidingTabs";
 import type {
   CharacterCardView,
   StaffCardView,
@@ -41,6 +42,7 @@ export function AnimeCreditsTabs({
     status: "idle",
     items: [],
   });
+  const tabsRef = useSlidingTabs<HTMLDivElement>([active]);
 
   const loadCredits = useCallback(
     async (kind: CreditKind) => {
@@ -85,7 +87,12 @@ export function AnimeCreditsTabs({
 
   return (
     <Tabs.Root value={active} onValueChange={handleTabChange}>
-      <Tabs.List className="no-scrollbar relative z-10 mb-5 flex items-center gap-1 overflow-x-auto border-b border-[color:var(--border-subtle)]">
+      <Tabs.List
+        ref={tabsRef}
+        data-tabs-variant="line"
+        className="t-tabs t-tabs-line no-scrollbar relative z-10 mb-5 flex items-center gap-1 overflow-x-auto border-b border-[color:var(--border-subtle)]"
+      >
+        <span className="t-tabs-pill" aria-hidden="true" />
         {[
           { v: "intro", label: "简介" },
           { v: "characters", label: "角色" },
@@ -94,7 +101,7 @@ export function AnimeCreditsTabs({
           <Tabs.Trigger
             key={t.v}
             value={t.v}
-            className="relative h-10 shrink-0 cursor-pointer px-4 text-[13px] text-[color:var(--text-secondary)] outline-none transition-colors hover:text-[color:var(--text-primary)] data-[state=active]:font-medium data-[state=active]:text-[color:var(--text-primary)] data-[state=active]:after:absolute data-[state=active]:after:-bottom-px data-[state=active]:after:left-3 data-[state=active]:after:right-3 data-[state=active]:after:h-[2px] data-[state=active]:after:rounded-full data-[state=active]:after:bg-[color:var(--accent)] data-[state=active]:after:content-['']"
+            className="t-tab relative h-10 shrink-0 cursor-pointer px-4 text-[13px] text-[color:var(--text-secondary)] outline-none data-[state=active]:font-medium"
           >
             {t.label}
           </Tabs.Trigger>

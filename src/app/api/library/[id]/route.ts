@@ -43,7 +43,18 @@ export async function PATCH(
     return NextResponse.json({ error: "invalid id" }, { status: 400 });
   }
 
-  const existing = db
+  const body = (await req.json().catch(() => ({}))) as {
+    watchStatus?: unknown;
+    currentEpisode?: unknown;
+    rating?: unknown;
+    notes?: unknown;
+  };
+  const explicitStatus = isStatus(body.watchStatus) ? body.watchStatus : null;
+
+  // 没有追踪行时按需创建：成人区 / 本地库可直接评分 + 影评，不强制先「想看」。
+  // watchStatus 不可为空，缺省给 "watching"；成人区 UI 不显示状态、且 movie 不进
+  // cinema 追更（只查 drama）、不进动漫统计（只查 anime），这个内部默认值不可见。
+  let existing = db
     .select()
     .from(userAnime)
     .where(
@@ -51,19 +62,20 @@ export async function PATCH(
     )
     .get();
   if (!existing) {
-    return NextResponse.json({ error: "not in library" }, { status: 404 });
+    existing = db
+      .insert(userAnime)
+      .values({
+        userId: user.id,
+        animeId,
+        watchStatus: explicitStatus ?? "watching",
+        currentEpisode: 0,
+      })
+      .returning()
+      .get();
   }
-
-  const body = (await req.json().catch(() => ({}))) as {
-    watchStatus?: unknown;
-    currentEpisode?: unknown;
-    rating?: unknown;
-    notes?: unknown;
-  };
 
   const now = new Date();
   const updates: Record<string, unknown> = { updatedAt: now };
-  const explicitStatus = isStatus(body.watchStatus) ? body.watchStatus : null;
   if (explicitStatus) updates.watchStatus = explicitStatus;
   let nextEp: number | null = null;
   if (typeof body.currentEpisode === "number") {

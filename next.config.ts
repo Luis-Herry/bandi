@@ -11,6 +11,7 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "image.tmdb.org" },
       { protocol: "https", hostname: "images.unsplash.com" },
       { protocol: "https", hostname: "s4.anilist.co" },
+      { protocol: "https", hostname: "pics.dmm.co.jp" },
     ],
   },
 };

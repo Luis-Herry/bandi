@@ -2,6 +2,7 @@ import {
   sqliteTable,
   text,
   integer,
+  real,
   uniqueIndex,
   index,
 } from "drizzle-orm/sqlite-core";
@@ -19,6 +20,41 @@ export const users = sqliteTable("users", {
 });
 
 /* ===== anime ===== */
+
+/**
+ * "在哪看"缓存（看剧 / 电影模块）。来源 TMDB watch-providers + JustWatch，
+ * 流媒体只做标记 + deep link 跳转，不代为分发内容。
+ */
+export interface WatchProviderEntry {
+  providerId: number;
+  providerName: string; // 映射后中文名：爱奇艺 / 腾讯视频 / 优酷 / 芒果TV ...
+  type: "flatrate" | "rent" | "buy" | "free" | "ads";
+  logoPath?: string;
+  /** 平台播放链接（来源豆瓣 vendors 时有；douban:// 小程序链接会被过滤掉只留 http(s)） */
+  url?: string;
+}
+
+export interface WatchProvidersCache {
+  region: string; // "CN" / "US" / "TW" ...
+  link?: string; // TMDB 返回的 JustWatch deep link
+  providers: WatchProviderEntry[];
+  fetchedAt: number; // unix 秒
+}
+
+/**
+ * 读 `anime.watchProviders` 的向后兼容归一化。
+ *
+ * 历史行存的是单个 `WatchProvidersCache`（单区，region=CN，豆瓣 vendors）；
+ * 「在哪看」双线改造后存数组 `[国内豆瓣(CN), 海外TMDb(US/TW...)]`。读取一律归一成
+ * 数组：旧单对象包成单元素数组，空值给空数组。**不改磁盘数据、不需 SQL 迁移**
+ * （JSON 字段只改形状）。所有读 watchProviders 的地方都走这里。
+ */
+export function normalizeWatchProviders(
+  raw: WatchProvidersCache | WatchProvidersCache[] | null | undefined,
+): WatchProvidersCache[] {
+  if (!raw) return [];
+  return Array.isArray(raw) ? raw : [raw];
+}
 
 export const anime = sqliteTable(
   "anime",
@@ -43,6 +79,27 @@ export const anime = sqliteTable(
     year: integer("year"),
     tags: text("tags", { mode: "json" }).$type<string[]>(),
     accentColor: text("accent_color"), // 缓存提取色，#rrggbb
+    // ===== 看剧 / 电影模块（mediaType 改造）=====
+    // 品类：与 type（TV/Movie/OVA/Web，格式）正交。anime 默认值回填现有行。
+    mediaType: text("media_type", {
+      enum: ["anime", "drama", "movie"],
+    })
+      .notNull()
+      .default("anime"),
+    tmdbId: integer("tmdb_id"), // TMDB 外部 id
+    doubanId: text("douban_id"), // 豆瓣条目 id
+    imdbId: text("imdb_id"), // IMDB id（tt...），供豆瓣中文名交叉匹配
+    tmdbRating: real("tmdb_rating"), // TMDB 评分（豆瓣兜底）
+    doubanRating: real("douban_rating"), // 豆瓣评分缓存（锦上添花，不强依赖）
+    doubanRatingFetchedAt: integer("douban_rating_fetched_at", {
+      mode: "timestamp",
+    }), // 豆瓣评分抓取时间戳，过期再刷
+    watchProviders: text("watch_providers", {
+      mode: "json",
+    }).$type<WatchProvidersCache | WatchProvidersCache[]>(), // "在哪看"缓存（双线：[国内豆瓣, 海外TMDb]；旧行为单对象，读取用 normalizeWatchProviders 归一）
+    // 成人内容标记（真人番号片 + 成人动漫 OVA）。独立成人分区据此查询，
+    // 主 cinema 本地库 / 影视库 / 刮削队列都按 isAdult=false 排除，避免混入。
+    isAdult: integer("is_adult", { mode: "boolean" }).notNull().default(false),
     createdAt: integer("created_at", { mode: "timestamp" })
       .notNull()
       .default(sql`(unixepoch())`),

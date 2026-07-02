@@ -5,6 +5,7 @@ import { anime, downloadQueue, episodes } from "@/db/schema";
 import { desc, eq } from "drizzle-orm";
 import {
   deriveQbitDownloadStatus,
+  filterShadowLocalFileDownloads,
   findMatchingQbitTorrent,
   listLocalVideoFiles,
   planExternalDownloadImports,
@@ -39,9 +40,11 @@ export async function GET() {
         title: anime.title,
         coverUrl: anime.coverUrl,
       },
+      episodeNumber: episodes.number,
     })
     .from(downloadQueue)
     .leftJoin(anime, eq(downloadQueue.animeId, anime.id))
+    .leftJoin(episodes, eq(downloadQueue.episodeId, episodes.id))
     .orderBy(desc(downloadQueue.createdAt))
     .all();
 
@@ -104,6 +107,7 @@ export async function GET() {
       progress,
       speed,
       anime: r.anime?.id ? r.anime : null,
+      episodeNumber: r.episodeNumber ?? null,
       liveProgress: lt ? lt.progress : null,
       liveSpeed: lt ? lt.dlspeed : null,
       liveState: lt ? lt.state : null,
@@ -124,7 +128,7 @@ export async function GET() {
     );
   }
 
-  return NextResponse.json({ items });
+  return NextResponse.json({ items: filterShadowLocalFileDownloads(items) });
 }
 
 function syncExternalDownloads(live: QbitTorrent[]) {

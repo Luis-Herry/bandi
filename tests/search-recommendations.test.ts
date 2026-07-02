@@ -33,3 +33,16 @@ test("search fallback uses thumbnail Bangumi covers for compact results", () => 
   assert.match(searchSource, /selectBangumiImageByRole\(r\.images, "thumb"\)/);
   assert.doesNotMatch(searchSource, /r\.images\?\.large \?\? r\.images\?\.common/);
 });
+
+test("local search hits route cinema entries directly to cinema detail", () => {
+  const searchSource = readFileSync("src/lib/search.ts", "utf8");
+
+  assert.match(searchSource, /mediaType:\s*animeTable\.mediaType/);
+  assert.match(searchSource, /mediaType:\s*row\.mediaType/);
+  assert.match(searchCommandSource, /mediaType:\s*"anime" \| "drama" \| "movie"/);
+  assert.match(
+    searchCommandSource,
+    /hit\.mediaType === "anime" \? `\/anime\/\$\{hit\.id\}` : `\/cinema\/\$\{hit\.id\}`/,
+  );
+  assert.doesNotMatch(searchCommandSource, /router\.push\(`\/anime\/\$\{hit\.id\}`\)/);
+});

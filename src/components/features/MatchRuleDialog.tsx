@@ -4,7 +4,7 @@ import { useState, useEffect, type KeyboardEvent, type ReactNode } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import * as Switch from "@radix-ui/react-switch";
 import { X } from "lucide-react";
-import { Button, TextField, Tag } from "@/components/ui";
+import { Button, ShimmerText, TextField, Tag } from "@/components/ui";
 import { cn } from "@/lib/cn";
 
 export interface MatchRuleDraft {
@@ -102,10 +102,10 @@ export function MatchRuleDialog({
     <Dialog.Root open={open} onOpenChange={setOpen}>
       <Dialog.Trigger asChild>{trigger}</Dialog.Trigger>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50" />
+        <Dialog.Overlay className="t-modal-overlay fixed inset-0 bg-black/70 backdrop-blur-sm z-50" />
         <Dialog.Content
           className={cn(
-            "fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50",
+            "t-modal t-modal-center fixed left-1/2 top-1/2 z-50",
             "w-[560px] max-w-[92vw] glass-panel-elevated p-6 focus:outline-none",
           )}
         >
@@ -238,7 +238,7 @@ export function MatchRuleDialog({
               onClick={handleSave}
               disabled={busy || !draft.name.trim()}
             >
-              {busy ? "保存中..." : "保存"}
+              {busy ? <ShimmerText text="保存中..." /> : "保存"}
             </Button>
           </div>
         </Dialog.Content>

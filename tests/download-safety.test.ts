@@ -32,10 +32,21 @@ test("settings keeps qBit connection advice collapsed without a safe-mode toggle
     "utf8",
   );
 
-  assert.match(source, /<details/);
+  assert.match(source, /<AccordionDisclosure/);
+  assert.doesNotMatch(source, /defaultOpen/);
   assert.match(source, /高级连接说明/);
   assert.match(source, /安全下载模式会限制上传/);
   assert.match(source, /qbittorrent\.exe/);
   assert.match(source, /qBittorrent 自身代理保持“无”/);
   assert.doesNotMatch(source, /关闭安全下载模式|安全下载模式.*关闭|setSafeMode/);
+});
+
+test("desktop qBit client keeps the embedded 8080 route and web fallback", () => {
+  const source = readFileSync("src/lib/qbit.ts", "utf8");
+
+  assert.match(source, /const DEFAULT_QBIT_URLS = \[\s*"http:\/\/localhost:8080"/);
+  assert.match(source, /"http:\/\/127\.0\.0\.1:18080"/);
+  assert.match(source, /const isDesktopApp = process\.env\.ANIME_DESKTOP_APP === "1"/);
+  assert.match(source, /isDesktopApp\).*DEFAULT_QBIT_URLS\[0\]/s);
+  assert.match(source, /isLocalDefaultWebUiUrl/);
 });

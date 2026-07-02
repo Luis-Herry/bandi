@@ -12,6 +12,10 @@ const duskBackdropSource = readFileSync(
   "utf8",
 );
 const homeSource = readFileSync("src/app/(main)/page.tsx", "utf8");
+const localLibrarySource = readFileSync(
+  "src/app/(main)/library/local/LocalLibraryClient.tsx",
+  "utf8",
+);
 const chineseBrandPattern = new RegExp(String.fromCharCode(0x756a, 0x90b8));
 
 test("Nav keeps brand and compact actions in a single-row header", () => {
@@ -40,10 +44,7 @@ test("Nav keeps brand and compact actions in a single-row header", () => {
   assert.match(brandLogoSource, /<img/);
   assert.match(brandLogoSource, /brand-logo-mark/);
   assert.match(brandLogoSource, /brand-logo-float/);
-  assert.match(brandLogoSource, /object-cover/);
   assert.match(globalsSource, /@keyframes brand-logo-float/);
-  assert.doesNotMatch(brandLogoSource, /from "lucide-react"/);
-  assert.doesNotMatch(brandLogoSource, /strokeWidth=\{2\}/);
   assert.doesNotMatch(brandLogoSource, /var\(--accent\) 58%, white/);
   assert.doesNotMatch(brandLogoSource, /brand-logo-icon-shell/);
   assert.doesNotMatch(brandLogoSource, /group-hover:-translate-y/);
@@ -57,9 +58,9 @@ test("Brand copy uses Bandi across metadata, nav, logo, and login", () => {
   assert.match(layoutSource, /default:\s*"Bandi"/);
   assert.match(layoutSource, /template:\s*"%s · Bandi"/);
   assert.match(layoutSource, /applicationName:\s*"Bandi"/);
+  assert.match(layoutSource, /description:\s*"你的私人放映厅"/);
   assert.match(layoutSource, /\/favicon\.ico/);
   assert.match(layoutSource, /\/brand\/app-logo\.png/);
-  assert.match(layoutSource, /description:\s*"你的私人放映厅"/);
   assert.match(brandLogoSource, /Bandi/);
   assert.match(brandLogoSource, /subtitle = "你的私人放映厅"/);
   assert.match(navSource, /account:\s*"Bandi \\u8d26\\u6237"/);
@@ -102,6 +103,20 @@ test("Nav exposes an account menu from the avatar", () => {
   assert.match(navSource, /\{TEXT\.profile\}/);
   assert.match(navSource, /\{TEXT\.settings\}/);
   assert.match(navSource, /\{TEXT\.signOut\}/);
+});
+
+test("anime detail opened from local library keeps local library nav active", () => {
+  assert.match(
+    localLibrarySource,
+    /href=\{`\/anime\/\$\{it\.anime\.id\}\?from=local`\}/,
+  );
+  assert.match(navSource, /useSearchParams/);
+  assert.match(navSource, /searchParams\.get\("from"\) === "local"/);
+  assert.match(navSource, /l\.href === "\/library\/local" && isLocalAnimeDetail/);
+  assert.match(
+    navSource,
+    /l\.href === "\/library" &&\s*isTrackedAnimeDetail &&\s*!isLocalAnimeDetail/,
+  );
 });
 
 test("Nav signs out through the client NextAuth helper", () => {

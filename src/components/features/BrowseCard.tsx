@@ -225,7 +225,7 @@ export function BrowseCard({
   );
 
   const cardClass = cn(
-    "anime-card-glow group",
+    "anime-card-glow t-tilt-card",
     "rounded-[8px] overflow-hidden",
     "border border-[color:var(--border-subtle)]",
     "bg-[color:var(--bg-surface)]",
@@ -233,24 +233,27 @@ export function BrowseCard({
   );
 
   return (
-    <article
-      className={cardClass}
-      onClick={(event) => {
-        if (event.defaultPrevented) return;
-        const target = event.target as HTMLElement;
-        if (target.closest("button,a")) return;
-        window.location.href = href;
-      }}
-    >
-      {/* Keep the glow host outside the anchor; Chrome can freeze conic-gradient angles inside link subtrees. */}
-      <a
-        href={href}
-        aria-label={`查看 ${item.title}`}
-        className="absolute inset-0 z-[8] block cursor-pointer rounded-[8px] touch-pan-y"
+    <div className="t-tilt group rounded-[8px]">
+      <article
+        className={cardClass}
+        onClick={(event) => {
+          if (event.defaultPrevented) return;
+          const target = event.target as HTMLElement;
+          if (target.closest("button,a")) return;
+          window.location.href = href;
+        }}
       >
-        <span className="sr-only">查看 {item.title}</span>
-      </a>
-      <div className="pointer-events-none">{cardBody}</div>
-    </article>
+        {/* Keep the glow host outside the anchor; Chrome can freeze conic-gradient angles inside link subtrees. */}
+        <a
+          href={href}
+          aria-label={`查看 ${item.title}`}
+          className="absolute inset-0 z-[8] block cursor-pointer rounded-[8px] touch-pan-y"
+        >
+          <span className="sr-only">查看 {item.title}</span>
+        </a>
+        <div className="pointer-events-none">{cardBody}</div>
+        <div className="t-tilt-glare" aria-hidden />
+      </article>
+    </div>
   );
 }

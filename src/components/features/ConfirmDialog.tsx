@@ -41,10 +41,10 @@ export function ConfirmDialog({
     <Dialog.Root open={open} onOpenChange={setOpen}>
       <Dialog.Trigger asChild>{trigger}</Dialog.Trigger>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 animate-fade-in" />
+        <Dialog.Overlay className="t-modal-overlay fixed inset-0 bg-black/70 backdrop-blur-sm z-50" />
         <Dialog.Content
           className={cn(
-            "fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50",
+            "t-modal t-modal-center fixed left-1/2 top-1/2 z-50",
             "w-[420px] max-w-[90vw]",
             "glass-panel-elevated p-6",
             "focus:outline-none",

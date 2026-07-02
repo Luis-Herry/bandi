@@ -180,6 +180,16 @@
 
 ## 动效规范
 
+### Transitions.dev 基线
+
+- 生产动效统一走 `src/app/globals.css` 的 `t-*` 命名空间、`src/components/ui` 小组件和 `src/hooks` 小 hook，避免业务组件各自散落独立 timing。
+- 卡片 hover tilt 仅用于 `BrowseCard`、`AnimeCard`、`CinemaCard` 这类封面卡片，并保留 `.anime-card-glow` 与 `useCardGlow` 的 orbit 基线。
+- Radix Dropdown / Dialog / Command 和播放器侧栏使用同一组开合质感；修改时同步检查 scroll lock、右侧黑缝和横向抖动。
+- 标题 reveal 不改变宿主 display。`t-stagger-line` 不能覆盖 flex 标题行，否则左侧图标会错位。
+- `t-badge` 用固定 `16px` inline-flex 承载通知数字和 dot，避免被按钮行高拉偏。
+- 长等待文案可使用 `ShimmerText`，范围控制在“正在整理推荐”“加载 RSS 源中”“扫描中”“保存中”等明确等待状态。
+- 所有新动效必须照顾 `prefers-reduced-motion`，并优先退化为 opacity / transform 的静态状态。
+
 ### 基础曲线
 
 ```css

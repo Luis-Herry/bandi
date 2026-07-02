@@ -1,10 +1,17 @@
 "use client";
 
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { BrowseCard } from "@/components/features/BrowseCard";
 import { showToast } from "@/components/features/ToastHost";
 import { useCardGlow } from "@/hooks/useCardGlow";
+import { useSlidingTabs } from "@/hooks/useSlidingTabs";
 import type { SeasonalBrowseItem } from "@/lib/db-helpers/browse";
 import { cn } from "@/lib/cn";
 
@@ -50,6 +57,7 @@ export function SeasonalBrowseWeekday({ groups, perDay = 6 }: Props) {
 
   // 网格挂 useCardGlow 让当前 tab 卡片共享扫描环 + 鼠标跟随描边
   const gridRef = useCardGlow<HTMLDivElement>([groups, activeDay]);
+  const tabsRef = useSlidingTabs<HTMLDivElement>([activeDay, visible.length]);
   const railsRef = useRef<Record<number, HTMLDivElement | null>>({});
   const [railState, setRailState] = useState<
     Record<number, { atStart: boolean; atEnd: boolean; hasOverflow: boolean }>
@@ -130,6 +138,28 @@ export function SeasonalBrowseWeekday({ groups, perDay = 6 }: Props) {
     });
   }
 
+  const handleRailWheel = useCallback(
+    (day: number, event: WheelEvent) => {
+      const el = railsRef.current[day];
+      if (!el) return;
+
+      const maxLeft = Math.max(0, el.scrollWidth - el.clientWidth);
+      if (maxLeft <= 1) return;
+      if (Math.abs(event.deltaX) > Math.abs(event.deltaY)) return;
+
+      const delta = normalizeWheelDelta(event.deltaY, event.deltaMode);
+      if (Math.abs(delta) < 1) return;
+
+      const nextLeft = Math.max(0, Math.min(maxLeft, el.scrollLeft + delta));
+      if (Math.abs(nextLeft - el.scrollLeft) < 1) return;
+
+      event.preventDefault();
+      el.scrollLeft = nextLeft;
+      updateRailState(day);
+    },
+    [updateRailState],
+  );
+
   useEffect(() => {
     if (!activeGroup) return;
     const updateActive = () => updateRailState(activeGroup.day);
@@ -137,6 +167,18 @@ export function SeasonalBrowseWeekday({ groups, perDay = 6 }: Props) {
     window.addEventListener("resize", updateActive);
     return () => window.removeEventListener("resize", updateActive);
   }, [activeGroup, updateRailState]);
+
+  useEffect(() => {
+    if (!activeGroup) return;
+    const el = railsRef.current[activeGroup.day];
+    if (!el) return;
+
+    const handleWheel = (event: WheelEvent) => {
+      handleRailWheel(activeGroup.day, event);
+    };
+    el.addEventListener("wheel", handleWheel, { passive: false });
+    return () => el.removeEventListener("wheel", handleWheel);
+  }, [activeGroup, handleRailWheel]);
 
   if (visible.length === 0) {
     return (
@@ -160,10 +202,12 @@ export function SeasonalBrowseWeekday({ groups, perDay = 6 }: Props) {
   return (
     <div ref={gridRef}>
       <div
+        ref={tabsRef}
         role="tablist"
         aria-label="按更新日筛选本季新番"
-        className="grid grid-cols-7 gap-1 rounded-[8px] border border-[color:var(--border-subtle)] bg-[color:var(--bg-surface)] p-1"
+        className="t-tabs t-tabs-segmented grid grid-cols-7 gap-1 rounded-[8px] border border-[color:var(--border-subtle)] p-1"
       >
+        <span className="t-tabs-pill" aria-hidden="true" />
         {WEEKDAY_ORDER.map((day) => {
           const count = groups.find((g) => g.day === day)?.items.length ?? 0;
           const active = day === activeGroup.day;
@@ -177,12 +221,9 @@ export function SeasonalBrowseWeekday({ groups, perDay = 6 }: Props) {
               disabled={disabled}
               onClick={() => setActiveDay(day)}
               className={cn(
-                "inline-flex h-10 items-center justify-center rounded-[6px]",
-                "text-[13px] font-semibold transition-[background,color,opacity]",
-                active
-                  ? "bg-[color:var(--accent)] text-[color:var(--accent-contrast)]"
-                  : "text-[color:var(--text-secondary)] hover:bg-[color:var(--bg-surface-hover)] hover:text-[color:var(--text-primary)]",
-                disabled && "cursor-not-allowed opacity-35 hover:bg-transparent",
+                "t-tab inline-flex h-10 items-center justify-center rounded-[6px]",
+                "text-[13px] font-semibold",
+                disabled && "cursor-not-allowed opacity-35",
               )}
             >
               {WEEKDAY_CN[day]}
@@ -264,4 +305,10 @@ function getInitialActiveDay(groups: DayGroup[]) {
   const today = new Date().getDay();
   if (groups.some((g) => g.day === today)) return today;
   return groups[0]?.day ?? WEEKDAY_ORDER[0];
+}
+
+function normalizeWheelDelta(delta: number, mode: number) {
+  if (mode === 1) return delta * 16;
+  if (mode === 2) return delta * 360;
+  return delta;
 }

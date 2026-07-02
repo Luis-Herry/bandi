@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import { Minus, Plus, Check } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { TextSwap } from "@/components/ui";
 
 interface EpisodeProgressControlProps {
   animeId: number;
@@ -52,6 +53,14 @@ export function EpisodeProgressControl({
   const canDec = enabled && current > minEpisode;
   const canInc =
     enabled && (maxEpisode == null || current < maxEpisode);
+  const progressStateText =
+    flash === "ok"
+      ? "已保存"
+      : flash === "err"
+        ? "保存失败"
+        : pending
+          ? "保存中…"
+          : "";
 
   const persist = (next: number) => {
     if (next === current) {
@@ -127,18 +136,12 @@ export function EpisodeProgressControl({
             : "text-[color:var(--accent)]",
         )}
       >
-        {flash === "ok" ? (
-          <span className="inline-flex items-center gap-0.5">
+        <span className="inline-flex items-center gap-0.5">
+          {flash === "ok" && (
             <Check size={11} strokeWidth={2.8} />
-            已保存
-          </span>
-        ) : flash === "err" ? (
-          "保存失败"
-        ) : pending ? (
-          "保存中…"
-        ) : (
-          ""
-        )}
+          )}
+          <TextSwap value={progressStateText} shimmer={pending} />
+        </span>
       </span>
 
       <span

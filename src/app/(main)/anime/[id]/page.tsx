@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import type { CSSProperties } from "react";
 import { Calendar, Download, ExternalLink, Star } from "lucide-react";
@@ -46,6 +46,11 @@ export default async function AnimeDetailPage({ params }: PageProps) {
 
   const detail = getAnimeDetail(animeId, user.id);
   if (!detail) notFound();
+
+  // 影视条目交给 /cinema/[id] 承载，保持导航与操作语义一致。
+  if (detail.anime.mediaType !== "anime") {
+    redirect(`/cinema/${animeId}`);
+  }
 
   const { anime, userAnime, episodes, completedDownloads, totalDownloads } =
     detail;

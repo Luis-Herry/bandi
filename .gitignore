@@ -30,6 +30,8 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
+next-start*.log
+codex-next-start.log
 .start-log.txt
 .start-error-log.txt
 .next-start.log
@@ -52,6 +54,12 @@ next-env.d.ts
 /data/*.db-journal
 /data/*.db-shm
 /data/*.db-wal
+/data/backups/
+/data/_backup*/
+/data/_rescue*/
+
+# cover cache (downloaded DMM/remote covers)
+/data/cover-cache/
 
 # runtime downloads
 /download/

@@ -9,12 +9,13 @@ import {
   type ReactNode,
 } from "react";
 import { AlertCircle, Loader2, Search } from "lucide-react";
-import { GlassPanel, TextField } from "@/components/ui";
+import { ClearableInput, GlassPanel } from "@/components/ui";
 import { BrowseCard } from "@/components/features/BrowseCard";
 import { showToast } from "@/components/features/ToastHost";
 import type { BgmSeason } from "@/lib/bangumi";
 import type { SeasonalBrowseItem } from "@/lib/db-helpers/browse";
 import { useCardGlow } from "@/hooks/useCardGlow";
+import { useSlidingTabs } from "@/hooks/useSlidingTabs";
 import { cn } from "@/lib/cn";
 
 const SEASON_START_MONTH: Record<BgmSeason, number> = {
@@ -239,6 +240,7 @@ export function BrowseClient({
   }, [items, activeFilters, query, scoreOrder]);
 
   const gridRef = useCardGlow<HTMLDivElement>([filteredItems, activeKey]);
+  const quarterTabsRef = useSlidingTabs<HTMLDivElement>([activeKey]);
 
   function switchTo(q: QuarterTab) {
     const params = new URLSearchParams(sp.toString());
@@ -371,14 +373,14 @@ export function BrowseClient({
           }}
         />
         <div className="app-page-container relative flex min-h-[220px] items-end pb-6 sm:h-full">
-          <div>
+          <div className="t-stagger is-shown">
             <h1
-              className="text-[34px] font-extrabold leading-none tracking-[-0.025em] text-[color:var(--text-primary)] sm:text-[44px] sm:tracking-[-0.03em]"
+              className="t-stagger-line t-stagger-line--1 text-[34px] font-extrabold leading-none tracking-[-0.025em] text-[color:var(--text-primary)] sm:text-[44px] sm:tracking-[-0.03em]"
               style={{ textShadow: "0 2px 16px rgba(0,0,0,0.5)" }}
             >
               番剧库
             </h1>
-            <p className="mt-3 max-w-[28rem] text-[13px] leading-relaxed text-[color:var(--text-secondary)]">
+            <p className="t-stagger-line t-stagger-line--2 mt-3 max-w-[28rem] text-[13px] leading-relaxed text-[color:var(--text-secondary)]">
               按季度浏览 Bangumi 番剧，一键加入想看
             </p>
           </div>
@@ -389,7 +391,14 @@ export function BrowseClient({
       <section className="app-page-container py-6 sm:py-8">
         <div className="mb-6 border-b border-[color:var(--border-subtle)]">
           <div className="flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between lg:gap-6">
-            <div className="no-scrollbar grid w-full grid-cols-4 items-center gap-0 overflow-visible touch-pan-y sm:flex sm:max-w-full sm:min-w-0 sm:gap-1 sm:overflow-x-auto sm:touch-pan-x">
+            <div
+              ref={quarterTabsRef}
+              role="tablist"
+              aria-label="季度"
+              data-tabs-variant="line"
+              className="t-tabs t-tabs-line no-scrollbar grid w-full grid-cols-4 items-center gap-0 overflow-visible touch-pan-y sm:flex sm:max-w-full sm:min-w-0 sm:gap-1 sm:overflow-x-auto sm:touch-pan-x"
+            >
+              <span className="t-tabs-pill" aria-hidden="true" />
               {quarters.map((q) => {
                 const key = `${q.season}-${q.year}`;
                 const active = key === activeKey;
@@ -397,25 +406,20 @@ export function BrowseClient({
                   <button
                     key={key}
                     type="button"
+                    role="tab"
+                    aria-selected={active}
                     disabled={pending && active}
                     onClick={() => switchTo(q)}
                     className={cn(
-                      "relative h-10 min-w-0 px-1 text-center text-[12px] tracking-tight transition-colors outline-none sm:shrink-0 sm:px-4 sm:text-[13px]",
+                      "t-tab relative h-10 min-w-0 px-1 text-center text-[12px] tracking-tight outline-none sm:shrink-0 sm:px-4 sm:text-[13px]",
                       active
-                        ? "text-[color:var(--text-primary)] font-medium"
-                        : "text-[color:var(--text-secondary)] hover:text-[color:var(--text-primary)]",
+                        ? "font-medium"
+                        : "text-[color:var(--text-secondary)]",
                     )}
                   >
                     <span className="flex items-center justify-center gap-1 whitespace-nowrap sm:justify-start sm:gap-2">
                       {formatQuarterLabel(q.year, q.season)}
                     </span>
-                    {active && (
-                      <span
-                        aria-hidden
-                        className="absolute -bottom-px left-1 right-1 h-[2px] rounded-full sm:left-3 sm:right-3"
-                        style={{ background: "var(--accent)" }}
-                      />
-                    )}
                   </button>
                 );
               })}
@@ -513,9 +517,9 @@ export function BrowseClient({
                     搜索
                   </div>
                   <div className="w-full min-w-0 md:max-w-[360px]">
-                    <TextField
+                    <ClearableInput
                       value={query}
-                      onChange={(e) => setQuery(e.target.value)}
+                      onValueChange={setQuery}
                       placeholder="搜索番剧标题（中文或日文）"
                       prefixIcon={<Search size={14} />}
                     />
@@ -555,33 +559,33 @@ export function BrowseClient({
         )}
 
         {!pending && items.length === 0 && dataStatus === "unavailable" && (
-          <GlassPanel className="p-10 text-center">
-            <p className="text-[14px] text-[color:var(--text-secondary)]">
+          <GlassPanel className="t-stagger is-shown p-10 text-center">
+            <p className="t-stagger-line t-stagger-line--1 text-[14px] text-[color:var(--text-secondary)]">
               Bangumi 暂时连接失败
             </p>
-            <p className="mt-1 text-[12px] text-[color:var(--text-muted)]">
+            <p className="t-stagger-line t-stagger-line--2 mt-1 text-[12px] text-[color:var(--text-muted)]">
               本地也没有这个季度的数据。稍后刷新，或先切换到其他季度。
             </p>
           </GlassPanel>
         )}
 
         {!pending && items.length === 0 && dataStatus !== "unavailable" && (
-          <GlassPanel className="p-10 text-center">
-            <p className="text-[14px] text-[color:var(--text-muted)]">
+          <GlassPanel className="t-stagger is-shown p-10 text-center">
+            <p className="t-stagger-line t-stagger-line--1 text-[14px] text-[color:var(--text-muted)]">
               这个季度暂时没有数据
             </p>
-            <p className="mt-1 text-[12px] text-[color:var(--text-muted)]">
+            <p className="t-stagger-line t-stagger-line--2 mt-1 text-[12px] text-[color:var(--text-muted)]">
               试试切换其他季度，或稍后再来
             </p>
           </GlassPanel>
         )}
 
         {!pending && items.length > 0 && filteredItems.length === 0 && (
-          <GlassPanel className="p-10 text-center">
-            <p className="text-[14px] text-[color:var(--text-muted)]">
+          <GlassPanel className="t-stagger is-shown p-10 text-center">
+            <p className="t-stagger-line t-stagger-line--1 text-[14px] text-[color:var(--text-muted)]">
               没有匹配的番剧
             </p>
-            <p className="mt-1 text-[12px] text-[color:var(--text-muted)]">
+            <p className="t-stagger-line t-stagger-line--2 mt-1 text-[12px] text-[color:var(--text-muted)]">
               试试调整筛选条件或清空搜索词
             </p>
           </GlassPanel>

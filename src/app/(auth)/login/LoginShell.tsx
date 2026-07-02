@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
 import { motion, useReducedMotion } from "motion/react";
@@ -9,6 +9,8 @@ import { Button, TextField } from "@/components/ui";
 import { BrandLogo } from "@/components/features/BrandLogo";
 import { DuskBackdrop } from "@/components/features/DuskBackdrop";
 import { RevealBurst } from "@/components/features/RevealBurst";
+import { cn } from "@/lib/cn";
+import { useErrorShake } from "@/hooks/useErrorShake";
 
 interface LoginShellProps {
   from: string;
@@ -29,14 +31,18 @@ export function LoginShell({
   const [submitting, setSubmitting] = useState(false);
   const [revealed, setRevealed] = useState(false);
   const showCard = revealed || !!shouldReduceMotion;
-  const [error, setError] = useState<string | null>(
-    initialError ? "登录失败，请检查账号或密码" : null,
-  );
+  const loginError = useErrorShake();
+
+  useEffect(() => {
+    if (initialError) {
+      loginError.showError("登录失败，请检查账号或密码");
+    }
+  }, [initialError, loginError.showError]);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     if (submitting) return;
-    setError(null);
+    loginError.clear();
     setSubmitting(true);
     const res = await signIn("credentials", {
       username,
@@ -45,7 +51,7 @@ export function LoginShell({
     });
     setSubmitting(false);
     if (res?.error) {
-      setError("登录失败，请检查账号或密码");
+      loginError.showError("登录失败，请检查账号或密码");
       return;
     }
     router.replace(from || "/");
@@ -119,8 +125,15 @@ export function LoginShell({
               placeholder="用户名"
               value={username}
               autoComplete="username"
-              onChange={(e) => setUsername(e.target.value)}
-              className="transition-[background-color,border-color,box-shadow] focus-within:shadow-[0_0_0_1px_rgb(var(--accent-rgb)/0.16)]"
+              onChange={(e) => {
+                setUsername(e.target.value);
+                loginError.clear();
+              }}
+              className={cn(
+                "t-input transition-[background-color,border-color,box-shadow,transform] focus-within:shadow-[0_0_0_1px_rgb(var(--accent-rgb)/0.16)]",
+                loginError.hasError && "is-error",
+                loginError.isShaking && "is-shaking",
+              )}
               required
             />
             <TextField
@@ -130,8 +143,15 @@ export function LoginShell({
               placeholder="密码"
               value={password}
               autoComplete="current-password"
-              onChange={(e) => setPassword(e.target.value)}
-              className="transition-[background-color,border-color,box-shadow] focus-within:shadow-[0_0_0_1px_rgb(var(--accent-rgb)/0.16)]"
+              onChange={(e) => {
+                setPassword(e.target.value);
+                loginError.clear();
+              }}
+              className={cn(
+                "t-input transition-[background-color,border-color,box-shadow,transform] focus-within:shadow-[0_0_0_1px_rgb(var(--accent-rgb)/0.16)]",
+                loginError.hasError && "is-error",
+                loginError.isShaking && "is-shaking",
+              )}
               required
             />
 
@@ -162,26 +182,21 @@ export function LoginShell({
               </button>
             </div>
 
-            {error && (
-              <motion.p
-                role="alert"
-                initial={shouldReduceMotion ? false : { opacity: 0, y: -4 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.18, ease: [0.25, 1, 0.5, 1] }}
-                className="text-xs text-[color:var(--status-error)] text-center pt-1"
+            {loginError.message && (
+              <p
+                role={loginError.visible ? "alert" : undefined}
+                className={cn(
+                  "t-error-msg pt-1 text-center text-xs text-[color:var(--status-error)]",
+                  loginError.visible && "is-visible",
+                )}
               >
-                {error}
-              </motion.p>
+                {loginError.message}
+              </p>
             )}
-            {desktopLoginHint && !error && (
-              <motion.p
-                initial={shouldReduceMotion ? false : { opacity: 0, y: -4 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.18, ease: [0.25, 1, 0.5, 1] }}
-                className="text-xs text-[color:var(--text-muted)] text-center pt-1"
-              >
+            {desktopLoginHint && !loginError.message && (
+              <p className="pt-1 text-center text-xs text-[color:var(--text-muted)]">
                 {desktopLoginHint}
-              </motion.p>
+              </p>
             )}
 
             <Button

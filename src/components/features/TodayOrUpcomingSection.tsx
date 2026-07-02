@@ -8,6 +8,7 @@ import { AnimeCard } from "@/components/features/AnimeCard";
 import { EpisodeSourceDialog } from "@/components/features/EpisodeSourceDialog";
 import { PlayButton } from "@/components/features/PlayButton";
 import { cn } from "@/lib/cn";
+import { useCardGlow } from "@/hooks/useCardGlow";
 
 const WEEKDAY_CN = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
 
@@ -93,6 +94,11 @@ export function TodayOrUpcomingSection({ todayUpdates, upcomingItems }: Props) {
 
   const toggleLabel =
     view === "today" ? "未来 7 天预告" : "今日更新";
+  const cardsRef = useCardGlow<HTMLDivElement>([
+    view,
+    todayUpdates,
+    upcomingItems,
+  ]);
 
   return (
     <section>
@@ -131,7 +137,7 @@ export function TodayOrUpcomingSection({ todayUpdates, upcomingItems }: Props) {
         )}
       </header>
 
-      <div className="relative overflow-hidden">
+      <div ref={cardsRef} className="relative overflow-hidden">
         <AnimatePresence mode="wait" initial={false}>
           {view === "today" ? (
             <motion.div

@@ -16,6 +16,11 @@ export default auth((req) => {
   const { pathname } = req.nextUrl;
   const isLoggedIn = !!req.auth;
 
+  // 公开图片代理（仅白名单 DMM，非开放代理）：不鉴权、不重定向，供 <img> 直接加载
+  if (pathname === "/api/img") {
+    return NextResponse.next();
+  }
+
   // login page: if already logged in, kick to home
   if (PUBLIC_PATHS.has(pathname)) {
     if (isLoggedIn) {

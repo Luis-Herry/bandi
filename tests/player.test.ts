@@ -148,7 +148,13 @@ test("player page uses the AmberMotion theater control shell", () => {
   assert.match(playerPageSource, /player-volume-range/);
   assert.match(playerPageSource, /player-seek-range/);
   assert.match(playerPageSource, /BackButton/);
-  assert.match(playerPageSource, /fallbackHref=\{`\/anime\/\$\{animeId\}`\}/);
+  assert.match(playerPageSource, /const detailHref =/);
+  assert.match(
+    playerPageSource,
+    /mediaType === "anime" \? `\/anime\/\$\{animeId\}` : `\/cinema\/\$\{animeId\}`/,
+  );
+  assert.match(playerPageSource, /fallbackHref=\{detailHref\}/);
+  assert.match(playerPageSource, /href=\{detailHref\}/);
   assert.match(playerPageSource, />详情页<\/a>/);
   assert.match(playerPageSource, /\{progressPercent\}%/);
   assert.doesNotMatch(playerPageSource, /progressStatusLabel/);
@@ -179,6 +185,7 @@ test("player page exposes anime watcher controls beyond basic playback", () => {
   );
 
   assert.match(pageSource, /playerEpisodes/);
+  assert.match(pageSource, /mediaType=\{row\.anime\.mediaType\}/);
   assert.match(pageSource, /downloadQueue/);
   assert.match(pageSource, /playbackProgress/);
   assert.match(playerPageSource, /episodePanelOpen/);
@@ -235,6 +242,23 @@ test("player polish saves screenshots locally and keeps desktop controls clean",
   assert.match(cssSource, /\.player-volume-range::-webkit-slider-thumb/);
   assert.match(cssSource, /opacity: 0/);
   assert.match(cssSource, /background: #fff/);
+});
+
+test("player labels cinema episodes as 集 while keeping anime as 话", () => {
+  const playerPageSource = readFileSync(
+    "src/app/(main)/player/[animeId]/[episode]/PlayerClient.tsx",
+    "utf8",
+  );
+
+  assert.match(
+    playerPageSource,
+    /const episodeUnit = mediaType === "anime" \? "话" : "集"/,
+  );
+  assert.match(playerPageSource, /episodeHeading/);
+  assert.doesNotMatch(
+    playerPageSource,
+    /第 \{String\(episodeNumber\)\.padStart\(2, "0"\)\} 话/,
+  );
 });
 
 test("continue watching cards can display saved playback time", () => {

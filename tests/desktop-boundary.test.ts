@@ -151,6 +151,6 @@ test("desktop login keeps default-account hint without losing the shared brand U
   assert.match(loginPageSource, /desktopLoginHint=\{desktopLoginHint\}/);
   assert.match(loginShellSource, /desktopLoginHint\?: string \| null/);
   assert.match(loginShellSource, /BrandLogo/);
-  assert.match(loginShellSource, /\{desktopLoginHint && !error &&/);
+  assert.match(loginShellSource, /\{desktopLoginHint && !loginError\.message &&/);
   assert.match(loginShellSource, /\{!desktopLoginHint && \(/);
 });
