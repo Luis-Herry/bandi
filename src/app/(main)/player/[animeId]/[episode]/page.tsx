@@ -10,6 +10,11 @@ import {
 } from "@/db/schema";
 import { buildPlayerEpisodeNavigation } from "@/lib/player";
 import { getCurrentUser } from "@/lib/session";
+import {
+  getCompletionEpisodeNumber,
+  getWatchedThroughEpisodeNumber,
+  type WatchStatus,
+} from "@/lib/watch-progress";
 import { PlayerClient } from "./PlayerClient";
 
 interface PageProps {
@@ -99,6 +104,17 @@ export default async function PlayerPage({ params, searchParams }: PageProps) {
       .filter((item) => item.episodeId != null)
       .map((item) => [item.episodeId as number, item]),
   );
+  const completionEpisode = getCompletionEpisodeNumber({
+    totalEpisodes: row.anime.totalEpisodes,
+    episodeNumbers: episodeRows.map((episode) => episode.number),
+  });
+  const watchedThroughEpisode = row.userAnime
+    ? getWatchedThroughEpisodeNumber({
+        currentEpisode,
+        watchStatus: row.userAnime.watchStatus as WatchStatus,
+        completionEpisode,
+      })
+    : 0;
 
   const completedDownloads = db
     .select({ episodeId: downloadQueue.episodeId })
@@ -123,8 +139,11 @@ export default async function PlayerPage({ params, searchParams }: PageProps) {
       number: episode.number,
       title: episode.title,
       isPlayable: playableEpisodeIds.has(episode.id),
-      isWatched: episode.number < currentEpisode,
-      isTrackingCurrent: episode.number === currentEpisode,
+      isWatched: episode.number <= watchedThroughEpisode,
+      isTrackingCurrent:
+        row.userAnime?.watchStatus !== "completed" &&
+        episode.number === currentEpisode &&
+        episode.number > watchedThroughEpisode,
       playbackPositionSeconds: playback?.positionSeconds ?? 0,
       playbackDurationSeconds: playback?.durationSeconds ?? 0,
       playbackCompleted: playback?.completed ?? false,

@@ -52,10 +52,7 @@ export async function GET() {
       year: item.anime.year,
       coverUrl: item.anime.coverUrl,
       inLibrary: true,
-      meta:
-        item.userAnime.currentEpisode > 0
-          ? `看到 EP.${String(item.userAnime.currentEpisode).padStart(2, "0")}`
-          : "还没开始观看",
+      meta: `继续 EP.${String(item.continueEpisodeNumber).padStart(2, "0")}`,
     }))
     .filter((item) => addSeen(seen, item));
 

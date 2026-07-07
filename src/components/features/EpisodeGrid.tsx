@@ -12,12 +12,13 @@ interface EpisodeGridProps {
   animeTitle: string;
   episodes: Episode[];
   /**
-   * 用户当前进度（正在/最后看的那一集）。视觉上：
+   * 用户当前进度（下一集/当前要看的那一集）。视觉上：
    *   - EP < currentEpisode → 已看
-   *   - EP === currentEpisode → 当前在看（描边 + dot）
-   *   - currentEpisode = 0 表示一集都没看，此时第一集播放过的为 current
+   *   - EP === currentEpisode → 当前要看（描边 + dot）
+   *   - currentEpisode = 0 表示一集都没看，此时没有当前高亮
    */
   currentEpisode: number;
+  watchStatus?: string | null;
 }
 
 /**
@@ -38,16 +39,19 @@ export function EpisodeGrid({
   animeTitle,
   episodes,
   currentEpisode,
+  watchStatus,
 }: EpisodeGridProps) {
   const now = Date.now();
   const [openEp, setOpenEp] = useState<number | null>(null);
   const [seasonDialogOpen, setSeasonDialogOpen] = useState(false);
   const [displayCurrentEpisode, setDisplayCurrentEpisode] =
     useState(currentEpisode);
+  const [displayWatchStatus, setDisplayWatchStatus] = useState(watchStatus);
 
   useEffect(() => {
     setDisplayCurrentEpisode(currentEpisode);
-  }, [currentEpisode]);
+    setDisplayWatchStatus(watchStatus);
+  }, [currentEpisode, watchStatus]);
 
   useEffect(() => {
     const handleProgressChange = (event: Event) => {
@@ -61,10 +65,26 @@ export function EpisodeGrid({
 
       setDisplayCurrentEpisode(detail.currentEpisode);
     };
+    const handleWatchStatusChange = (event: Event) => {
+      const detail = (event as CustomEvent).detail as {
+        animeId?: unknown;
+        watchStatus?: unknown;
+      };
+
+      if (detail?.animeId !== animeId) return;
+      if (typeof detail.watchStatus !== "string") return;
+
+      setDisplayWatchStatus(detail.watchStatus);
+    };
 
     window.addEventListener("anime-progress-change", handleProgressChange);
+    window.addEventListener("anime-watch-status-change", handleWatchStatusChange);
     return () => {
       window.removeEventListener("anime-progress-change", handleProgressChange);
+      window.removeEventListener(
+        "anime-watch-status-change",
+        handleWatchStatusChange,
+      );
     };
   }, [animeId]);
 
@@ -122,14 +142,20 @@ export function EpisodeGrid({
       <div className="grid grid-cols-2 gap-2.5 min-[460px]:grid-cols-3 sm:grid-cols-4 xl:grid-cols-6">
         {episodes.map((ep) => {
           const isUnaired = ep.airedAt ? ep.airedAt.getTime() > now : false;
-          // currentEpisode 是「当前/最后看的那一集」（用户的心智模型）。
-          //   严格小于 → 已看；等于 → 当前；大于 → 未看。
+          const displayWatchedThrough =
+            displayWatchStatus === "completed"
+              ? Math.max(...episodes.map((episode) => episode.number))
+              : Math.max(0, displayCurrentEpisode - 1);
+          // currentEpisode 是「下一集/当前要看的那一集」。
+          //   小于 currentEpisode → 已看；等于 → 当前；大于 → 未看。
           // currentEpisode = 0 表示一集没看；此时没有「当前」高亮。
           const isWatched =
-            displayCurrentEpisode > 0 && ep.number < displayCurrentEpisode;
+            displayWatchedThrough > 0 && ep.number <= displayWatchedThrough;
           const isCurrent =
             ep.number === displayCurrentEpisode &&
             displayCurrentEpisode > 0 &&
+            displayWatchStatus !== "completed" &&
+            !isWatched &&
             !isUnaired;
           const isDownloaded = ep.isDownloaded;
 

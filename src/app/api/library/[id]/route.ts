@@ -6,7 +6,8 @@ import { requireUser } from "@/lib/session";
 import { buildWatchEventDrafts } from "@/lib/watch-events";
 import {
   getCompletionEpisodeNumber,
-  resolveProgressWatchStatus,
+  getWatchedThroughEpisodeNumber,
+  resolveWatchedThroughWatchStatus,
 } from "@/lib/watch-progress";
 import type { WatchStatus } from "@/lib/watch-progress";
 import { normalizeRatingInput } from "@/lib/rating";
@@ -108,9 +109,14 @@ export async function PATCH(
       totalEpisodes: a?.totalEpisodes,
       episodeNumbers: episodeRows.map((row) => row.number),
     });
-    resolvedWatchStatus = resolveProgressWatchStatus({
+    const nextWatchedThrough = getWatchedThroughEpisodeNumber({
+      currentEpisode: nextEp,
+      watchStatus: existing.watchStatus as WatchStatus,
+      completionEpisode,
+    });
+    resolvedWatchStatus = resolveWatchedThroughWatchStatus({
       currentStatus: existing.watchStatus as WatchStatus,
-      nextEpisode: nextEp,
+      watchedThroughEpisode: nextWatchedThrough,
       completionEpisode,
     });
     updates.watchStatus = resolvedWatchStatus;
@@ -123,8 +129,6 @@ export async function PATCH(
     nextEp == null
       ? []
       : (() => {
-          const lower = Math.min(existing.currentEpisode, nextEp);
-          const upper = Math.max(existing.currentEpisode, nextEp);
           if (episodeRows.length === 0) {
             episodeRows = db
               .select({ id: episodes.id, number: episodes.number })
@@ -132,6 +136,27 @@ export async function PATCH(
               .where(eq(episodes.animeId, animeId))
               .all();
           }
+          const a = db
+            .select({ totalEpisodes: anime.totalEpisodes })
+            .from(anime)
+            .where(eq(anime.id, animeId))
+            .get();
+          const completionEpisode = getCompletionEpisodeNumber({
+            totalEpisodes: a?.totalEpisodes,
+            episodeNumbers: episodeRows.map((row) => row.number),
+          });
+          const oldWatchedThrough = getWatchedThroughEpisodeNumber({
+            currentEpisode: existing.currentEpisode,
+            watchStatus: existing.watchStatus as WatchStatus,
+            completionEpisode,
+          });
+          const newWatchedThrough = getWatchedThroughEpisodeNumber({
+            currentEpisode: nextEp,
+            watchStatus: resolvedWatchStatus ?? (existing.watchStatus as WatchStatus),
+            completionEpisode,
+          });
+          const lower = Math.min(oldWatchedThrough, newWatchedThrough);
+          const upper = Math.max(oldWatchedThrough, newWatchedThrough);
           const episodeIdsByNumber = new Map<number, number>();
           const knownEpisodeNumbers: number[] = [];
           if (upper > lower) {
@@ -144,8 +169,8 @@ export async function PATCH(
           return buildWatchEventDrafts({
             userId: user.id,
             animeId,
-            oldEpisode: existing.currentEpisode,
-            newEpisode: nextEp,
+            oldEpisode: oldWatchedThrough,
+            newEpisode: newWatchedThrough,
             watchedAt: now,
             episodeIdsByNumber,
             knownEpisodeNumbers,

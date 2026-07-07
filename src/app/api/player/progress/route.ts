@@ -13,7 +13,7 @@ import { requireUser } from "@/lib/session";
 import { buildWatchEventDrafts } from "@/lib/watch-events";
 import {
   getCompletionEpisodeNumber,
-  resolveProgressWatchStatus,
+  resolveCompletedPlaybackProgress,
   type WatchStatus,
 } from "@/lib/watch-progress";
 
@@ -150,7 +150,7 @@ export async function PATCH(req: Request) {
   let watchStatus = existing.watchStatus as WatchStatus;
   let autoCompleted = false;
 
-  if (completion.completed && ep.number > existing.currentEpisode) {
+  if (completion.completed) {
     const a = db
       .select({ totalEpisodes: anime.totalEpisodes })
       .from(anime)
@@ -165,19 +165,37 @@ export async function PATCH(req: Request) {
       totalEpisodes: a?.totalEpisodes,
       episodeNumbers: episodeRows.map((row) => row.number),
     });
-    currentEpisode = ep.number;
-    watchStatus = resolveProgressWatchStatus({
+    const nextProgress = resolveCompletedPlaybackProgress({
+      currentEpisode: existing.currentEpisode,
       currentStatus: existing.watchStatus as WatchStatus,
-      nextEpisode: currentEpisode,
+      completedEpisode: ep.number,
+      episodeNumbers: episodeRows.map((row) => row.number),
       completionEpisode,
     });
+
+    if (!nextProgress.advanced) {
+      return NextResponse.json({
+        ok: true,
+        completed: completion.completed,
+        progressRatio: completion.progressRatio,
+        currentEpisode,
+        watchStatus,
+        autoCompleted,
+      });
+    }
+
+    currentEpisode = nextProgress.currentEpisode;
+    watchStatus = nextProgress.watchStatus;
     autoCompleted =
       watchStatus === "completed" && existing.watchStatus !== "completed";
 
     const episodeIdsByNumber = new Map<number, number>();
     const knownEpisodeNumbers: number[] = [];
     for (const row of episodeRows) {
-      if (row.number <= existing.currentEpisode || row.number > currentEpisode) {
+      if (
+        row.number <= nextProgress.previousWatchedThrough ||
+        row.number > nextProgress.watchedThroughEpisode
+      ) {
         continue;
       }
       episodeIdsByNumber.set(row.number, row.id);
@@ -187,8 +205,8 @@ export async function PATCH(req: Request) {
     const eventDrafts = buildWatchEventDrafts({
       userId: user.id,
       animeId,
-      oldEpisode: existing.currentEpisode,
-      newEpisode: currentEpisode,
+      oldEpisode: nextProgress.previousWatchedThrough,
+      newEpisode: nextProgress.watchedThroughEpisode,
       watchedAt: now,
       episodeIdsByNumber,
       knownEpisodeNumbers,

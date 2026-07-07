@@ -129,7 +129,7 @@ export default async function ProfilePage() {
                   href={`/anime/${item.anime.id}`}
                   coverUrl={item.anime.coverUrl}
                   title={item.anime.title}
-                  meta={`${formatEpisode(item.userAnime.currentEpisode)} · ${item.anime.type}`}
+                  meta={`${formatEpisode(item.continueEpisodeNumber)} · ${item.anime.type}`}
                 />
               ))
             )}

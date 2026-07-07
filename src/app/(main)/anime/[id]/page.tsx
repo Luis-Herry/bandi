@@ -17,6 +17,11 @@ import { getSubjectRelations } from "@/lib/bangumi";
 import { selectRelatedResourceViews } from "@/lib/bangumi-relations";
 import { getAnimeDetail } from "@/lib/db-helpers/library";
 import { getCurrentUser } from "@/lib/session";
+import {
+  getCompletionEpisodeNumber,
+  getWatchedThroughEpisodeNumber,
+  type WatchStatus,
+} from "@/lib/watch-progress";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -65,6 +70,29 @@ export default async function AnimeDetailPage({ params }: PageProps) {
     episodes.length > 0
       ? Math.max(...episodes.map((e) => e.number))
       : anime.totalEpisodes ?? null;
+  const completionEpisode = getCompletionEpisodeNumber({
+    totalEpisodes: anime.totalEpisodes,
+    episodeNumbers: episodes.map((e) => e.number),
+  });
+  const watchedThroughEpisode = userAnime
+    ? getWatchedThroughEpisodeNumber({
+        currentEpisode: watchedCount,
+        watchStatus: userAnime.watchStatus as WatchStatus,
+        completionEpisode,
+      })
+    : 0;
+  const detailContinueEpisode =
+    userAnime && completedDownloads > 0
+      ? (episodes
+          .filter(
+            (e) =>
+              e.airedAt &&
+              e.airedAt.getTime() <= Date.now() &&
+              e.number > watchedThroughEpisode &&
+              e.isDownloaded,
+          )
+          .sort((a, b) => a.number - b.number)[0]?.number ?? null)
+      : null;
   const nextAiring = episodes.find(
     (e) => e.airedAt && e.airedAt.getTime() > Date.now(),
   );
@@ -172,7 +200,7 @@ export default async function AnimeDetailPage({ params }: PageProps) {
               {userAnime && (
                 <>
                   {" · "}
-                  已看 {watchedCount} 集
+                  已看 {watchedThroughEpisode} 集
                 </>
               )}
             </span>
@@ -191,8 +219,8 @@ export default async function AnimeDetailPage({ params }: PageProps) {
           <div className="mt-6 flex flex-wrap items-center gap-2.5 sm:gap-3">
             {/* 继续观看：仅在已追番 + 下载队列有 completed 条目时显示。
                 "纯查看详情"链路（userAnime 为 null）和"还没下完"场景都不显示。 */}
-            {userAnime && completedDownloads > 0 && (() => {
-              const playEp = watchedCount > 0 ? watchedCount : 1;
+            {detailContinueEpisode != null && (() => {
+              const playEp = detailContinueEpisode;
               return (
                 <PlayButton
                   animeId={anime.id}
@@ -278,6 +306,7 @@ export default async function AnimeDetailPage({ params }: PageProps) {
                 animeTitle={anime.title}
                 episodes={episodes}
                 currentEpisode={watchedCount}
+                watchStatus={userAnime?.watchStatus}
               />
             ) : (
               <GlassPanel className="p-6 text-center text-[13px] text-[color:var(--text-muted)]">

@@ -79,6 +79,11 @@ export default async function HomePage() {
     type: it.anime.type,
     tags: it.anime.tags ?? null,
     currentEpisode: it.userAnime.currentEpisode,
+    watchedThroughEpisode: it.watchedThroughEpisode,
+    airedCount: it.airedCount,
+    watchedAiredCount: it.watchedAiredCount,
+    latestAiredEpisode: it.latestAiredEpisode,
+    continueEpisodeNumber: it.continueEpisodeNumber,
     totalEpisodes: it.anime.totalEpisodes,
     rating: it.userAnime.rating ?? undefined,
   }));
@@ -157,6 +162,7 @@ export default async function HomePage() {
                       airedCount,
                     );
                     const hasPlaybackProgress =
+                      it.hasIncompletePlayback &&
                       it.playbackEpisodeNumber != null &&
                       it.playbackPositionSeconds != null &&
                       it.playbackDurationSeconds != null &&
@@ -171,15 +177,10 @@ export default async function HomePage() {
                           ),
                         )
                       : null;
-                    // 继续观看优先读内置播放器的真实播放集；没有记录时沿用用户当前进度。
-                    const playEp =
-                      it.playbackEpisodeNumber ??
-                      (it.userAnime.currentEpisode > 0
-                        ? it.userAnime.currentEpisode
-                        : 1);
+                    const playEp = it.continueEpisodeNumber;
                     const currentLabel =
-                      it.userAnime.currentEpisode > 0
-                        ? `当前 EP.${String(it.userAnime.currentEpisode).padStart(2, "0")}`
+                      playEp > 0
+                        ? `当前 EP.${String(playEp).padStart(2, "0")}`
                         : "未开始";
                     const meta = hasPlaybackProgress
                       ? `上次 EP.${String(it.playbackEpisodeNumber).padStart(2, "0")} · ${formatPlaybackTime(it.playbackPositionSeconds!)} / ${formatPlaybackTime(it.playbackDurationSeconds!)} · ${it.anime.type}`

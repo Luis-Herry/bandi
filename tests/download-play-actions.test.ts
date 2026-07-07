@@ -22,9 +22,11 @@ test("episode progress edits update the episode grid without a manual refresh", 
   assert.match(progressSource, /anime-progress-change/);
   assert.match(progressSource, /currentEpisode: next/);
   assert.match(gridSource, /anime-progress-change/);
+  assert.match(gridSource, /anime-watch-status-change/);
   assert.match(gridSource, /displayCurrentEpisode/);
   assert.match(gridSource, /setDisplayCurrentEpisode/);
-  assert.match(gridSource, /displayCurrentEpisode > 0 && ep\.number < displayCurrentEpisode/);
+  assert.match(gridSource, /displayWatchedThrough/);
+  assert.match(gridSource, /ep\.number <= displayWatchedThrough/);
   assert.match(gridSource, /ep\.number === displayCurrentEpisode/);
 });
 
@@ -60,6 +62,15 @@ test("continue watching uses the missed-reminder playback button style", () => {
   assert.match(homeSource, /已看 \$\{watchedAiredCount\} \/ 已播 \$\{airedCount\}/);
   assert.match(homeSource, /watchedAiredCount \/ airedCount/);
   assert.doesNotMatch(homeSource, /currentEpisode \/ denom/);
+});
+
+test("home hero candidates do not admit stale same-year airing rows", () => {
+  const helperSource = readFileSync("src/lib/db-helpers/library.ts", "utf8");
+
+  assert.match(helperSource, /isCurrentSeasonTrackedAnime/);
+  assert.match(helperSource, /tagsMatchCurrentSeason/);
+  assert.match(helperSource, /episodesMatchCurrentSeason/);
+  assert.doesNotMatch(helperSource, /return a\.status === "airing"/);
 });
 
 test("missed update cards search or play the next missed episode", () => {

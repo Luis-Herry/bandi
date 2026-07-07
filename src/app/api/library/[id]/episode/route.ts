@@ -5,8 +5,10 @@ import { and, eq } from "drizzle-orm";
 import { requireUser } from "@/lib/session";
 import { buildWatchEventDrafts } from "@/lib/watch-events";
 import {
+  getCurrentEpisodeAfterWatchedThrough,
   getCompletionEpisodeNumber,
-  resolveProgressWatchStatus,
+  getWatchedThroughEpisodeNumber,
+  resolveWatchedThroughWatchStatus,
 } from "@/lib/watch-progress";
 import type { WatchStatus } from "@/lib/watch-progress";
 
@@ -18,9 +20,8 @@ export const dynamic = "force-dynamic";
  * body: { episode: number, watched: boolean }
  *
  * Semantics:
- *   - currentEpisode is the absolute current/last watched episode number.
- *   - Diff writes watch/unwatch events for real episode rows in
- *     (old,new] or (new,old].
+ *   - currentEpisode is the absolute current/next episode marker.
+ *   - Diff writes watch/unwatch events for real watched episode rows.
  */
 export async function POST(
   req: Request,
@@ -53,10 +54,6 @@ export async function POST(
   if (!existing)
     return NextResponse.json({ error: "not in library" }, { status: 404 });
 
-  const next = watched
-    ? Math.max(existing.currentEpisode, ep)
-    : Math.max(0, Math.min(existing.currentEpisode, ep - 1));
-
   const a = db
     .select({ totalEpisodes: anime.totalEpisodes })
     .from(anime)
@@ -71,17 +68,30 @@ export async function POST(
     totalEpisodes: a?.totalEpisodes,
     episodeNumbers: episodeRows.map((row) => row.number),
   });
-  const finalStatus = resolveProgressWatchStatus({
+  const previousWatchedThrough = getWatchedThroughEpisodeNumber({
+    currentEpisode: existing.currentEpisode,
+    watchStatus: existing.watchStatus as WatchStatus,
+    completionEpisode,
+  });
+  const nextWatchedThrough = watched
+    ? Math.max(previousWatchedThrough, ep)
+    : Math.max(0, Math.min(previousWatchedThrough, ep - 1));
+  const next = getCurrentEpisodeAfterWatchedThrough({
+    watchedThroughEpisode: nextWatchedThrough,
+    episodeNumbers: episodeRows.map((row) => row.number),
+    completionEpisode,
+  });
+  const finalStatus = resolveWatchedThroughWatchStatus({
     currentStatus: existing.watchStatus as WatchStatus,
-    nextEpisode: next,
+    watchedThroughEpisode: nextWatchedThrough,
     completionEpisode,
   });
   const autoCompleted =
     finalStatus === "completed" && existing.watchStatus !== "completed";
 
   const now = new Date();
-  const lower = Math.min(existing.currentEpisode, next);
-  const upper = Math.max(existing.currentEpisode, next);
+  const lower = Math.min(previousWatchedThrough, nextWatchedThrough);
+  const upper = Math.max(previousWatchedThrough, nextWatchedThrough);
   const episodeIdsByNumber = new Map<number, number>();
   const knownEpisodeNumbers: number[] = [];
   if (upper > lower) {
@@ -95,8 +105,8 @@ export async function POST(
   const eventDrafts = buildWatchEventDrafts({
     userId: user.id,
     animeId,
-    oldEpisode: existing.currentEpisode,
-    newEpisode: next,
+    oldEpisode: previousWatchedThrough,
+    newEpisode: nextWatchedThrough,
     watchedAt: now,
     episodeIdsByNumber,
     knownEpisodeNumbers,

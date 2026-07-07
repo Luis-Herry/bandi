@@ -17,6 +17,11 @@ export interface HeroSlide {
   type: string;
   tags?: string[] | null;
   currentEpisode: number;
+  watchedThroughEpisode: number;
+  airedCount: number;
+  watchedAiredCount: number;
+  latestAiredEpisode: number | null;
+  continueEpisodeNumber: number | null;
   totalEpisodes?: number | null;
   rating?: number;
 }
@@ -45,12 +50,13 @@ export function HomeHero({ slides }: HomeHeroProps) {
   if (!slide) return null;
 
   const epLabel =
-    slide.totalEpisodes && slide.totalEpisodes > 0
-      ? `EP.${String(slide.currentEpisode).padStart(2, "0")} / ${String(slide.totalEpisodes).padStart(2, "0")}`
-      : `EP.${String(slide.currentEpisode).padStart(2, "0")}`;
+    slide.airedCount > 0
+      ? `已看 ${slide.watchedAiredCount} / 已播 ${slide.airedCount}`
+      : slide.totalEpisodes && slide.totalEpisodes > 0
+        ? `EP.${String(slide.currentEpisode).padStart(2, "0")} / ${String(slide.totalEpisodes).padStart(2, "0")}`
+        : `EP.${String(slide.currentEpisode).padStart(2, "0")}`;
 
-  // 「继续观看」播的是用户当前进度本身（不再 +1）；为 0 时降级到 1。
-  const playEp = slide.currentEpisode > 0 ? slide.currentEpisode : 1;
+  const playEp = slide.continueEpisodeNumber;
   const detailHref = `/anime/${slide.id}`;
 
   return (
@@ -191,13 +197,15 @@ export function HomeHero({ slides }: HomeHeroProps) {
 
             <div className="mt-6 flex flex-col gap-5 pointer-events-auto lg:flex-row lg:items-center lg:justify-between lg:gap-8">
               <div className="flex flex-wrap items-center gap-3">
-                <PlayButton
-                  animeId={slide.id}
-                  episode={playEp}
-                  label={`继续观看 EP.${String(playEp).padStart(2, "0")}`}
-                  variant="primary"
-                  size="md"
-                />
+                {playEp != null && (
+                  <PlayButton
+                    animeId={slide.id}
+                    episode={playEp}
+                    label={`继续观看 EP.${String(playEp).padStart(2, "0")}`}
+                    variant="primary"
+                    size="md"
+                  />
+                )}
                 <Button variant="secondary" size="md" asChild>
                   <a href={detailHref}>查看详情</a>
                 </Button>
