@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { Check, ChevronDown, Plus } from "lucide-react";
@@ -33,6 +33,10 @@ function metaOf(s: CinemaWatchStatus) {
   return STATUSES.find((x) => x.value === s) ?? STATUSES[0];
 }
 
+function isCinemaWatchStatus(value: unknown): value is CinemaWatchStatus {
+  return STATUSES.some((status) => status.value === value);
+}
+
 export function CinemaWatchControl({
   animeId,
   initialStatus,
@@ -50,6 +54,21 @@ export function CinemaWatchControl({
     size === "md"
       ? "h-10 px-4 text-sm gap-1.5"
       : "h-7 px-2 text-[11px] gap-1";
+
+  useEffect(() => {
+    const onWatchStatusChange = (event: Event) => {
+      const detail = (event as CustomEvent).detail as {
+        animeId?: number;
+        watchStatus?: unknown;
+      };
+      if (detail?.animeId !== animeId) return;
+      if (!isCinemaWatchStatus(detail.watchStatus)) return;
+      setStatus(detail.watchStatus);
+    };
+    window.addEventListener("anime-watch-status-change", onWatchStatusChange);
+    return () =>
+      window.removeEventListener("anime-watch-status-change", onWatchStatusChange);
+  }, [animeId]);
 
   const apply = (next: CinemaWatchStatus | null) => {
     const prev = status;

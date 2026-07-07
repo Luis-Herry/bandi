@@ -100,6 +100,11 @@ test("downloads admin completed rows can open the internal player", () => {
 
   assert.match(downloadsRouteSource, /episodeNumber: episodes\.number/);
   assert.match(downloadsRouteSource, /leftJoin\(episodes, eq\(downloadQueue\.episodeId, episodes\.id\)\)/);
+  assert.match(downloadsRouteSource, /backfillMissingDownloadEpisodeRefs\(\)/);
+  assert.match(downloadsRouteSource, /syncMissingDownloadSources\(\{/);
+  assert.match(downloadsRouteSource, /extractEpisodeNumber\(row\.title\)/);
+  assert.match(downloadsRouteSource, /set\(\{ episodeId: ep\.id \}\)/);
+  assert.match(downloadsRouteSource, /set\(\{ isDownloaded: true \}\)/);
   assert.match(clientSource, /import \{ PlayButton \}/);
   assert.match(clientSource, /episodeNumber: number \| null/);
   assert.match(clientSource, /row\.status === "completed"/);
@@ -108,4 +113,22 @@ test("downloads admin completed rows can open the internal player", () => {
   assert.match(clientSource, /aria-label=\{`播放 \$\{row\.anime\.title\} EP\.\$\{episodeLabel\}`\}/);
   assert.match(clientSource, /episode=\{row\.episodeNumber\}/);
   assert.match(clientSource, /播放 EP/);
+});
+
+test("downloads refresh prunes completed rows whose backing source disappeared", () => {
+  const downloadsRouteSource = readFileSync(
+    "src/app/api/downloads/route.ts",
+    "utf8",
+  );
+
+  assert.match(downloadsRouteSource, /getStatus\(\)/);
+  assert.match(downloadsRouteSource, /qbitConnected: qbitStatus\.connected/);
+  assert.match(downloadsRouteSource, /parseLocalFileDownloadUrl\(row\.magnetUrl\)/);
+  assert.match(downloadsRouteSource, /!existsSync\(localPath\)/);
+  assert.match(downloadsRouteSource, /!isVideoFileName\(path\.basename\(localPath\)\)/);
+  assert.match(downloadsRouteSource, /extractMagnetHash\(row\.magnetUrl\)/);
+  assert.match(downloadsRouteSource, /qbitConnected && hash && !liveHashes\.has\(hash\)/);
+  assert.match(downloadsRouteSource, /db\.delete\(downloadQueue\)/);
+  assert.match(downloadsRouteSource, /inArray\(downloadQueue\.id, staleIds\)/);
+  assert.match(downloadsRouteSource, /resetDownloadedFlagsWithoutCompletedRows\(episodeIds\)/);
 });

@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { Search, ArrowRight, Play, Clock, AlertCircle } from "lucide-react";
+import { ArrowRight, Play, Clock, AlertCircle } from "lucide-react";
 import { getCurrentUser } from "@/lib/session";
 import {
   getHeroCandidates,
@@ -14,6 +14,7 @@ import { attachSeasonalUpdateStates } from "@/lib/seasonal-update-state";
 import { Button, GlassPanel, Tag } from "@/components/ui";
 import { HomeHero, type HeroSlide } from "@/components/features/HomeHero";
 import { EmberBackground } from "@/components/features/EmberBackground";
+import { SearchOpenButton } from "@/components/features/SearchOpenButton";
 import {
   SeasonalBrowseWeekday,
 } from "@/components/features/SeasonalBrowseWeekday";
@@ -377,12 +378,10 @@ function EmptyHome({ username }: { username: string }) {
         </div>
 
         <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-          <Button variant="primary" size="lg" leftIcon={<Search size={14} />}>
-            搜索番剧
+          <Button variant="primary" size="lg" asChild>
+            <a href="/browse">前往番剧库</a>
           </Button>
-          <Button variant="secondary" size="lg" asChild>
-            <a href="/library">前往追番库</a>
-          </Button>
+          <SearchOpenButton />
         </div>
 
         <p className="mt-5 text-[11px] text-[color:var(--text-muted)]">
@@ -397,19 +396,19 @@ function EmptyHome({ username }: { username: string }) {
             <ul className="space-y-2 text-[12px] text-[color:var(--text-secondary)]">
               <li className="flex items-start gap-2">
                 <span className="mt-1.5 block w-1 h-1 rounded-full shrink-0" style={{ background: "var(--accent)" }} />
-                追踪每部番剧的进度、评分、笔记
+                在番剧库发现本季新番，加入想看或在看
               </li>
               <li className="flex items-start gap-2">
                 <span className="mt-1.5 block w-1 h-1 rounded-full shrink-0" style={{ background: "var(--accent)" }} />
-                自动从 Bangumi/AniList 同步集数与放送日期
+                首页集中查看今日更新、漏看提醒和继续观看
               </li>
               <li className="flex items-start gap-2">
                 <span className="mt-1.5 block w-1 h-1 rounded-full shrink-0" style={{ background: "var(--accent)" }} />
-                配置 RSS 自动下载到 qBittorrent
+                扫描本地动画和影视文件，用内置播放器接着看
               </li>
               <li className="flex items-start gap-2">
                 <span className="mt-1.5 block w-1 h-1 rounded-full shrink-0" style={{ background: "var(--accent)" }} />
-                按星期查看本季所有追番的更新日历
+                需要时再用 RSS 找源和下载管理补齐资源
               </li>
             </ul>
           </GlassPanel>

@@ -5,10 +5,14 @@ import {
   RefreshCw,
   Trash2,
   Activity,
+  ChevronDown,
+  ChevronRight,
   Download,
   HelpCircle,
+  Layers,
   Pause,
   Play,
+  RotateCcw,
 } from "lucide-react";
 import {
   AccordionDisclosure,
@@ -43,6 +47,19 @@ interface DownloadRow {
   createdAt: string | number;
 }
 
+interface DownloadGroupEntry {
+  kind: "group";
+  key: string;
+  anime: NonNullable<DownloadRow["anime"]>;
+  rows: DownloadRow[];
+  episodeCount: number;
+  statusCounts: Record<DownloadStatus, number>;
+}
+
+type DownloadListEntry =
+  | { kind: "row"; row: DownloadRow }
+  | DownloadGroupEntry;
+
 interface QbitStatus {
   connected: boolean;
   url: string;
@@ -63,6 +80,9 @@ export function DownloadsAdminClient() {
   const [loading, setLoading] = useState(true);
   const [bulkBusy, setBulkBusy] = useState(false);
   const [selectedDownloadIds, setSelectedDownloadIds] = useState<Set<number>>(
+    () => new Set(),
+  );
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(
     () => new Set(),
   );
 
@@ -95,6 +115,10 @@ export function DownloadsAdminClient() {
 
   const filteredDownloadIds = useMemo(
     () => filteredDownloads.map((d) => d.id),
+    [filteredDownloads],
+  );
+  const downloadListEntries = useMemo(
+    () => buildDownloadListEntries(filteredDownloads),
     [filteredDownloads],
   );
 
@@ -160,6 +184,33 @@ export function DownloadsAdminClient() {
         for (const id of filteredDownloadIds) next.delete(id);
       } else {
         for (const id of filteredDownloadIds) next.add(id);
+      }
+      return next;
+    });
+  }
+
+  function toggleGroupSelection(ids: number[]) {
+    setSelectedDownloadIds((current) => {
+      const next = new Set(current);
+      const allSelected = ids.every((id) => next.has(id));
+      for (const id of ids) {
+        if (allSelected) {
+          next.delete(id);
+        } else {
+          next.add(id);
+        }
+      }
+      return next;
+    });
+  }
+
+  function toggleGroupExpanded(key: string) {
+    setExpandedGroups((current) => {
+      const next = new Set(current);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
       }
       return next;
     });
@@ -250,6 +301,22 @@ export function DownloadsAdminClient() {
       return;
     }
     showToast({ title: "下载任务已继续", tone: "download" });
+    void refresh();
+  }
+
+  async function handleRetryDownload(id: number) {
+    const res = await fetch(`/api/downloads/${id}/retry`, { method: "POST" });
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({}));
+      showToast({
+        title: "重新下载失败",
+        description: j.error ?? res.statusText,
+        tone: "error",
+      });
+      void refresh();
+      return;
+    }
+    showToast({ title: "已重新提交下载", tone: "download" });
     void refresh();
   }
 
@@ -382,17 +449,47 @@ export function DownloadsAdminClient() {
               {tab === "all" ? "下载列表是空的" : "这个分类下没有任务"}
             </div>
           ) : (
-            filteredDownloads.map((d) => (
-              <DownloadRowItem
-                key={d.id}
-                row={d}
-                selected={selectedDownloadIds.has(d.id)}
-                onToggleSelected={() => toggleDownloadSelection(d.id)}
-                onDelete={() => handleDeleteDownload(d.id)}
-                onPause={() => handlePauseDownload(d.id)}
-                onResume={() => handleResumeDownload(d.id)}
-              />
-            ))
+            downloadListEntries.map((entry) =>
+              entry.kind === "row" ? (
+                <DownloadRowItem
+                  key={entry.row.id}
+                  row={entry.row}
+                  selected={selectedDownloadIds.has(entry.row.id)}
+                  onToggleSelected={() => toggleDownloadSelection(entry.row.id)}
+                  onDelete={() => handleDeleteDownload(entry.row.id)}
+                  onPause={() => handlePauseDownload(entry.row.id)}
+                  onResume={() => handleResumeDownload(entry.row.id)}
+                  onRetry={() => handleRetryDownload(entry.row.id)}
+                />
+              ) : (
+                <DownloadGroupItem
+                  key={entry.key}
+                  group={entry}
+                  expanded={expandedGroups.has(entry.key)}
+                  selectedCount={
+                    entry.rows.filter((row) => selectedDownloadIds.has(row.id)).length
+                  }
+                  onToggleSelected={() =>
+                    toggleGroupSelection(entry.rows.map((row) => row.id))
+                  }
+                  onToggleExpanded={() => toggleGroupExpanded(entry.key)}
+                  renderRows={() =>
+                    entry.rows.map((row) => (
+                      <DownloadRowItem
+                        key={row.id}
+                        row={row}
+                        selected={selectedDownloadIds.has(row.id)}
+                        onToggleSelected={() => toggleDownloadSelection(row.id)}
+                        onDelete={() => handleDeleteDownload(row.id)}
+                        onPause={() => handlePauseDownload(row.id)}
+                        onResume={() => handleResumeDownload(row.id)}
+                        onRetry={() => handleRetryDownload(row.id)}
+                      />
+                    ))
+                  }
+                />
+              ),
+            )
           )}
         </GlassPanel>
       </section>
@@ -418,56 +515,58 @@ function QbitStatusCard({
 
   return (
     <GlassPanel variant="elevated" className="p-4">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex min-w-0 items-start gap-4">
-          <div
-            aria-hidden
-            className={cn(
-              "w-2 h-2 rounded-full",
-              connected ? "bg-[color:var(--status-success,#4ade80)]" : "bg-[color:var(--text-muted)]",
-            )}
-            style={
-              connected
-                ? { boxShadow: "0 0 8px rgba(74,222,128,0.6)" }
-                : undefined
-            }
-          />
-          <div className="min-w-0">
-            <p className="text-[13px] font-semibold text-[color:var(--text-primary)] flex items-center gap-2">
-              <Activity size={13} />
-              qBittorrent {connected ? "已连接" : "未连接"}
-            </p>
-            <p className="mt-0.5 text-[11px] text-[color:var(--text-muted)]">
-              {qbit?.url ?? "—"}
-              {qbit?.version && ` · v${qbit.version}`}
-              {qbit?.error && ` · ${qbit.error}`}
-            </p>
-            {hint && (
-              <p className="mt-1 text-[11px] text-[color:var(--status-warning)]">
-                {hint}
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-4 min-[900px]:flex-row min-[900px]:items-start min-[900px]:justify-between">
+          <div className="flex min-w-0 flex-1 items-start gap-3">
+            <div
+              aria-hidden
+              className={cn(
+                "mt-[5px] h-2 w-2 shrink-0 rounded-full",
+                connected ? "bg-[color:var(--status-success,#4ade80)]" : "bg-[color:var(--text-muted)]",
+              )}
+              style={
+                connected
+                  ? { boxShadow: "0 0 8px rgba(74,222,128,0.6)" }
+                  : undefined
+              }
+            />
+            <div className="min-w-0">
+              <p className="flex items-center gap-2 text-[13px] font-semibold text-[color:var(--text-primary)]">
+                <Activity size={13} />
+                qBittorrent {connected ? "已连接" : "未连接"}
               </p>
-            )}
-            {adviceReason && <QbitConnectionAdvice reason={adviceReason} />}
+              <p className="mt-0.5 break-words text-[11px] text-[color:var(--text-muted)]">
+                {qbit?.url ?? "—"}
+                {qbit?.version && ` · v${qbit.version}`}
+                {qbit?.error && ` · ${qbit.error}`}
+              </p>
+              {hint && (
+                <p className="mt-1 break-words text-[11px] leading-5 text-[color:var(--status-warning)]">
+                  {hint}
+                </p>
+              )}
+            </div>
+          </div>
+          <div className="flex w-full flex-col items-start gap-3 min-[900px]:w-auto min-[900px]:min-w-[210px] min-[900px]:shrink-0 min-[900px]:items-end">
+            <div className="grid w-full grid-cols-3 gap-3 text-[12px]">
+              <StatCell label="下载" value={formatSpeed(qbit?.dlSpeed)} accent />
+              <StatCell label="上传" value={formatSpeed(qbit?.upSpeed)} />
+              <StatCell label="剩余空间" value={formatBytes(qbit?.freeSpaceOnDisk)} />
+            </div>
+            <QbitSetupGuideDialog
+              trigger={
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  leftIcon={<HelpCircle size={12} />}
+                >
+                  不会设置看这里
+                </Button>
+              }
+            />
           </div>
         </div>
-        <div className="flex flex-col items-start gap-3 sm:items-end">
-          <div className="grid grid-cols-3 gap-3 text-[12px] sm:flex sm:items-center sm:gap-6">
-            <StatCell label="下载" value={formatSpeed(qbit?.dlSpeed)} accent />
-            <StatCell label="上传" value={formatSpeed(qbit?.upSpeed)} />
-            <StatCell label="剩余空间" value={formatBytes(qbit?.freeSpaceOnDisk)} />
-          </div>
-          <QbitSetupGuideDialog
-            trigger={
-              <Button
-                variant="ghost"
-                size="sm"
-                leftIcon={<HelpCircle size={12} />}
-              >
-                不会设置看这里
-              </Button>
-            }
-          />
-        </div>
+        {adviceReason && <QbitConnectionAdvice reason={adviceReason} />}
       </div>
     </GlassPanel>
   );
@@ -492,7 +591,7 @@ function QbitConnectionAdvice({ reason }: { reason: string }) {
   return (
     <AccordionDisclosure
       title="查看连接建议"
-      className="mt-2 max-w-[520px] border-t border-[color:var(--border-subtle)] pt-2"
+      className="w-full border-t border-[color:var(--border-subtle)] pt-2"
       buttonClassName="text-[11px] font-medium text-[color:var(--accent)] transition-colors hover:text-[color:var(--text-primary)]"
       bodyClassName="mt-2 space-y-1 text-[11px] leading-5 text-[color:var(--text-muted)]"
     >
@@ -529,7 +628,7 @@ function StatCell({
   accent?: boolean;
 }) {
   return (
-    <div className="text-right">
+    <div className="min-w-0 text-left min-[900px]:text-right">
       <p
         data-tabular
         className="text-[14px] font-semibold tracking-tight"
@@ -571,6 +670,176 @@ function SectionHeader({
   );
 }
 
+function buildDownloadListEntries(rows: DownloadRow[]): DownloadListEntry[] {
+  const grouped = new Map<string, DownloadGroupEntry>();
+  for (const row of rows) {
+    if (!row.anime) continue;
+    const key = `anime:${row.anime.id}`;
+    const existing = grouped.get(key);
+    if (existing) {
+      existing.rows.push(row);
+      existing.statusCounts[row.status] += 1;
+    } else {
+      grouped.set(key, {
+        kind: "group",
+        key,
+        anime: row.anime,
+        rows: [row],
+        episodeCount: 1,
+        statusCounts: {
+          pending: row.status === "pending" ? 1 : 0,
+          downloading: row.status === "downloading" ? 1 : 0,
+          completed: row.status === "completed" ? 1 : 0,
+          failed: row.status === "failed" ? 1 : 0,
+        },
+      });
+    }
+  }
+
+  for (const group of grouped.values()) {
+    const episodeNumbers = new Set(
+      group.rows
+        .map((row) => row.episodeNumber)
+        .filter((episode): episode is number => typeof episode === "number"),
+    );
+    group.episodeCount = episodeNumbers.size > 0 ? episodeNumbers.size : group.rows.length;
+  }
+
+  const entries: DownloadListEntry[] = [];
+  const emittedGroups = new Set<string>();
+  for (const row of rows) {
+    const key = row.anime ? `anime:${row.anime.id}` : null;
+    const group = key ? grouped.get(key) : null;
+    if (group && group.rows.length > 1) {
+      if (!emittedGroups.has(group.key)) {
+        entries.push(group);
+        emittedGroups.add(group.key);
+      }
+      continue;
+    }
+    entries.push({ kind: "row", row });
+  }
+  return entries;
+}
+
+function DownloadGroupItem({
+  group,
+  expanded,
+  selectedCount,
+  onToggleSelected,
+  onToggleExpanded,
+  renderRows,
+}: {
+  group: DownloadGroupEntry;
+  expanded: boolean;
+  selectedCount: number;
+  onToggleSelected: () => void;
+  onToggleExpanded: () => void;
+  renderRows: () => React.ReactNode;
+}) {
+  const allSelected = selectedCount === group.rows.length;
+  const partlySelected = selectedCount > 0 && !allSelected;
+  const statusEntries = (["failed", "downloading", "pending", "completed"] as const)
+    .filter((status) => group.statusCounts[status] > 0);
+
+  return (
+    <div
+      className={cn(
+        "rounded-[8px] border transition-colors",
+        selectedCount > 0
+          ? "border-[color:var(--accent)] bg-[color:var(--accent-subtle)]"
+          : "border-transparent hover:border-[color:var(--border-subtle)] hover:bg-[color:var(--bg-surface)]",
+      )}
+    >
+      <div className="flex flex-col gap-3 p-3 sm:flex-row sm:items-start">
+        <label className="mt-1 inline-flex h-4 w-4 shrink-0 cursor-pointer items-center justify-center">
+          <input
+            type="checkbox"
+            className="sr-only"
+            checked={allSelected}
+            onChange={onToggleSelected}
+            aria-label={`选择合集：${group.anime.title}`}
+          />
+          <span
+            aria-hidden
+            className={cn(
+              "inline-flex h-3.5 w-3.5 items-center justify-center rounded-[4px] border transition-colors",
+              selectedCount > 0
+                ? "border-[color:var(--accent)] bg-[color:var(--accent)]"
+                : "border-[color:var(--border-strong)]",
+            )}
+          >
+            {allSelected && (
+              <span className="h-1.5 w-1.5 rounded-[2px] bg-[color:var(--accent-contrast)]" />
+            )}
+            {partlySelected && (
+              <span className="h-0.5 w-2 rounded-full bg-[color:var(--accent-contrast)]" />
+            )}
+          </span>
+        </label>
+
+        <div className="w-full shrink-0 pt-0.5 sm:w-[96px]">
+          <AnimeCover
+            src={group.anime.coverUrl}
+            alt={group.anime.title}
+            ratio="16/9"
+            sizes="(min-width: 640px) 96px, 100vw"
+            className="rounded-[6px]"
+          />
+        </div>
+
+        <button
+          type="button"
+          onClick={onToggleExpanded}
+          className="min-w-0 flex-1 text-left"
+          aria-expanded={expanded}
+        >
+          <div className="mb-1 flex flex-wrap items-center gap-2">
+            <span className="inline-flex items-center gap-1 rounded-[4px] border border-[color:var(--accent)]/30 bg-[color:var(--accent-subtle)] px-1.5 py-0.5 text-[10px] font-medium text-[color:var(--accent)]">
+              <Layers size={11} />
+              合集 {group.episodeCount} 集
+            </span>
+            {statusEntries.map((status) => (
+              <span
+                key={status}
+                className="inline-flex items-center gap-1"
+              >
+                <StatusBadge kind="download" status={status} />
+                <span data-tabular className="text-[10px] text-[color:var(--text-muted)]">
+                  ×{group.statusCounts[status]}
+                </span>
+              </span>
+            ))}
+          </div>
+          <p className="truncate text-[12px] text-[color:var(--text-primary)]" title={group.anime.title}>
+            {group.anime.title}
+          </p>
+          <p className="mt-1 text-[10px] text-[color:var(--text-muted)]">
+            {expanded ? "已展开" : "已收起"} · {group.rows.length} 条下载记录
+          </p>
+        </button>
+
+        <button
+          type="button"
+          onClick={onToggleExpanded}
+          aria-label={expanded ? "收起合集" : "展开合集"}
+          title={expanded ? "收起合集" : "展开合集"}
+          className="inline-flex h-7 shrink-0 items-center justify-center gap-1 rounded-[6px] px-2 text-[11px] font-medium text-[color:var(--text-secondary)] transition-colors hover:bg-[color:var(--bg-surface-hover)] hover:text-[color:var(--text-primary)]"
+        >
+          {expanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+          <span>{expanded ? "收起" : "展开"}</span>
+        </button>
+      </div>
+
+      {expanded && (
+        <div className="space-y-1 border-t border-[color:var(--border-subtle)] p-2 sm:ml-7 sm:border-l sm:border-t-0 sm:pl-3">
+          {renderRows()}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function DownloadRowItem({
   row,
   selected,
@@ -578,6 +847,7 @@ function DownloadRowItem({
   onDelete,
   onPause,
   onResume,
+  onRetry,
 }: {
   row: DownloadRow;
   selected: boolean;
@@ -585,6 +855,7 @@ function DownloadRowItem({
   onDelete: () => Promise<void>;
   onPause: () => Promise<void>;
   onResume: () => Promise<void>;
+  onRetry: () => Promise<void>;
 }) {
   // 实时 progress 优先用 qBit 数据，落库 progress 是 0-100 整数
   const pct =
@@ -596,16 +867,20 @@ function DownloadRowItem({
     ? formatSpeed(row.liveSpeed)
     : row.speed ?? null;
 
+  const isControllableStatus =
+    row.status === "downloading" || row.status === "pending";
   // qBit 任务状态决定显示暂停还是继续：
-  // - pausedDL / pausedUP → 已暂停，给 ▶ 继续按钮
-  // - downloading / 任何 _UP 完成态 → 在跑，给 ⏸ 暂停按钮
-  // - 没有 liveState（qBit 离线 / 任务还没建好）→ 用 DB status 兜底
+  // - pausedDL / stoppedDL → 已暂停，给 ▶ 继续按钮
+  // - downloading / queuedDL / stalledDL 等下载态 → 给 ⏸ 暂停按钮
+  // - completed 只给播放和删除，不再暴露 qBit 控制
   const isPaused =
-    row.liveState === "pausedDL" || row.liveState === "pausedUP";
+    isControllableStatus &&
+    (row.liveState === "pausedDL" || row.liveState === "stoppedDL");
   const canControl =
-    row.liveState != null
+    isControllableStatus &&
+    (row.liveState != null
       ? row.liveState !== "error" && row.liveState !== "missingFiles"
-      : row.status === "downloading";
+      : row.status === "downloading");
   const episodeLabel =
     row.episodeNumber != null
       ? String(row.episodeNumber).padStart(2, "0")
@@ -625,7 +900,7 @@ function DownloadRowItem({
       )}
     >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
-        <label className="mt-1 inline-flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-[6px] border border-[color:var(--border-default)] bg-[color:var(--bg-surface)] transition-colors hover:border-[color:var(--accent)]">
+        <label className="mt-1 inline-flex h-4 w-4 shrink-0 cursor-pointer items-center justify-center">
           <input
             type="checkbox"
             className="sr-only"
@@ -740,6 +1015,18 @@ function DownloadRowItem({
                 <Pause size={13} />
               </button>
             )
+          )}
+          {row.status === "failed" && (
+            <button
+              type="button"
+              onClick={onRetry}
+              aria-label="重新下载"
+              title="重新下载"
+              className="inline-flex h-7 items-center justify-center gap-1 rounded-[6px] px-2 text-[11px] font-medium text-[color:var(--accent)] transition-colors hover:bg-[color:var(--bg-surface-hover)] hover:text-[color:var(--text-primary)]"
+            >
+              <RotateCcw size={13} />
+              <span>重新下载</span>
+            </button>
           )}
           <ConfirmDialog
             title="从列表移除？"

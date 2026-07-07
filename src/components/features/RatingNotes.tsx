@@ -213,6 +213,7 @@ export function RatingNotes({
       </div>
 
       <textarea
+        data-no-focus-ring
         value={notes}
         onChange={(e) => setNotes(e.target.value)}
         onBlur={() => save(undefined, { quiet: true })}

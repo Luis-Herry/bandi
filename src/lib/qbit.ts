@@ -346,25 +346,38 @@ export async function addTorrent(
 export async function pauseTorrent(
   hash: string,
 ): Promise<{ ok: boolean; error?: string }> {
-  const form = new URLSearchParams({ hashes: hash });
-  const r = await request("/api/v2/torrents/pause", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: form,
-  });
-  return r.ok ? { ok: true } : { ok: false, error: r.error };
+  return controlTorrent(hash, [
+    "/api/v2/torrents/stop",
+    "/api/v2/torrents/pause",
+  ]);
 }
 
 export async function resumeTorrent(
   hash: string,
 ): Promise<{ ok: boolean; error?: string }> {
-  const form = new URLSearchParams({ hashes: hash });
-  const r = await request("/api/v2/torrents/resume", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: form,
-  });
-  return r.ok ? { ok: true } : { ok: false, error: r.error };
+  return controlTorrent(hash, [
+    "/api/v2/torrents/start",
+    "/api/v2/torrents/resume",
+  ]);
+}
+
+async function controlTorrent(
+  hash: string,
+  paths: string[],
+): Promise<{ ok: boolean; error?: string }> {
+  let lastError: string | undefined;
+  for (const path of paths) {
+    const form = new URLSearchParams({ hashes: hash });
+    const result = await request(path, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: form,
+    });
+    if (result.ok) return { ok: true };
+    lastError = result.error;
+    if (result.error !== "http_404") break;
+  }
+  return { ok: false, error: lastError };
 }
 
 export async function deleteTorrent(

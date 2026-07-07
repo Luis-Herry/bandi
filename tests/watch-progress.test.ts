@@ -42,6 +42,25 @@ test("progress edits below the season end do not keep completed implicitly", () 
   );
 });
 
+test("progress edits move planning items into watching", () => {
+  assert.equal(
+    resolveProgressWatchStatus({
+      currentStatus: "planning",
+      nextEpisode: 1,
+      completionEpisode: 12,
+    }),
+    "watching",
+  );
+  assert.equal(
+    resolveProgressWatchStatus({
+      currentStatus: "planning",
+      nextEpisode: 0,
+      completionEpisode: 12,
+    }),
+    "planning",
+  );
+});
+
 test("explicit watch status wins over progress inference", () => {
   assert.equal(
     resolveProgressWatchStatus({

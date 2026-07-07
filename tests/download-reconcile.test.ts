@@ -103,6 +103,44 @@ test("plans local video files and maps season episode numbers to absolute rows",
   assert.equal(parseLocalFileDownloadUrl(imports[0]?.magnetUrl ?? ""), localPath);
 });
 
+test("plans local SxxEyy files and maps them to existing episode rows", () => {
+  const localPath =
+    "H:\\追番网站\\download\\New Panty & Stocking with Garterbelt 2025 S01E01-[1080p][BDRIP][x265.OPUS].mkv";
+  const imports = planExternalDownloadImports({
+    downloadRoot,
+    existingDownloads: [],
+    liveTorrents: [],
+    localFiles: [
+      {
+        path: localPath,
+        name:
+          "New Panty & Stocking with Garterbelt 2025 S01E01-[1080p][BDRIP][x265.OPUS].mkv",
+      },
+    ],
+    animeRefs: [
+      {
+        id: 669,
+        title: "新 吊带袜天使",
+        titleJa: "New PANTY & STOCKING with GARTERBELT",
+      },
+    ],
+    aliasesByAnimeId: {
+      669: ["New Panty & Stocking with Garterbelt"],
+    },
+    episodeRefs: Array.from({ length: 13 }, (_, index) => ({
+      id: 2401 + index,
+      animeId: 669,
+      number: index + 1,
+    })),
+  });
+
+  assert.equal(imports.length, 1);
+  assert.equal(imports[0]?.animeId, 669);
+  assert.equal(imports[0]?.episodeId, 2401);
+  assert.equal(imports[0]?.status, "completed");
+  assert.equal(parseLocalFileDownloadUrl(imports[0]?.magnetUrl ?? ""), localPath);
+});
+
 test("does not import local files already managed by an existing qBit torrent", () => {
   const hash = "aabbccddeeff00112233445566778899aabbccdd";
   const fileName = "[ANi] Wistoria - 22 [1080P][Baha].mp4";

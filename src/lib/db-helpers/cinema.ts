@@ -27,6 +27,11 @@ import { extractJavCode } from "@/lib/jav";
 type AnimeRow = typeof anime.$inferSelect;
 export type CinemaWatchStatus = UserAnime["watchStatus"];
 
+// Temporary product gate: keep existing cinema rows intact, but hide the
+// default non-adult local-library feed until it is ready to resurface.
+export const CINEMA_LOCAL_DEFAULT_DATA_HIDDEN =
+  process.env.CINEMA_LOCAL_DEFAULT_DATA_HIDDEN !== "0";
+
 // 已成功刮到任一源的元数据（脏标题/没刮到的不展示）
 function isScraped(row: AnimeRow): boolean {
   return (
@@ -275,7 +280,7 @@ export interface CinemaMissedItem {
 }
 
 function getTrackedCinemaRows(userId: string) {
-  return db
+  const rows = db
     .select({ ua: userAnime, a: anime })
     .from(userAnime)
     .innerJoin(anime, eq(userAnime.animeId, anime.id))
@@ -287,6 +292,10 @@ function getTrackedCinemaRows(userId: string) {
       ),
     )
     .all();
+  if (!CINEMA_LOCAL_DEFAULT_DATA_HIDDEN) return rows;
+
+  const localAnimeIds = getLocalLibraryAnimeIds();
+  return rows.filter((row) => localAnimeIds.has(row.a.id));
 }
 
 function getLocalFileEpisodeIds(

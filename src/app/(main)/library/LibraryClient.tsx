@@ -458,6 +458,7 @@ function SelectInline({
 }) {
   return (
     <select
+      data-no-focus-ring
       value={value}
       onChange={(e) => onChange(e.target.value)}
       className={cn(

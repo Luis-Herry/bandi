@@ -400,6 +400,7 @@ export function matchAgainstLibrary(
  *
  * 覆盖格式（按优先级从高到低）：
  *   - 第07话 / 第7集 / 第 07 話
+ *   - S01E07 / S1E7
  *   - E07 / E7（前后必须是单词边界）
  *   - [07] / [07v2]
  *   - (07) / (07v2)
@@ -420,11 +421,15 @@ export function extractEpisodeNumber(title: string): number | null {
   m = title.match(/第\s*0*(\d{1,3})\s*[话集話]/);
   if (m) return Number(m[1]);
 
-  // 2. E07 / E7 形式（前后为非字母数字或字符串边界）
+  // 2. S01E07 / S1E7 形式，本地库文件名常见
+  m = title.match(/\bS\d{1,2}E0*(\d{1,3})(?:v\d+)?(?![A-Za-z0-9])/i);
+  if (m) return Number(m[1]);
+
+  // 3. E07 / E7 形式（前后为非字母数字或字符串边界）
   m = title.match(/(?:^|[^A-Za-z0-9])E0*(\d{1,3})(?:v\d+)?(?![A-Za-z0-9])/i);
   if (m) return Number(m[1]);
 
-  // 3. [07] / [07v2]，需排除 [1080p] 这类
+  // 4. [07] / [07v2]，需排除 [1080p] 这类
   const bracketMatches = title.matchAll(/\[(\d{1,3})(?:v\d+)?\]/g);
   for (const bm of bracketMatches) {
     const n = Number(bm[1]);
@@ -434,7 +439,7 @@ export function extractEpisodeNumber(title: string): number | null {
     return n;
   }
 
-  // 4. (07) / (07v2)
+  // 5. (07) / (07v2)
   const parenMatches = title.matchAll(/\((\d{1,3})(?:v\d+)?\)/g);
   for (const pm of parenMatches) {
     const n = Number(pm[1]);
@@ -443,11 +448,11 @@ export function extractEpisodeNumber(title: string): number | null {
     return n;
   }
 
-  // 5. " - 07" / " - 07v2"（破折号 + 空白 + 集号）
+  // 6. " - 07" / " - 07v2"（破折号 + 空白 + 集号）
   m = title.match(/[-－]\s+0*(\d{1,3})(?:v\d+)?(?![A-Za-z0-9p])/);
   if (m) return Number(m[1]);
 
-  // 6. 裸数字兜底：扫所有 1-3 位数字 token，排除画质和年份
+  // 7. 裸数字兜底：扫所有 1-3 位数字 token，排除画质和年份
   //    画质：1080p / 720p / 480p / 2160p / 4k 已不会匹配（带 p / k 后缀）
   //    年份：4 位数被 \d{1,3} 排除；额外排除 1900-2099 出现的 token
   const tokens = title.matchAll(

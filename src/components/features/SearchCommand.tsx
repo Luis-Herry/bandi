@@ -5,7 +5,7 @@
  *
  * 打开方式：
  *   - 全局 keydown 监听 cmd/ctrl + K
- *   - Nav 顶部搜索框派发同样的合成事件
+ *   - Nav 顶部搜索框和空状态 CTA 派发 `bandi:open-search`
  *
  * 搜索后端：GET /api/anime/search?q=...
  *   - 本地 SQLite 优先（命中 ≥ 5 条则不走外网）
@@ -83,8 +83,15 @@ export default function SearchCommand() {
         setOpen((v) => !v);
       }
     }
+    function onOpenSearch() {
+      setOpen(true);
+    }
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener("bandi:open-search", onOpenSearch);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("bandi:open-search", onOpenSearch);
+    };
   }, []);
 
   /* ── reset state when closing ───────────────────────────────── */

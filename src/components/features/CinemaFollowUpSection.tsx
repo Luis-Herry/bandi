@@ -211,7 +211,7 @@ export function CinemaFollowUpSection({
       </section>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        {/* 继续观看：在看的剧，有本地文件直接播，没有就去「在哪看」 */}
+        {/* 继续观看：在看的剧，有本地文件直接播，没有就进详情页查看平台信息 */}
         <section className="min-w-0">
           <header className="mb-4">
             <h2 className="flex items-center gap-2 text-[18px] font-bold tracking-[-0.02em] text-[color:var(--text-primary)]">
@@ -351,7 +351,7 @@ function CinemaEpisodeAction({
 
   return (
     <Button asChild variant="secondary" size="sm">
-      <a href={`${detailHref}#where-to-watch`}>
+      <a href={detailHref}>
         <ExternalLink size={12} strokeWidth={2.5} />
         在哪看
       </a>

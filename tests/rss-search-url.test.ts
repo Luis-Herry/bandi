@@ -59,3 +59,18 @@ test("extractEpisodeNumber prefers absolute episode when total episode is presen
     73,
   );
 });
+
+test("extractEpisodeNumber reads local-library SxxEyy filenames", () => {
+  assert.equal(
+    extractEpisodeNumber(
+      "New Panty & Stocking with Garterbelt 2025 S01E01-[1080p][BDRIP][x265.OPUS].mkv",
+    ),
+    1,
+  );
+  assert.equal(
+    extractEpisodeNumber(
+      "Breaking.Bad.S05E14.1080p.BluRay.mkv",
+    ),
+    14,
+  );
+});

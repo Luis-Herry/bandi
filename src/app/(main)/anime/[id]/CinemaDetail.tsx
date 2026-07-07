@@ -5,6 +5,7 @@ import { BackButton } from "@/components/features/BackButton";
 import { CinemaEpisodeList } from "@/components/features/CinemaEpisodeList";
 import { CinemaDetailEnrichButton } from "@/components/features/CinemaDetailEnrichButton";
 import { CinemaWatchControl } from "@/components/features/CinemaWatchControl";
+import { EpisodeProgressControl } from "@/components/features/EpisodeProgressControl";
 import { PlayButton } from "@/components/features/PlayButton";
 import { RatingNotes } from "@/components/features/RatingNotes";
 import { deriveAnimeVisualVars } from "@/lib/anime-visuals";
@@ -62,6 +63,10 @@ export function CinemaDetail({ detail }: { detail: AnimeDetail }) {
     (rating == null || lanes.length === 0 || (!isMovie && episodes.length === 0));
 
   const watchedCount = userAnime?.currentEpisode ?? 0;
+  const maxEpisodeNumber =
+    episodes.length > 0
+      ? Math.max(...episodes.map((episode) => episode.number))
+      : anime.totalEpisodes;
   const playEpisode = watchedCount > 0 ? watchedCount : 1;
   // 本地有文件就能直接播，不要求先「想看/在看」——本地片你已经拥有了。
   // 「想看/在看」服务公开影视库里的个人标记。
@@ -244,18 +249,26 @@ export function CinemaDetail({ detail }: { detail: AnimeDetail }) {
 
           {hasEpisodeSection && (
             <div>
-              <div className="mb-4 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                <h2 className="text-[18px] font-semibold tracking-[-0.01em] text-[color:var(--text-primary)]">
-                  剧集列表
-                </h2>
-                <span
-                  data-tabular
-                  className="text-[12px] text-[color:var(--text-muted)]"
-                >
-                  {episodes.length > 0
-                    ? `${episodes.length} 集`
-                    : "暂无剧集数据"}
-                </span>
+              <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+                <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                  <h2 className="text-[18px] font-semibold tracking-[-0.01em] text-[color:var(--text-primary)]">
+                    剧集列表
+                  </h2>
+                  <span
+                    data-tabular
+                    className="text-[12px] text-[color:var(--text-muted)]"
+                  >
+                    {episodes.length > 0
+                      ? `${episodes.length} 集`
+                      : "暂无剧集数据"}
+                  </span>
+                </div>
+                <EpisodeProgressControl
+                  animeId={anime.id}
+                  initialCurrent={watchedCount}
+                  maxEpisode={maxEpisodeNumber}
+                  enabled={true}
+                />
               </div>
               {episodes.length > 0 ? (
                 <CinemaEpisodeList

@@ -1,16 +1,20 @@
 import { NextResponse } from "next/server";
+import { existsSync } from "node:fs";
 import path from "node:path";
 import { db } from "@/db";
 import { anime, downloadQueue, episodes } from "@/db/schema";
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, inArray } from "drizzle-orm";
 import {
   deriveQbitDownloadStatus,
   filterShadowLocalFileDownloads,
   findMatchingQbitTorrent,
+  isVideoFileName,
   listLocalVideoFiles,
+  parseLocalFileDownloadUrl,
   planExternalDownloadImports,
 } from "@/lib/download-reconcile";
 import { findDownloadDuplicate } from "@/lib/download-dedupe";
+import { resetDownloadedFlagsWithoutCompletedRows } from "@/lib/download-cleanup";
 import {
   buildSafeTorrentOptions,
   shouldPauseAfterCompletion,
@@ -19,18 +23,31 @@ import { getAllRssTitleAliases } from "@/lib/rss-title-aliases";
 import {
   addTorrent,
   extractMagnetHash,
+  getStatus,
   listTorrents,
   pauseTorrent,
   type QbitTorrent,
 } from "@/lib/qbit";
+import { extractEpisodeNumber } from "@/lib/rss";
 
 export const dynamic = "force-dynamic";
 
 type DbStatus = "pending" | "downloading" | "completed" | "failed";
 
 export async function GET() {
-  const live = await listTorrents().catch(() => []);
+  const qbitStatus = await getStatus().catch(() => ({
+    connected: false,
+    url: "",
+  }));
+  const live = qbitStatus.connected
+    ? await listTorrents().catch(() => [])
+    : [];
+  syncMissingDownloadSources({
+    live,
+    qbitConnected: qbitStatus.connected,
+  });
   syncExternalDownloads(live);
+  backfillMissingDownloadEpisodeRefs();
 
   const rows = await db
     .select({
@@ -129,6 +146,110 @@ export async function GET() {
   }
 
   return NextResponse.json({ items: filterShadowLocalFileDownloads(items) });
+}
+
+function syncMissingDownloadSources({
+  live,
+  qbitConnected,
+}: {
+  live: QbitTorrent[];
+  qbitConnected: boolean;
+}) {
+  const liveHashes = new Set(
+    live.map((torrent) => torrent.hash.trim().toLowerCase()).filter(Boolean),
+  );
+  const rows = db
+    .select({
+      id: downloadQueue.id,
+      episodeId: downloadQueue.episodeId,
+      magnetUrl: downloadQueue.magnetUrl,
+      status: downloadQueue.status,
+    })
+    .from(downloadQueue)
+    .all();
+
+  const staleIds: number[] = [];
+  const episodeIds: Array<number | null> = [];
+  for (const row of rows) {
+    if (row.status !== "completed") continue;
+
+    const localPath = parseLocalFileDownloadUrl(row.magnetUrl);
+    if (localPath) {
+      if (!existsSync(localPath) || !isVideoFileName(path.basename(localPath))) {
+        staleIds.push(row.id);
+        episodeIds.push(row.episodeId);
+      }
+      continue;
+    }
+
+    const hash = extractMagnetHash(row.magnetUrl);
+    if (qbitConnected && hash && !liveHashes.has(hash)) {
+      staleIds.push(row.id);
+      episodeIds.push(row.episodeId);
+    }
+  }
+
+  if (staleIds.length === 0) return;
+
+  db.delete(downloadQueue).where(inArray(downloadQueue.id, staleIds)).run();
+  resetDownloadedFlagsWithoutCompletedRows(episodeIds);
+}
+
+function backfillMissingDownloadEpisodeRefs() {
+  const rows = db
+    .select({
+      id: downloadQueue.id,
+      animeId: downloadQueue.animeId,
+      episodeId: downloadQueue.episodeId,
+      title: downloadQueue.title,
+      status: downloadQueue.status,
+    })
+    .from(downloadQueue)
+    .all()
+    .filter(
+      (row): row is typeof row & { animeId: number } =>
+        row.animeId != null && row.episodeId == null,
+    );
+  if (rows.length === 0) return;
+
+  const episodesByAnime = new Map<number, Map<number, { id: number; isDownloaded: boolean }>>();
+  for (const ep of db
+    .select({
+      id: episodes.id,
+      animeId: episodes.animeId,
+      number: episodes.number,
+      isDownloaded: episodes.isDownloaded,
+    })
+    .from(episodes)
+    .all()) {
+    const byNumber = episodesByAnime.get(ep.animeId) ?? new Map();
+    byNumber.set(ep.number, {
+      id: ep.id,
+      isDownloaded: Boolean(ep.isDownloaded),
+    });
+    episodesByAnime.set(ep.animeId, byNumber);
+  }
+
+  for (const row of rows) {
+    const episodeNumber = extractEpisodeNumber(row.title);
+    if (episodeNumber == null) continue;
+
+    const ep = episodesByAnime.get(row.animeId)?.get(episodeNumber);
+    if (!ep) continue;
+
+    db.update(downloadQueue)
+      .set({ episodeId: ep.id })
+      .where(eq(downloadQueue.id, row.id))
+      .run();
+
+    if (row.status === "completed" && !ep.isDownloaded) {
+      db.update(episodes)
+        .set({ isDownloaded: true })
+        .where(eq(episodes.id, ep.id))
+        .run();
+      ep.isDownloaded = true;
+    }
+  }
 }
 
 function syncExternalDownloads(live: QbitTorrent[]) {

@@ -160,9 +160,15 @@ export function CinemaScanButton() {
             "absolute right-0 top-[calc(100%+8px)] z-40 w-[min(calc(100vw-32px),420px)] p-3",
             "shadow-[0_18px_48px_rgba(0,0,0,0.5)]",
           )}
+          style={{
+            background: "var(--bg-elevated)",
+            backdropFilter: "none",
+            WebkitBackdropFilter: "none",
+          }}
         >
           <ResizePanel innerClassName="space-y-2">
           <input
+            data-no-focus-ring
             value={path}
             onChange={(e) => {
               setPath(e.target.value);
@@ -174,7 +180,7 @@ export function CinemaScanButton() {
             spellCheck={false}
             className={cn(
               "t-input w-full h-9 rounded-[8px] border px-3 text-[13px]",
-              "bg-[color:var(--bg-surface-hover)] border-[color:var(--border-default)]",
+              "bg-[color:var(--bg-elevated)] border-[color:var(--border-default)]",
               "text-[color:var(--text-primary)] placeholder:text-[color:var(--text-muted)]",
               "outline-none focus:border-[color:var(--accent)]",
               scanError.hasError && "is-error",
@@ -200,7 +206,7 @@ export function CinemaScanButton() {
             </span>
           </div>
           {preview && preview.samples.length > 0 && (
-            <div className="space-y-1 rounded-[8px] border border-[color:var(--border-default)] bg-[color:var(--bg-surface-hover)] p-2">
+            <div className="space-y-1 rounded-[8px] border border-[color:var(--border-default)] bg-[color:var(--bg-elevated)] p-2">
               {preview.samples.map((item, index) => (
                 <div
                   key={`${item.kind}-${item.title}-${item.season ?? 0}-${index}`}

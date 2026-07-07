@@ -24,13 +24,23 @@ export async function POST(
   }
 
   const row = db
-    .select({ magnetUrl: downloadQueue.magnetUrl })
+    .select({
+      magnetUrl: downloadQueue.magnetUrl,
+      status: downloadQueue.status,
+    })
     .from(downloadQueue)
     .where(eq(downloadQueue.id, rowId))
     .get();
   if (!row) {
     return NextResponse.json({ error: "not found" }, { status: 404 });
   }
+  if (row.status !== "downloading" && row.status !== "pending") {
+    return NextResponse.json(
+      { error: "download is not active" },
+      { status: 409 },
+    );
+  }
+
   const hash = extractMagnetHash(row.magnetUrl);
   if (!hash) {
     return NextResponse.json(

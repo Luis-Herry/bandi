@@ -126,6 +126,7 @@ export function MatchRuleDialog({
 
             <Labelled label="番剧">
               <select
+                data-no-focus-ring
                 value={String(draft.animeId ?? "")}
                 onChange={(e) =>
                   setDraft((d) => ({
@@ -149,7 +150,7 @@ export function MatchRuleDialog({
             </Labelled>
 
             <Labelled label="关键词（回车 / 逗号添加）">
-              <div className="flex flex-wrap items-center gap-1.5 p-2 min-h-10 rounded-[8px] bg-[color:var(--bg-surface)] border border-[color:var(--border-subtle)]">
+              <div className="flex flex-wrap items-center gap-1.5 p-2 min-h-10 rounded-[8px] bg-[color:var(--bg-surface)] border border-[color:var(--border-subtle)] transition-colors focus-within:border-[color:var(--accent-muted)]">
                 {draft.keywords.map((k) => (
                   <Tag key={k} variant="accent" className="gap-1">
                     {k}
@@ -164,6 +165,7 @@ export function MatchRuleDialog({
                   </Tag>
                 ))}
                 <input
+                  data-no-focus-ring
                   value={keywordInput}
                   onChange={(e) => setKeywordInput(e.target.value)}
                   onKeyDown={onKeywordKeydown}

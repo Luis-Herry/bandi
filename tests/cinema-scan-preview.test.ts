@@ -92,4 +92,6 @@ test("cinema scan flow keeps preview separate from confirmed import", () => {
   assert.match(buttonSource, /confirmImport/);
   assert.match(buttonSource, /确认导入/);
   assert.match(buttonSource, /absolute right-0 top-\[calc\(100%\+8px\)\]/);
+  assert.match(buttonSource, /background: "var\(--bg-elevated\)"/);
+  assert.match(buttonSource, /backdropFilter: "none"/);
 });

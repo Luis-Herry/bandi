@@ -158,6 +158,33 @@ test("cinema detail exposes rating and review notes for tracked cinema items", (
   assert.match(detailSource, /initialNotes=\{userAnime\?\.notes\}/);
 });
 
+test("cinema detail includes progress control and episode state legend", () => {
+  const detailSource = readFileSync(
+    "src/app/(main)/anime/[id]/CinemaDetail.tsx",
+    "utf8",
+  );
+  const watchControlSource = readFileSync(
+    "src/components/features/CinemaWatchControl.tsx",
+    "utf8",
+  );
+  const episodeListSource = readFileSync(
+    "src/components/features/CinemaEpisodeList.tsx",
+    "utf8",
+  );
+
+  assert.match(detailSource, /import \{ EpisodeProgressControl \}/);
+  assert.match(detailSource, /<EpisodeProgressControl/);
+  assert.match(detailSource, /initialCurrent=\{watchedCount\}/);
+  assert.match(detailSource, /maxEpisode=\{maxEpisodeNumber\}/);
+  assert.match(watchControlSource, /anime-watch-status-change/);
+  assert.match(watchControlSource, /setStatus\(detail\.watchStatus\)/);
+  assert.match(episodeListSource, /已看/);
+  assert.match(episodeListSource, /当前/);
+  assert.match(episodeListSource, /未看/);
+  assert.match(episodeListSource, /未播出/);
+  assert.match(episodeListSource, /anime-progress-change/);
+});
+
 test("cinema detail can enrich one item on demand without running the full catalog", () => {
   const detailSource = readFileSync(
     "src/app/(main)/anime/[id]/CinemaDetail.tsx",

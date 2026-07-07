@@ -186,13 +186,7 @@ export function Nav({ username, currentTheme, notifications }: NavProps) {
   };
 
   const openSearch = () => {
-    window.dispatchEvent(
-      new KeyboardEvent("keydown", {
-        key: "k",
-        ctrlKey: true,
-        metaKey: true,
-      }),
-    );
+    window.dispatchEvent(new Event("bandi:open-search"));
   };
 
   const renderThemeItems = () =>

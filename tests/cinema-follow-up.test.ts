@@ -8,6 +8,7 @@ import Database from "better-sqlite3";
 const tempDir = mkdtempSync(join(tmpdir(), "anime-cinema-feed-"));
 const dbPath = join(tempDir, "cinema-feed.db");
 process.env.DATABASE_URL = dbPath;
+process.env.CINEMA_LOCAL_DEFAULT_DATA_HIDDEN = "0";
 
 const USER_ID = "cinema-user";
 
@@ -256,7 +257,8 @@ test("cinema follow-up UI never exposes anime RSS/source-search actions", () => 
 
   assert.match(source, /import \{ PlayButton \}/);
   assert.match(source, /`\/cinema\/\$\{item\.animeId\}\?from=local`/);
-  assert.match(source, /\$\{detailHref\}#where-to-watch/);
+  assert.match(source, /href=\{detailHref\}/);
+  assert.doesNotMatch(source, /#where-to-watch/);
   assert.doesNotMatch(source, /href=\{`\/anime\/\$\{item\.animeId\}/);
   assert.match(animeCardSource, /href\?: string/);
   assert.match(animeCardSource, /href=\{href \?\? `\/anime\/\$\{id\}`\}/);

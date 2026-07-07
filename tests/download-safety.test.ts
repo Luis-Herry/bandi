@@ -50,3 +50,18 @@ test("desktop qBit client keeps the embedded 8080 route and web fallback", () =>
   assert.match(source, /isDesktopApp\).*DEFAULT_QBIT_URLS\[0\]/s);
   assert.match(source, /isLocalDefaultWebUiUrl/);
 });
+
+test("desktop qBit client uses qBittorrent v5 stop/start controls with legacy fallback", () => {
+  const source = readFileSync("src/lib/qbit.ts", "utf8");
+
+  assert.match(
+    source,
+    /pauseTorrent[\s\S]*?controlTorrent\(hash,\s*\[[\s\S]*?"\/api\/v2\/torrents\/stop"[\s\S]*?"\/api\/v2\/torrents\/pause"/,
+  );
+  assert.match(
+    source,
+    /resumeTorrent[\s\S]*?controlTorrent\(hash,\s*\[[\s\S]*?"\/api\/v2\/torrents\/start"[\s\S]*?"\/api\/v2\/torrents\/resume"/,
+  );
+  assert.match(source, /async function controlTorrent\(/);
+  assert.match(source, /if \(result\.error !== "http_404"\) break/);
+});

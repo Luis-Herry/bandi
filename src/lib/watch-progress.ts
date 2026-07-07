@@ -37,6 +37,7 @@ export function resolveProgressWatchStatus({
   if (completionEpisode != null && nextEpisode >= completionEpisode) {
     return "completed";
   }
+  if (currentStatus === "planning" && nextEpisode > 0) return "watching";
   if (currentStatus === "completed") return "watching";
   return currentStatus;
 }
