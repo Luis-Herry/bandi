@@ -82,6 +82,7 @@ const PLAYER_AUTOPLAY_KEY = "anime-player:auto-play";
 const PLAYER_SUBTITLES_KEY = "anime-player:subtitles-enabled";
 const AUTO_PLAY_COUNTDOWN_SECONDS = 5;
 const PLAYBACK_RATES = [0.75, 1, 1.25, 1.5, 2];
+const FULLSCREEN_CONTROLS_IDLE_MS = 2200;
 
 export function PlayerClient({
   animeId,
@@ -103,6 +104,7 @@ export function PlayerClient({
   const restoredRef = useRef(false);
   const autoPlayAttemptedRef = useRef(false);
   const lastSavedPositionRef = useRef(initialPositionSeconds);
+  const controlsHideTimerRef = useRef<number | null>(null);
   const [position, setPosition] = useState(initialPositionSeconds);
   const [duration, setDuration] = useState(initialDurationSeconds);
   const [completed, setCompleted] = useState(initialCompleted);
@@ -120,6 +122,9 @@ export function PlayerClient({
   const [episodePanelOpen, setEpisodePanelOpen] = useState(false);
   const [episodePanelMounted, setEpisodePanelMounted] = useState(false);
   const [settingsPanelOpen, setSettingsPanelOpen] = useState(false);
+  const [isTheaterFullscreen, setIsTheaterFullscreen] = useState(false);
+  const [controlsVisible, setControlsVisible] = useState(true);
+  const [controlsFocused, setControlsFocused] = useState(false);
   const [subtitleTracks, setSubtitleTracks] = useState<SubtitleTrackItem[]>([]);
   const [subtitlesEnabled, setSubtitlesEnabled] = useState(false);
   const [selectedSubtitleUrl, setSelectedSubtitleUrl] = useState<string | null>(
@@ -145,6 +150,14 @@ export function PlayerClient({
   const volumeStyle = {
     "--player-range-fill": `${volumeFill}%`,
   } as CSSProperties;
+  const shouldAutoHideControls =
+    isTheaterFullscreen &&
+    isPlaying &&
+    !settingsPanelOpen &&
+    !episodePanelOpen &&
+    autoPlayCountdown === null &&
+    !videoError &&
+    !controlsFocused;
   const resumePosition =
     initialCompleted && initialDurationSeconds - initialPositionSeconds <= 90
       ? 0
@@ -159,6 +172,49 @@ export function PlayerClient({
   const closeEpisodePanel = useCallback(() => {
     setEpisodePanelOpen(false);
   }, []);
+
+  const clearControlsHideTimer = useCallback(() => {
+    if (controlsHideTimerRef.current === null) return;
+    window.clearTimeout(controlsHideTimerRef.current);
+    controlsHideTimerRef.current = null;
+  }, []);
+
+  const scheduleControlsHide = useCallback(() => {
+    clearControlsHideTimer();
+    if (!shouldAutoHideControls) return;
+    controlsHideTimerRef.current = window.setTimeout(() => {
+      setControlsVisible(false);
+      controlsHideTimerRef.current = null;
+    }, FULLSCREEN_CONTROLS_IDLE_MS);
+  }, [clearControlsHideTimer, shouldAutoHideControls]);
+
+  const revealControls = useCallback(() => {
+    setControlsVisible(true);
+    scheduleControlsHide();
+  }, [scheduleControlsHide]);
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsTheaterFullscreen(document.fullscreenElement === theaterRef.current);
+    };
+
+    handleFullscreenChange();
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    return () =>
+      document.removeEventListener("fullscreenchange", handleFullscreenChange);
+  }, []);
+
+  useEffect(() => {
+    if (!shouldAutoHideControls) {
+      clearControlsHideTimer();
+      setControlsVisible(true);
+      return;
+    }
+
+    setControlsVisible(true);
+    scheduleControlsHide();
+    return clearControlsHideTimer;
+  }, [clearControlsHideTimer, scheduleControlsHide, shouldAutoHideControls]);
 
   useEffect(() => {
     setVolume(readStoredNumber(PLAYER_VOLUME_KEY, 80, 0, 100));
@@ -619,6 +675,7 @@ export function PlayerClient({
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.defaultPrevented || isEditableTarget(event.target)) return;
       const key = event.key.toLowerCase();
+      revealControls();
 
       if (key === " " || key === "k") {
         event.preventDefault();
@@ -678,6 +735,7 @@ export function PlayerClient({
     navigateToEpisode,
     nextPlayableEpisode,
     previousPlayableEpisode,
+    revealControls,
     seekBy,
     togglePlayback,
     volume,
@@ -761,7 +819,14 @@ export function PlayerClient({
 
           <div
             ref={theaterRef}
-            className="group/theater relative aspect-video w-full overflow-hidden bg-black"
+            className={cn(
+              "group/theater relative aspect-video w-full overflow-hidden bg-black",
+              isTheaterFullscreen && !controlsVisible && "cursor-none",
+            )}
+            onMouseMove={revealControls}
+            onPointerDown={revealControls}
+            onTouchStart={revealControls}
+            onFocusCapture={revealControls}
           >
             <video
               ref={videoRef}
@@ -943,7 +1008,25 @@ export function PlayerClient({
               </div>
             )}
 
-            <div className="absolute inset-x-0 bottom-0 space-y-4 bg-gradient-to-t from-black/90 via-black/40 to-transparent p-5 transition-transform duration-300 group-focus-within/theater:translate-y-0 group-hover/theater:translate-y-0">
+            <div
+              className={cn(
+                "absolute inset-x-0 bottom-0 space-y-4 bg-gradient-to-t from-black/90 via-black/40 to-transparent p-5 transition-[opacity,transform] duration-300",
+                controlsVisible
+                  ? "translate-y-0 opacity-100"
+                  : "pointer-events-none translate-y-full opacity-0",
+              )}
+              onFocusCapture={() => {
+                setControlsFocused(true);
+                revealControls();
+              }}
+              onBlurCapture={(event) => {
+                if (
+                  !event.currentTarget.contains(event.relatedTarget as Node | null)
+                ) {
+                  setControlsFocused(false);
+                }
+              }}
+            >
               <div className="space-y-1.5">
                 <div
                   data-tabular

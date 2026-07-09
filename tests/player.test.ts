@@ -131,6 +131,12 @@ test("player page uses the AmberMotion theater control shell", () => {
 
   assert.match(playerPageSource, /group\/theater/);
   assert.match(playerPageSource, /from-black\/90 via-black\/40 to-transparent/);
+  assert.match(playerPageSource, /FULLSCREEN_CONTROLS_IDLE_MS/);
+  assert.match(playerPageSource, /fullscreenchange/);
+  assert.match(playerPageSource, /isTheaterFullscreen &&\s*isPlaying/);
+  assert.match(playerPageSource, /controlsVisible/);
+  assert.match(playerPageSource, /translate-y-full/);
+  assert.match(playerPageSource, /cursor-none/);
   assert.match(playerPageSource, /Volume2/);
   assert.match(playerPageSource, /Maximize/);
   assert.match(playerPageSource, /requestFullscreen/);
@@ -159,6 +165,7 @@ test("player page uses the AmberMotion theater control shell", () => {
   assert.match(playerPageSource, /\{progressPercent\}%/);
   assert.doesNotMatch(playerPageSource, /progressStatusLabel/);
   assert.doesNotMatch(playerPageSource, /\{progressPercent\}% ·/);
+  assert.doesNotMatch(playerPageSource, /group-hover\/theater:translate-y-0/);
   assert.doesNotMatch(playerPageSource, /border-t border-white\/5 bg-\[rgba\(18,19,22,0\.96\)\] px-5 py-3/);
   assert.doesNotMatch(playerPageSource, /<CheckCircle2 size=\{12\}/);
   assert.match(cssSource, /@keyframes player-live-dot-breathe/);

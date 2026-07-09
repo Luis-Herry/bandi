@@ -23,11 +23,41 @@ test("episode progress edits update the episode grid without a manual refresh", 
   assert.match(progressSource, /currentEpisode: next/);
   assert.match(gridSource, /anime-progress-change/);
   assert.match(gridSource, /anime-watch-status-change/);
+  assert.match(gridSource, /animeStatus/);
+  assert.match(gridSource, /canSearchSources/);
   assert.match(gridSource, /displayCurrentEpisode/);
   assert.match(gridSource, /setDisplayCurrentEpisode/);
   assert.match(gridSource, /displayWatchedThrough/);
   assert.match(gridSource, /ep\.number <= displayWatchedThrough/);
   assert.match(gridSource, /ep\.number === displayCurrentEpisode/);
+});
+
+test("new library additions default to planning at episode zero", () => {
+  const libraryRouteSource = readFileSync("src/app/api/library/route.ts", "utf8");
+  const watchMenuSource = readFileSync(
+    "src/components/features/WatchStatusMenu.tsx",
+    "utf8",
+  );
+  const subscriptionSource = readFileSync(
+    "src/components/features/AnimeSubscriptionButton.tsx",
+    "utf8",
+  );
+
+  assert.match(libraryRouteSource, /: "planning"/);
+  assert.match(libraryRouteSource, /currentEpisode: 0/);
+  assert.match(watchMenuSource, /updateStatus\("planning"\)/);
+  assert.match(subscriptionSource, /watchStatus: "planning"/);
+});
+
+test("player progress starts planning titles at the current episode", () => {
+  const playerProgressSource = readFileSync(
+    "src/app/api/player/progress/route.ts",
+    "utf8",
+  );
+
+  assert.match(playerProgressSource, /shouldMarkStarted/);
+  assert.match(playerProgressSource, /currentEpisode = Math\.max\(currentEpisode, ep\.number\)/);
+  assert.match(playerProgressSource, /watchStatus = "watching"/);
 });
 
 test("today update cards expose RSS search and downloaded playback actions", () => {
@@ -66,10 +96,27 @@ test("continue watching uses the missed-reminder playback button style", () => {
 
 test("home hero candidates do not admit stale same-year airing rows", () => {
   const helperSource = readFileSync("src/lib/db-helpers/library.ts", "utf8");
+  const homeSource = readFileSync("src/app/(main)/page.tsx", "utf8");
+  const heroSource = readFileSync("src/components/features/HomeHero.tsx", "utf8");
 
   assert.match(helperSource, /isCurrentSeasonTrackedAnime/);
   assert.match(helperSource, /tagsMatchCurrentSeason/);
   assert.match(helperSource, /episodesMatchCurrentSeason/);
+  assert.match(helperSource, /limit\?: number/);
+  assert.match(helperSource, /Number\.isFinite\(limit\)/);
+  assert.match(homeSource, /getHeroCandidates\(user\.id\)/);
+  assert.doesNotMatch(homeSource, /getHeroCandidates\(user\.id,\s*5\)/);
+  assert.match(heroSource, /const AUTOPLAY_MS = 6000/);
+  assert.match(heroSource, /const THUMBNAIL_GROUP_SIZE = 5/);
+  assert.match(
+    heroSource,
+    /Math\.floor\(idx \/ THUMBNAIL_GROUP_SIZE\) \* THUMBNAIL_GROUP_SIZE/,
+  );
+  assert.match(
+    heroSource,
+    /slides\.slice\(\s*thumbnailGroupStart,\s*thumbnailGroupStart \+ THUMBNAIL_GROUP_SIZE,\s*\)/,
+  );
+  assert.match(heroSource, /visibleThumbnailSlides\.map/);
   assert.doesNotMatch(helperSource, /return a\.status === "airing"/);
 });
 
@@ -116,6 +163,9 @@ test("downloads admin completed rows can open the internal player", () => {
   assert.match(downloadsRouteSource, /extractEpisodeNumber\(row\.title\)/);
   assert.match(downloadsRouteSource, /set\(\{ episodeId: ep\.id \}\)/);
   assert.match(downloadsRouteSource, /set\(\{ isDownloaded: true \}\)/);
+  assert.match(downloadsRouteSource, /promoteStartedByDownloadedEpisode/);
+  assert.match(downloadsRouteSource, /watchStatus: "watching"/);
+  assert.match(downloadsRouteSource, /currentEpisode: ep\.number/);
   assert.match(clientSource, /import \{ PlayButton \}/);
   assert.match(clientSource, /episodeNumber: number \| null/);
   assert.match(clientSource, /row\.status === "completed"/);

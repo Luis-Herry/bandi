@@ -26,7 +26,7 @@ echo.
 REM ── 2. 关闭占用 3000 端口的旧进程 ───────────────────
 echo [2/3] 关闭旧服务...
 set "killed=0"
-for /f "tokens=5" %%P in ('netstat -ano ^| findstr ":3000 " ^| findstr "LISTENING"') do (
+for /f %%P in ('powershell -NoProfile -Command "Get-NetTCPConnection -LocalPort 3000 -State Listen -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique"') do (
   taskkill /F /PID %%P >nul 2>&1
   if not errorlevel 1 (
     echo   - 已结束 PID %%P
@@ -38,6 +38,9 @@ echo.
 
 REM ── 3. 启动新服务（独立窗口） ──────────────────────
 echo [3/3] 启动新服务...
+set "NEXTAUTH_URL=http://localhost:3000"
+set "AUTH_URL=http://localhost:3000"
+set "AUTH_TRUST_HOST=true"
 start "追番中心 - 服务运行中" cmd /k "npm start"
 echo   - 已请求在新窗口启动 npm start
 echo   - 等待端口 3000 监听（最多 30 秒）...

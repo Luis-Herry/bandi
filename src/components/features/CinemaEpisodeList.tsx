@@ -18,18 +18,27 @@ export function CinemaEpisodeList({
   animeId,
   episodes,
   currentEpisode,
+  watchStatus,
 }: {
   animeId: number;
   episodes: Episode[];
   currentEpisode: number;
+  watchStatus?: string | null;
 }) {
   const now = Date.now();
   const [displayCurrentEpisode, setDisplayCurrentEpisode] =
     useState(currentEpisode);
+  const [displayWatchStatus, setDisplayWatchStatus] = useState(
+    watchStatus ?? null,
+  );
 
   useEffect(() => {
     setDisplayCurrentEpisode(currentEpisode);
   }, [currentEpisode]);
+
+  useEffect(() => {
+    setDisplayWatchStatus(watchStatus ?? null);
+  }, [watchStatus]);
 
   useEffect(() => {
     const handleProgressChange = (event: Event) => {
@@ -47,6 +56,28 @@ export function CinemaEpisodeList({
     window.addEventListener("anime-progress-change", handleProgressChange);
     return () => {
       window.removeEventListener("anime-progress-change", handleProgressChange);
+    };
+  }, [animeId]);
+
+  useEffect(() => {
+    const handleWatchStatusChange = (event: Event) => {
+      const detail = (event as CustomEvent).detail as {
+        animeId?: unknown;
+        watchStatus?: unknown;
+      };
+
+      if (detail?.animeId !== animeId) return;
+      if (typeof detail.watchStatus !== "string") return;
+
+      setDisplayWatchStatus(detail.watchStatus);
+    };
+
+    window.addEventListener("anime-watch-status-change", handleWatchStatusChange);
+    return () => {
+      window.removeEventListener(
+        "anime-watch-status-change",
+        handleWatchStatusChange,
+      );
     };
   }, [animeId]);
 
@@ -88,9 +119,12 @@ export function CinemaEpisodeList({
       <div className="grid grid-cols-2 gap-2.5 min-[460px]:grid-cols-3 sm:grid-cols-4 xl:grid-cols-6">
         {episodes.map((ep) => {
           const isUnaired = ep.airedAt ? ep.airedAt.getTime() > now : false;
+          const isCompleted = displayWatchStatus === "completed";
           const isWatched =
-            displayCurrentEpisode > 0 && ep.number < displayCurrentEpisode;
+            isCompleted ||
+            (displayCurrentEpisode > 0 && ep.number < displayCurrentEpisode);
           const isCurrent =
+            !isCompleted &&
             ep.number === displayCurrentEpisode &&
             displayCurrentEpisode > 0 &&
             !isUnaired;

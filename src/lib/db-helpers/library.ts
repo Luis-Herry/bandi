@@ -686,7 +686,7 @@ export interface HeroCandidate extends LibraryItem {
 /** For the hero carousel — current-season tracked titles, even when caught up. */
 export function getHeroCandidates(
   userId: string,
-  limit = 4,
+  limit?: number,
 ): HeroCandidate[] {
   const tracked = getLibrary(userId).filter(
     (it) =>
@@ -737,7 +737,7 @@ export function getHeroCandidates(
   }
 
   const now = Date.now();
-  return lib
+  const candidates = lib
     .map((it) => {
       const animeEpisodes = episodesByAnime.get(it.anime.id) ?? [];
       const completionEpisode = getCompletionEpisodeNumber({
@@ -790,8 +790,9 @@ export function getHeroCandidates(
         Number(a.continueEpisodeNumber != null);
       if (actionDelta !== 0) return actionDelta;
       return b.userAnime.updatedAt.getTime() - a.userAnime.updatedAt.getTime();
-    })
-    .slice(0, limit);
+    });
+
+  return Number.isFinite(limit) ? candidates.slice(0, limit) : candidates;
 }
 
 const LOCAL_SEASON_BY_BGM_SEASON: Record<

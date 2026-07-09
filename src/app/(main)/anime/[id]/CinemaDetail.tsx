@@ -12,6 +12,11 @@ import { deriveAnimeVisualVars } from "@/lib/anime-visuals";
 import { normalizeWatchProviders } from "@/db/schema";
 import type { AnimeDetail } from "@/lib/db-helpers/library";
 import type { CinemaWatchStatus } from "@/lib/db-helpers/cinema";
+import {
+  getCompletionEpisodeNumber,
+  getWatchedThroughEpisodeNumber,
+  type WatchStatus,
+} from "@/lib/watch-progress";
 
 /**
  * 影视（电视剧 / 电影）详情页。当前由 `/cinema/[id]` 承载。
@@ -67,10 +72,39 @@ export function CinemaDetail({ detail }: { detail: AnimeDetail }) {
     episodes.length > 0
       ? Math.max(...episodes.map((episode) => episode.number))
       : anime.totalEpisodes;
-  const playEpisode = watchedCount > 0 ? watchedCount : 1;
-  // 本地有文件就能直接播，不要求先「想看/在看」——本地片你已经拥有了。
-  // 「想看/在看」服务公开影视库里的个人标记。
-  const canPlay = completedDownloads > 0;
+  const completionEpisode = getCompletionEpisodeNumber({
+    totalEpisodes: anime.totalEpisodes,
+    episodeNumbers: episodes.map((episode) => episode.number),
+  });
+  const watchedThroughEpisode = userAnime
+    ? getWatchedThroughEpisodeNumber({
+        currentEpisode: watchedCount,
+        watchStatus: userAnime.watchStatus as WatchStatus,
+        completionEpisode,
+      })
+    : 0;
+  const downloadedPlayableEpisodes = episodes
+    .filter(
+      (episode) =>
+        episode.isDownloaded &&
+        (!episode.airedAt || episode.airedAt.getTime() <= Date.now()),
+    )
+    .sort((a, b) => a.number - b.number);
+  const detailContinueEpisode =
+    hasEpisodeSection && completedDownloads > 0
+      ? (downloadedPlayableEpisodes.find(
+          (episode) => episode.number > watchedThroughEpisode,
+        )?.number ?? null)
+      : null;
+  const moviePlayEpisode =
+    isMovie && completedDownloads > 0
+      ? (downloadedPlayableEpisodes[0]?.number ??
+        episodes.find((episode) => episode.isDownloaded)?.number ??
+        1)
+      : null;
+  const playEpisode = isMovie ? moviePlayEpisode : detailContinueEpisode;
+  // 电影有本地文件就能播；电视剧只在还有未看的本地集时显示入口。
+  // 「想看/在看」只服务公开影视库里的个人标记，不是本地文件播放前置。
 
   const externalLinks = [
     doubanUrl && { href: doubanUrl, label: "豆瓣" },
@@ -176,14 +210,16 @@ export function CinemaDetail({ detail }: { detail: AnimeDetail }) {
           )}
 
           <div className="mt-6 flex flex-wrap items-center gap-2.5 sm:gap-3">
-            {canPlay && (
+            {playEpisode != null && (
               <PlayButton
                 animeId={anime.id}
                 episode={playEpisode}
                 label={
                   isMovie
                     ? "播放"
-                    : `继续观看 EP.${String(playEpisode).padStart(2, "0")}`
+                    : `${userAnime ? "继续观看" : "播放"} EP.${String(
+                        playEpisode,
+                      ).padStart(2, "0")}`
                 }
                 variant="primary"
                 size="md"
@@ -275,6 +311,7 @@ export function CinemaDetail({ detail }: { detail: AnimeDetail }) {
                   animeId={anime.id}
                   episodes={episodes}
                   currentEpisode={watchedCount}
+                  watchStatus={userAnime?.watchStatus}
                 />
               ) : (
                 <GlassPanel className="p-6 text-center text-[13px] text-[color:var(--text-muted)]">

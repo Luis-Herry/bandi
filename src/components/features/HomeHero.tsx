@@ -30,13 +30,20 @@ interface HomeHeroProps {
   slides: HeroSlide[];
 }
 
-const AUTOPLAY_MS = 7000;
+const AUTOPLAY_MS = 6000;
+const THUMBNAIL_GROUP_SIZE = 5;
 
 export function HomeHero({ slides }: HomeHeroProps) {
   const [idx, setIdx] = useState(0);
   const [paused, setPaused] = useState(false);
 
   const slide = slides[idx];
+  const thumbnailGroupStart =
+    Math.floor(idx / THUMBNAIL_GROUP_SIZE) * THUMBNAIL_GROUP_SIZE;
+  const visibleThumbnailSlides = slides.slice(
+    thumbnailGroupStart,
+    thumbnailGroupStart + THUMBNAIL_GROUP_SIZE,
+  );
 
   useEffect(() => {
     if (paused || slides.length < 2) return;
@@ -213,8 +220,9 @@ export function HomeHero({ slides }: HomeHeroProps) {
 
               {slides.length > 1 && (
                 <div className="hidden shrink-0 justify-end gap-2 lg:flex">
-                  {slides.map((s, i) => {
-                    const active = i === idx;
+                  {visibleThumbnailSlides.map((s, groupIndex) => {
+                    const slideIndex = thumbnailGroupStart + groupIndex;
+                    const active = slideIndex === idx;
                     return (
                       <button
                         key={s.id}
@@ -222,7 +230,7 @@ export function HomeHero({ slides }: HomeHeroProps) {
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
-                          setIdx(i);
+                          setIdx(slideIndex);
                         }}
                         className={cn(
                           "relative rounded-[8px] overflow-hidden transition-all duration-200",

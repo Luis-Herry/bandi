@@ -34,6 +34,7 @@ export function resolveProgressWatchStatus({
 }): WatchStatus {
   if (explicitStatus) return explicitStatus;
   if (currentStatus === "dropped") return currentStatus;
+  if (nextEpisode <= 0) return "planning";
   if (completionEpisode != null && nextEpisode >= completionEpisode) {
     return "completed";
   }

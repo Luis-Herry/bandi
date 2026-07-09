@@ -149,6 +149,17 @@ export async function PATCH(req: Request) {
   let currentEpisode = existing.currentEpisode;
   let watchStatus = existing.watchStatus as WatchStatus;
   let autoCompleted = false;
+  const hasStartedPlayback = positionSeconds > 0 && durationSeconds > 0;
+  const shouldMarkStarted =
+    hasStartedPlayback &&
+    watchStatus !== "dropped" &&
+    watchStatus !== "completed" &&
+    (watchStatus !== "watching" || currentEpisode < ep.number);
+
+  if (shouldMarkStarted) {
+    currentEpisode = Math.max(currentEpisode, ep.number);
+    watchStatus = "watching";
+  }
 
   if (completion.completed) {
     const a = db
@@ -166,14 +177,24 @@ export async function PATCH(req: Request) {
       episodeNumbers: episodeRows.map((row) => row.number),
     });
     const nextProgress = resolveCompletedPlaybackProgress({
-      currentEpisode: existing.currentEpisode,
-      currentStatus: existing.watchStatus as WatchStatus,
+      currentEpisode,
+      currentStatus: watchStatus,
       completedEpisode: ep.number,
       episodeNumbers: episodeRows.map((row) => row.number),
       completionEpisode,
     });
 
     if (!nextProgress.advanced) {
+      if (shouldMarkStarted) {
+        db.update(userAnime)
+          .set({
+            currentEpisode,
+            watchStatus,
+            updatedAt: now,
+          })
+          .where(eq(userAnime.id, existing.id))
+          .run();
+      }
       return NextResponse.json({
         ok: true,
         completed: completion.completed,
@@ -226,6 +247,17 @@ export async function PATCH(req: Request) {
         .where(eq(userAnime.id, existing.id))
         .run();
     });
+  }
+
+  if (!completion.completed && shouldMarkStarted) {
+    db.update(userAnime)
+      .set({
+        currentEpisode,
+        watchStatus,
+        updatedAt: now,
+      })
+      .where(eq(userAnime.id, existing.id))
+      .run();
   }
 
   return NextResponse.json({

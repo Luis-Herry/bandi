@@ -11,6 +11,7 @@ interface EpisodeGridProps {
   animeId: number;
   animeTitle: string;
   episodes: Episode[];
+  animeStatus?: string | null;
   /**
    * 用户当前进度（下一集/当前要看的那一集）。视觉上：
    *   - EP < currentEpisode → 已看
@@ -38,10 +39,18 @@ export function EpisodeGrid({
   animeId,
   animeTitle,
   episodes,
+  animeStatus,
   currentEpisode,
   watchStatus,
 }: EpisodeGridProps) {
   const now = Date.now();
+  const hasReleasedMaterial =
+    animeStatus === "completed" ||
+    episodes.some(
+      (episode) =>
+        episode.isDownloaded ||
+        (episode.airedAt && episode.airedAt.getTime() <= now),
+    );
   const [openEp, setOpenEp] = useState<number | null>(null);
   const [seasonDialogOpen, setSeasonDialogOpen] = useState(false);
   const [displayCurrentEpisode, setDisplayCurrentEpisode] =
@@ -141,7 +150,14 @@ export function EpisodeGrid({
 
       <div className="grid grid-cols-2 gap-2.5 min-[460px]:grid-cols-3 sm:grid-cols-4 xl:grid-cols-6">
         {episodes.map((ep) => {
-          const isUnaired = ep.airedAt ? ep.airedAt.getTime() > now : false;
+          const isScheduledFuture = ep.airedAt
+            ? ep.airedAt.getTime() > now
+            : false;
+          const canSearchSources =
+            ep.isDownloaded ||
+            !isScheduledFuture ||
+            hasReleasedMaterial;
+          const isLocked = !canSearchSources;
           const displayWatchedThrough =
             displayWatchStatus === "completed"
               ? Math.max(...episodes.map((episode) => episode.number))
@@ -156,7 +172,7 @@ export function EpisodeGrid({
             displayCurrentEpisode > 0 &&
             displayWatchStatus !== "completed" &&
             !isWatched &&
-            !isUnaired;
+            !isLocked;
           const isDownloaded = ep.isDownloaded;
 
           const episodeLabel = String(ep.number).padStart(2, "0");
@@ -169,7 +185,7 @@ export function EpisodeGrid({
                 "min-h-[72px] rounded-[8px] px-3 py-2 sm:min-h-[68px]",
                 "border transition-all duration-150 text-left",
                 "[transition-timing-function:var(--ease-default)]",
-                !isUnaired &&
+                !isLocked &&
                   "hover:scale-[1.02] hover:border-[color:var(--accent)] cursor-pointer",
                 isWatched &&
                   "bg-[color:var(--accent-subtle)] border-[color:var(--accent-muted)]",
@@ -178,13 +194,13 @@ export function EpisodeGrid({
                   "border-[color:var(--accent)] bg-[color:var(--bg-surface)]",
                 !isWatched &&
                   !isCurrent &&
-                  !isUnaired &&
+                  !isLocked &&
                   "border-[color:var(--border-subtle)] bg-[color:var(--bg-surface)] hover:bg-[color:var(--bg-surface-hover)]",
-                isUnaired &&
+                isLocked &&
                   "border-dashed border-[color:var(--border-subtle)] bg-transparent opacity-55 cursor-not-allowed",
               )}
             >
-              {!isUnaired && (
+              {canSearchSources && (
                 <button
                   type="button"
                   aria-label={`搜索 EP.${episodeLabel} 下载源`}
@@ -208,7 +224,7 @@ export function EpisodeGrid({
                     {episodeLabel}
                   </span>
                   <div className="ml-auto flex items-center gap-1 pointer-events-auto">
-                    {isUnaired ? (
+                    {isLocked ? (
                       <Lock
                         size={11}
                         className="text-[color:var(--text-muted)]"

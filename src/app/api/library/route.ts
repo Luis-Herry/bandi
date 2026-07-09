@@ -90,7 +90,7 @@ export async function POST(req: Request) {
 
   const watchStatus: WatchStatus = isWatchStatus(body.watchStatus)
     ? body.watchStatus
-    : "watching";
+    : "planning";
 
   const existing = db
     .select()
@@ -114,6 +114,7 @@ export async function POST(req: Request) {
       userId: user.id,
       animeId,
       watchStatus,
+      currentEpisode: 0,
     })
     .returning({ id: userAnime.id })
     .get();

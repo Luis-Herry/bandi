@@ -110,7 +110,7 @@ export function WatchStatusMenu({ animeId, current }: WatchStatusMenuProps) {
         size="md"
         leftIcon={<Plus size={16} strokeWidth={2.5} />}
         disabled={pending}
-        onClick={() => updateStatus("watching")}
+        onClick={() => updateStatus("planning")}
         className="max-sm:flex-[1_1_calc(50%-5px)]"
       >
         追番

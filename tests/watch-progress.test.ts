@@ -65,6 +65,25 @@ test("progress edits move planning items into watching", () => {
   );
 });
 
+test("progress edits back to zero move active items into planning", () => {
+  assert.equal(
+    resolveProgressWatchStatus({
+      currentStatus: "watching",
+      nextEpisode: 0,
+      completionEpisode: 12,
+    }),
+    "planning",
+  );
+  assert.equal(
+    resolveProgressWatchStatus({
+      currentStatus: "completed",
+      nextEpisode: 0,
+      completionEpisode: 12,
+    }),
+    "planning",
+  );
+});
+
 test("explicit watch status wins over progress inference", () => {
   assert.equal(
     resolveProgressWatchStatus({

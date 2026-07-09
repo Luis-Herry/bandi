@@ -2,8 +2,8 @@ import { NextResponse } from "next/server";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { db } from "@/db";
-import { anime, downloadQueue, episodes } from "@/db/schema";
-import { desc, eq, inArray } from "drizzle-orm";
+import { anime, downloadQueue, episodes, userAnime } from "@/db/schema";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import {
   deriveQbitDownloadStatus,
   filterShadowLocalFileDownloads,
@@ -107,6 +107,7 @@ export async function GET() {
             .set({ isDownloaded: true })
             .where(eq(episodes.id, r.d.episodeId))
             .run();
+          promoteStartedByDownloadedEpisode(r.d.episodeId);
         }
         if (completedNow) {
           const hash = extractMagnetHash(r.d.magnetUrl);
@@ -116,6 +117,10 @@ export async function GET() {
         status = liveStatus;
         progress = livePct;
       }
+    }
+
+    if (status === "completed" && r.d.episodeId != null) {
+      promoteStartedByDownloadedEpisode(r.d.episodeId);
     }
 
     return {
@@ -242,12 +247,15 @@ function backfillMissingDownloadEpisodeRefs() {
       .where(eq(downloadQueue.id, row.id))
       .run();
 
-    if (row.status === "completed" && !ep.isDownloaded) {
-      db.update(episodes)
-        .set({ isDownloaded: true })
-        .where(eq(episodes.id, ep.id))
-        .run();
-      ep.isDownloaded = true;
+    if (row.status === "completed") {
+      if (!ep.isDownloaded) {
+        db.update(episodes)
+          .set({ isDownloaded: true })
+          .where(eq(episodes.id, ep.id))
+          .run();
+        ep.isDownloaded = true;
+      }
+      promoteStartedByDownloadedEpisode(ep.id);
     }
   }
 }
@@ -309,7 +317,48 @@ function syncExternalDownloads(live: QbitTorrent[]) {
         .set({ isDownloaded: true })
         .where(eq(episodes.id, item.episodeId))
         .run();
+      promoteStartedByDownloadedEpisode(item.episodeId);
     }
+  }
+}
+
+function promoteStartedByDownloadedEpisode(episodeId: number) {
+  const ep = db
+    .select({
+      animeId: episodes.animeId,
+      number: episodes.number,
+    })
+    .from(episodes)
+    .where(eq(episodes.id, episodeId))
+    .get();
+  if (!ep || ep.number <= 0) return;
+
+  const rows = db
+    .select({
+      id: userAnime.id,
+      currentEpisode: userAnime.currentEpisode,
+    })
+    .from(userAnime)
+    .where(
+      and(
+        eq(userAnime.animeId, ep.animeId),
+        inArray(userAnime.watchStatus, ["planning", "watching"]),
+      ),
+    )
+    .all();
+  if (rows.length === 0) return;
+
+  const now = new Date();
+  for (const row of rows) {
+    if (row.currentEpisode >= ep.number) continue;
+    db.update(userAnime)
+      .set({
+        watchStatus: "watching",
+        currentEpisode: ep.number,
+        updatedAt: now,
+      })
+      .where(eq(userAnime.id, row.id))
+      .run();
   }
 }
 

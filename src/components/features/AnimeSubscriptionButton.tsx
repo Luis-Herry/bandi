@@ -31,7 +31,7 @@ export function AnimeSubscriptionButton({
       const res = await fetch("/api/library", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ animeId, watchStatus: "watching" }),
+        body: JSON.stringify({ animeId, watchStatus: "planning" }),
       });
       if (!res.ok) {
         showToast({ title: "加入追番失败", tone: "error" });
@@ -47,7 +47,7 @@ export function AnimeSubscriptionButton({
       );
       window.dispatchEvent(
         new CustomEvent("anime-watch-status-change", {
-          detail: { animeId, watchStatus: "watching" },
+          detail: { animeId, watchStatus: "planning" },
         }),
       );
       router.refresh();

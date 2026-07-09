@@ -176,6 +176,9 @@ test("cinema detail includes progress control and episode state legend", () => {
   assert.match(detailSource, /<EpisodeProgressControl/);
   assert.match(detailSource, /initialCurrent=\{watchedCount\}/);
   assert.match(detailSource, /maxEpisode=\{maxEpisodeNumber\}/);
+  assert.match(detailSource, /detailContinueEpisode/);
+  assert.match(detailSource, /episode\.number > watchedThroughEpisode/);
+  assert.match(detailSource, /watchStatus=\{userAnime\?\.watchStatus\}/);
   assert.match(watchControlSource, /anime-watch-status-change/);
   assert.match(watchControlSource, /setStatus\(detail\.watchStatus\)/);
   assert.match(episodeListSource, /已看/);
@@ -183,6 +186,8 @@ test("cinema detail includes progress control and episode state legend", () => {
   assert.match(episodeListSource, /未看/);
   assert.match(episodeListSource, /未播出/);
   assert.match(episodeListSource, /anime-progress-change/);
+  assert.match(episodeListSource, /anime-watch-status-change/);
+  assert.match(episodeListSource, /displayWatchStatus === "completed"/);
 });
 
 test("cinema detail can enrich one item on demand without running the full catalog", () => {

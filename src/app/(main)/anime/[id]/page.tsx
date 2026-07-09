@@ -305,6 +305,7 @@ export default async function AnimeDetailPage({ params }: PageProps) {
                 animeId={anime.id}
                 animeTitle={anime.title}
                 episodes={episodes}
+                animeStatus={anime.status}
                 currentEpisode={watchedCount}
                 watchStatus={userAnime?.watchStatus}
               />

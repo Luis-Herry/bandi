@@ -41,7 +41,7 @@ export default async function HomePage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
-  const heroItems = getHeroCandidates(user.id, 5);
+  const heroItems = getHeroCandidates(user.id);
   const todayUpdatesRaw = getTodayUpdates(user.id);
   const continueItems = getContinueWatching(user.id, 4);
   const missedItems = getMissedUpdates(user.id, 4);

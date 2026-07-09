@@ -7,7 +7,7 @@ import { buildWatchEventDrafts } from "@/lib/watch-events";
 import {
   getCompletionEpisodeNumber,
   getWatchedThroughEpisodeNumber,
-  resolveWatchedThroughWatchStatus,
+  resolveProgressWatchStatus,
 } from "@/lib/watch-progress";
 import type { WatchStatus } from "@/lib/watch-progress";
 import { normalizeRatingInput } from "@/lib/rating";
@@ -109,14 +109,9 @@ export async function PATCH(
       totalEpisodes: a?.totalEpisodes,
       episodeNumbers: episodeRows.map((row) => row.number),
     });
-    const nextWatchedThrough = getWatchedThroughEpisodeNumber({
-      currentEpisode: nextEp,
-      watchStatus: existing.watchStatus as WatchStatus,
-      completionEpisode,
-    });
-    resolvedWatchStatus = resolveWatchedThroughWatchStatus({
+    resolvedWatchStatus = resolveProgressWatchStatus({
       currentStatus: existing.watchStatus as WatchStatus,
-      watchedThroughEpisode: nextWatchedThrough,
+      nextEpisode: nextEp,
       completionEpisode,
     });
     updates.watchStatus = resolvedWatchStatus;
