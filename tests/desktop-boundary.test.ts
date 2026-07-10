@@ -308,3 +308,60 @@ test("desktop first-run onboarding owns download location and tray behavior", ()
   assert.match(desktopSettingsSource, /更改后只影响新下载/);
   assert.match(navSource, /!isDesktop &&/);
 });
+
+test("desktop replaces native Windows chrome with a themed custom titlebar", () => {
+  const mainSource = readFileSync("desktop/main.cjs", "utf8");
+  const preloadSource = readFileSync("desktop/preload.cjs", "utf8");
+  const rootLayoutSource = readFileSync("src/app/layout.tsx", "utf8");
+  const titlebarSource = readFileSync(
+    "src/components/features/DesktopTitlebar.tsx",
+    "utf8",
+  );
+  const navSource = readFileSync("src/components/features/Nav.tsx", "utf8");
+  const spaceSwitcherSource = readFileSync(
+    "src/components/features/SpaceSwitcher.tsx",
+    "utf8",
+  );
+  const globalsSource = readFileSync("src/app/globals.css", "utf8");
+
+  assert.match(mainSource, /frame: false/);
+  assert.match(mainSource, /thickFrame: true/);
+  assert.match(mainSource, /roundedCorners: true/);
+  assert.match(mainSource, /Menu\.setApplicationMenu\(null\)/);
+  assert.match(mainSource, /bandi:minimize-window/);
+  assert.match(mainSource, /bandi:toggle-maximize-window/);
+  assert.match(mainSource, /bandi:close-window/);
+  assert.match(mainSource, /mainWindow\.on\("maximize"/);
+  assert.match(mainSource, /mainWindow\.on\("unmaximize"/);
+  assert.match(mainSource, /<div class="boot-heading"><i aria-hidden="true"><\/i><h1>/);
+  assert.match(mainSource, /\.boot-heading\{display:flex;align-items:center;gap:10px\}/);
+  assert.match(mainSource, /h1\{margin:0;/);
+  assert.match(preloadSource, /bandi:window-state-changed/);
+  assert.match(rootLayoutSource, /data-desktop-app=/);
+  assert.match(rootLayoutSource, /isDesktop && <DesktopTitlebar/);
+  assert.match(titlebarSource, /desktop-titlebar-controls/);
+  assert.match(titlebarSource, /aria-label="窗口控制"/);
+  assert.match(navSource, /--desktop-titlebar-shell-height/);
+  assert.doesNotMatch(navSource, /<BrandLogo \/>/);
+  assert.equal([...navSource.matchAll(/<SpaceSwitcher /g)].length, 1);
+  assert.match(spaceSwitcherSource, /hidden min-\[360px\]:inline/);
+  assert.match(spaceSwitcherSource, /aria-label=\{s\.label\}/);
+  assert.match(globalsSource, /-webkit-app-region: drag/);
+  assert.match(globalsSource, /-webkit-app-region: no-drag/);
+  const titlebarRule =
+    /\.desktop-titlebar\s*\{(?<body>[^}]*)\}/s.exec(globalsSource)?.groups
+      ?.body ?? "";
+  assert.match(titlebarRule, /top: 0;/);
+  assert.match(titlebarRule, /right: 0;/);
+  assert.match(titlebarRule, /left: 0;/);
+  assert.match(titlebarRule, /height: 44px;/);
+  assert.doesNotMatch(titlebarRule, /border(?:-radius)?:/);
+  assert.doesNotMatch(titlebarRule, /background:/);
+  assert.doesNotMatch(titlebarRule, /box-shadow:/);
+  assert.doesNotMatch(titlebarRule, /backdrop-filter:/);
+  assert.match(globalsSource, /\.desktop-titlebar-window-button\s*\{[^}]*corner-shape: squircle/s);
+  assert.match(
+    globalsSource,
+    /\.desktop-titlebar-window-button\s*\{[^}]*transition:[^}]*var\(--duration-quick\)[^}]*var\(--duration-micro\)/s,
+  );
+});

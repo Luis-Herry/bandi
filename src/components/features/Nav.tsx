@@ -14,7 +14,6 @@ import {
   UserRound,
 } from "lucide-react";
 import { setThemeAction } from "@/app/(main)/actions";
-import { BrandLogo } from "@/components/features/BrandLogo";
 import { NotificationMenu } from "@/components/features/NotificationMenu";
 import { SpaceSwitcher } from "@/components/features/SpaceSwitcher";
 import SearchCommand from "@/components/features/SearchCommand";
@@ -297,7 +296,10 @@ export function Nav({
       <SearchCommand />
       <header
         className={cn(
-          "pointer-events-none fixed top-0 left-0 right-0 z-[45] w-full",
+          "pointer-events-none fixed left-0 right-0 z-[45] w-full",
+          isDesktop
+            ? "top-[var(--desktop-titlebar-shell-height)]"
+            : "top-0",
           "border-b border-[color:var(--border-default)]",
         )}
         style={{
@@ -307,18 +309,11 @@ export function Nav({
         }}
       >
         <div className="pointer-events-auto relative flex h-16 w-full items-center border-b border-transparent px-6">
-          <div className="relative z-10 flex shrink-0 items-center">
-            <a
-              href="/"
-              className="shrink-0 active:scale-95 transition-transform"
-              aria-label={TEXT.titleHome}
-            >
-              <BrandLogo />
-            </a>
+          <div className="relative z-10 flex min-w-0 shrink-0 items-center">
+            <SpaceSwitcher active={isCinemaSpace ? "cinema" : "anime"} />
           </div>
 
           <nav className="pointer-events-auto absolute top-1/2 left-[var(--app-page-gutter)] hidden -translate-y-1/2 items-center gap-4 min-[1100px]:flex xl:gap-5">
-            <SpaceSwitcher active={isCinemaSpace ? "cinema" : "anime"} />
             {navLinks.map((l) => {
               const active =
                 l.match(pathname) ||
@@ -334,9 +329,9 @@ export function Nav({
                   key={l.href}
                   href={l.href}
                   className={cn(
-                    "relative text-[13px] tracking-tight py-1 transition-colors",
+                    "relative py-1 text-[13px] tracking-tight transition-colors",
                     active
-                      ? "text-[color:var(--text-primary)] font-medium"
+                      ? "font-medium text-[color:var(--text-primary)]"
                       : "text-[color:var(--text-secondary)] hover:text-[color:var(--text-primary)]",
                   )}
                 >
@@ -519,12 +514,6 @@ export function Nav({
                     "shadow-[0_12px_36px_rgba(0,0,0,0.45)]",
                   )}
                 >
-                  <div className="px-1 pb-1.5 pt-1">
-                    <SpaceSwitcher
-                      active={isCinemaSpace ? "cinema" : "anime"}
-                      variant="mobile"
-                    />
-                  </div>
                   <>
                     <div className="px-2 py-2 text-[11px] font-medium uppercase tracking-[0.14em] text-[color:var(--text-muted)]">
                       {TEXT.nav}

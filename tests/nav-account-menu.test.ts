@@ -18,8 +18,14 @@ const localLibrarySource = readFileSync(
 );
 const chineseBrandPattern = new RegExp(String.fromCharCode(0x756a, 0x90b8));
 
-test("Nav keeps brand and compact actions in a single-row header", () => {
-  assert.match(navSource, /<BrandLogo \/>/);
+test("Nav keeps the space switcher and compact actions in a single-row header", () => {
+  assert.doesNotMatch(navSource, /<BrandLogo \/>/);
+  assert.equal([...navSource.matchAll(/<SpaceSwitcher /g)].length, 1);
+  assert.match(
+    navSource,
+    /relative z-10 flex min-w-0 shrink-0 items-center[\s\S]*<SpaceSwitcher[\s\S]*<nav className="pointer-events-auto absolute top-1\/2 left-\[var\(--app-page-gutter\)\] hidden -translate-y-1\/2 items-center gap-4 min-\[1100px\]:flex xl:gap-5"/,
+  );
+  assert.doesNotMatch(navSource, /variant="mobile"/);
   assert.match(navSource, /<Menu \/>/);
   assert.equal(
     [...navSource.matchAll(/<NotificationMenu notifications=\{notifications\} \/>/g)]

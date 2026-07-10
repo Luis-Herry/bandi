@@ -33,6 +33,14 @@ declare global {
     error?: string;
   }
 
+  interface DesktopWindowState {
+    isMaximized: boolean;
+  }
+
+  interface DesktopWindowActionResult {
+    ok: boolean;
+  }
+
   interface Window {
     bandiDesktop?: {
       getSettings(): Promise<DesktopSettingsState>;
@@ -40,6 +48,13 @@ declare global {
       saveSettings(
         input: DesktopSettingsSaveInput,
       ): Promise<DesktopSettingsSaveResult>;
+      getWindowState(): Promise<DesktopWindowState>;
+      minimizeWindow(): Promise<DesktopWindowActionResult>;
+      toggleMaximizeWindow(): Promise<DesktopWindowState>;
+      closeWindow(): Promise<DesktopWindowActionResult>;
+      onWindowStateChange(
+        callback: (state: DesktopWindowState) => void,
+      ): () => void;
     };
   }
 }

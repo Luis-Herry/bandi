@@ -16,17 +16,13 @@ const SPACES = [
 
 export function SpaceSwitcher({
   active,
-  variant = "desktop",
 }: {
   active: "anime" | "cinema";
-  variant?: "desktop" | "mobile";
 }) {
   return (
     <div
-      className={cn(
-        "inline-flex items-center gap-0.5 rounded-[8px] border border-[color:var(--border-default)] bg-[color:var(--bg-surface-hover)] p-0.5",
-        variant === "mobile" && "w-full",
-      )}
+      className="inline-flex shrink-0 items-center gap-0.5 rounded-[8px] border border-[color:var(--border-default)] bg-[color:var(--bg-surface-hover)] p-0.5"
+      aria-label="内容空间"
     >
       {SPACES.map((s) => {
         const on = s.key === active;
@@ -35,16 +31,16 @@ export function SpaceSwitcher({
             key={s.key}
             href={s.href}
             aria-current={on ? "page" : undefined}
+            aria-label={s.label}
             className={cn(
-              "inline-flex items-center justify-center gap-1.5 h-7 rounded-[6px] px-2.5 text-[12px] transition-colors",
-              variant === "mobile" && "flex-1",
+              "inline-flex h-7 items-center justify-center gap-1.5 rounded-[6px] px-2 min-[360px]:px-2.5 text-[12px] transition-colors",
               on
                 ? "bg-[color:var(--accent-subtle)] text-[color:var(--accent)] font-medium"
                 : "text-[color:var(--text-secondary)] hover:text-[color:var(--text-primary)]",
             )}
           >
             <s.Icon size={14} className="shrink-0" />
-            {s.label}
+            <span className="hidden min-[360px]:inline">{s.label}</span>
           </a>
         );
       })}

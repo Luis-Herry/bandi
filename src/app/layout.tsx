@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, Noto_Sans_SC } from "next/font/google";
 import { ThemeSync } from "@/components/features/ThemeSync";
+import { DesktopTitlebar } from "@/components/features/DesktopTitlebar";
 import { getUserTheme } from "@/lib/theme";
 import "./globals.css";
 
@@ -40,6 +41,7 @@ export default async function RootLayout({
   children: React.ReactNode;
 }) {
   const theme = await getUserTheme();
+  const isDesktop = process.env.ANIME_DESKTOP_APP === "1";
 
   return (
     // suppressHydrationWarning: 容忍浏览器扩展（通义、沉浸式翻译、暗色主题插件等）
@@ -48,12 +50,16 @@ export default async function RootLayout({
     <html
       lang="zh-CN"
       data-theme={theme}
+      data-desktop-app={isDesktop ? "true" : undefined}
       className={`${inter.variable} ${notoSansSC.variable}`}
       suppressHydrationWarning
     >
       <body className="noise antialiased" suppressHydrationWarning>
         <ThemeSync initialTheme={theme} />
-        {children}
+        {isDesktop && <DesktopTitlebar />}
+        <div className={isDesktop ? "desktop-app-content" : undefined}>
+          {children}
+        </div>
       </body>
     </html>
   );

@@ -21,12 +21,20 @@ const alignedPageFiles = [
   "src/app/(main)/settings/page.tsx",
 ] as const;
 
-test("main tab pages share the nav-aligned content container", () => {
+test("main pages keep the content gutter while the space switcher owns the window edge", () => {
   assert.match(globalsSource, /--app-page-max:\s*1440px/);
   assert.match(globalsSource, /--app-page-gutter:\s*var\(--app-page-padding\)/);
   assert.match(globalsSource, /--app-page-gutter:\s*max\(/);
   assert.match(globalsSource, /\.app-page-container/);
   assert.match(globalsSource, /padding-inline:\s*var\(--app-page-gutter\)/);
+  assert.match(
+    navSource,
+    /relative flex h-16 w-full items-center border-b border-transparent px-6/,
+  );
+  assert.match(
+    navSource,
+    /relative z-10 flex min-w-0 shrink-0 items-center[\s\S]*<SpaceSwitcher/,
+  );
   assert.match(navSource, /left-\[var\(--app-page-gutter\)\]/);
   assert.match(navSource, /right-\[var\(--app-page-gutter\)\]/);
 

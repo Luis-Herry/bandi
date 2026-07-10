@@ -16,18 +16,19 @@ export default async function MainLayout({
   const session = await auth();
   const username = session?.user?.username ?? session?.user?.name ?? null;
   const currentTheme = await getUserTheme();
+  const isDesktop = process.env.ANIME_DESKTOP_APP === "1";
   const notifications = session?.user?.id
     ? getNavNotifications(session.user.id)
     : EMPTY_NAV_NOTIFICATIONS;
 
   return (
     <AccentProvider>
-      <div className="min-h-screen flex flex-col">
+      <div className="desktop-main-shell min-h-screen flex flex-col">
         <Nav
           username={username}
           currentTheme={currentTheme}
           notifications={notifications}
-          isDesktop={process.env.ANIME_DESKTOP_APP === "1"}
+          isDesktop={isDesktop}
         />
         <ToastHost />
         {/* Nav 全断点 h=64；首页 Hero 用匹配的负 margin 自抵消，让背景透到顶栏后面。 */}

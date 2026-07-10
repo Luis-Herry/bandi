@@ -315,6 +315,152 @@
 }
 
 /* ===================================================================
+   桌面窗口栏：给无框 Electron 窗口提供拖拽区与窗口控制
+   =================================================================== */
+
+html[data-desktop-app="true"] {
+  --desktop-titlebar-shell-height: 44px;
+}
+
+.desktop-app-content {
+  box-sizing: border-box;
+  min-height: 100vh;
+  padding-top: var(--desktop-titlebar-shell-height);
+}
+
+html[data-desktop-app="true"] .desktop-main-shell,
+html[data-desktop-app="true"] .desktop-viewport {
+  min-height: calc(100vh - var(--desktop-titlebar-shell-height));
+}
+
+.desktop-titlebar {
+  position: fixed;
+  z-index: 90;
+  top: 0;
+  right: 0;
+  left: 0;
+  display: grid;
+  grid-template-columns: minmax(148px, 1fr) auto minmax(148px, 1fr);
+  align-items: center;
+  height: 44px;
+  padding: 0 8px 0 12px;
+  -webkit-app-region: drag;
+}
+
+.desktop-titlebar-brand {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.desktop-titlebar-mark {
+  display: grid;
+  width: 22px;
+  height: 22px;
+  flex: none;
+  place-items: center;
+  border-radius: 6px;
+  corner-shape: squircle;
+  overflow: hidden;
+}
+
+.desktop-titlebar-mark img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.desktop-titlebar-section {
+  max-width: 280px;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desktop-titlebar-controls {
+  display: flex;
+  justify-self: end;
+  gap: 2px;
+  -webkit-app-region: no-drag;
+}
+
+.desktop-titlebar-window-button {
+  display: grid;
+  width: 36px;
+  height: 30px;
+  place-items: center;
+  border: 0;
+  border-radius: 6px;
+  corner-shape: squircle;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: default;
+  transition:
+    color var(--duration-quick) var(--ease-default),
+    background-color var(--duration-quick) var(--ease-default),
+    transform var(--duration-micro) var(--ease-default);
+}
+
+.desktop-titlebar-window-button:hover {
+  background: var(--bg-surface-hover);
+  color: var(--text-primary);
+}
+
+.desktop-titlebar-window-button:active {
+  transform: scale(0.94);
+}
+
+.desktop-titlebar-close-button:hover {
+  background: rgba(205, 62, 62, 0.82);
+  color: #fff;
+}
+
+.desktop-titlebar-maximize-glyph {
+  position: relative;
+  width: 10px;
+  height: 10px;
+}
+
+.desktop-titlebar-maximize-glyph::before,
+.desktop-titlebar-maximize-glyph::after {
+  content: "";
+  position: absolute;
+  width: 9px;
+  height: 9px;
+  border: 1px solid currentColor;
+  border-radius: 2px;
+}
+
+.desktop-titlebar-maximize-glyph::before {
+  inset: 0;
+}
+
+.desktop-titlebar-maximize-glyph::after {
+  display: none;
+}
+
+.desktop-titlebar-maximize-glyph.is-restore::before {
+  inset: auto 0 0 auto;
+  background: color-mix(in srgb, var(--bg-elevated) 96%, transparent);
+}
+
+.desktop-titlebar-maximize-glyph.is-restore::after {
+  top: 0;
+  left: 0;
+  display: block;
+}
+
+/* ===================================================================
    基础元素
    =================================================================== */
 
@@ -366,6 +512,14 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .desktop-titlebar-window-button {
+    transition: none;
+  }
+
+  .desktop-titlebar-window-button:active {
+    transform: none;
+  }
+
   .brand-logo-float {
     animation: none;
   }

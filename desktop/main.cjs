@@ -654,6 +654,42 @@ function registerDesktopIpc() {
   ipcMain.handle("bandi:save-desktop-settings", (_event, input) =>
     saveDesktopSettings(input),
   );
+  ipcMain.handle("bandi:get-window-state", (event) =>
+    getDesktopWindowState(BrowserWindow.fromWebContents(event.sender)),
+  );
+  ipcMain.handle("bandi:minimize-window", (event) => {
+    const window = BrowserWindow.fromWebContents(event.sender);
+    if (!window || window !== mainWindow) return { ok: false };
+    window.minimize();
+    return { ok: true };
+  });
+  ipcMain.handle("bandi:toggle-maximize-window", (event) => {
+    const window = BrowserWindow.fromWebContents(event.sender);
+    if (!window || window !== mainWindow) return getDesktopWindowState(null);
+    if (window.isMaximized()) window.unmaximize();
+    else window.maximize();
+    return getDesktopWindowState(window);
+  });
+  ipcMain.handle("bandi:close-window", (event) => {
+    const window = BrowserWindow.fromWebContents(event.sender);
+    if (!window || window !== mainWindow) return { ok: false };
+    window.close();
+    return { ok: true };
+  });
+}
+
+function getDesktopWindowState(window = mainWindow) {
+  return {
+    isMaximized: Boolean(window && !window.isDestroyed() && window.isMaximized()),
+  };
+}
+
+function publishDesktopWindowState() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  mainWindow.webContents.send(
+    "bandi:window-state-changed",
+    getDesktopWindowState(mainWindow),
+  );
 }
 
 function attachDesktopSessionHeader(appUrl) {
@@ -674,21 +710,71 @@ function bootPage(message, detail = "请稍候，追番中心会自动完成剩�
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <style>
+      :root{--titlebar-space:44px}
+      *{box-sizing:border-box}
       html,body{height:100%;margin:0;background:#0f0d0a;color:#f6f1e8;font-family:Inter,"Microsoft YaHei",sans-serif}
-      body{display:grid;place-items:center}
+      body{display:grid;place-items:center;padding-top:var(--titlebar-space)}
+      .titlebar{position:fixed;z-index:10;top:0;right:0;left:0;height:44px;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;padding:0 8px 0 12px;-webkit-app-region:drag}
+      .brand{display:flex;min-width:0;align-items:center;gap:8px;color:#f6f1e8;font-size:12px;font-weight:650;letter-spacing:-.01em}
+      .mark{display:grid;width:22px;height:22px;place-items:center;color:#d69a4c;font-size:11px;font-weight:750}
+      .section{color:#a9a198;font-size:11px;font-weight:500;letter-spacing:.02em}
+      .controls{justify-self:end;display:flex;gap:2px;-webkit-app-region:no-drag}
+      .window-button{position:relative;width:36px;height:30px;padding:0;border:0;border-radius:6px;corner-shape:squircle;background:transparent;color:#a9a198;cursor:default;transition:background-color 150ms cubic-bezier(.25,.1,.25,1),color 150ms cubic-bezier(.25,.1,.25,1),transform 80ms cubic-bezier(.25,.1,.25,1)}
+      .window-button:hover{background:rgba(255,255,255,.075);color:#f6f1e8}
+      .window-button:active{transform:scale(.94)}
+      .window-button.close:hover{background:rgba(205,62,62,.82);color:#fff}
+      .window-button:focus-visible{outline:2px solid rgba(214,154,76,.82);outline-offset:1px}
+      .minus,.close-glyph,.maximize-glyph{position:absolute;inset:0;display:grid;place-items:center}
+      .minus:before{content:"";width:10px;height:1px;border-radius:1px;background:currentColor}
+      .close-glyph:before,.close-glyph:after{content:"";position:absolute;width:11px;height:1px;border-radius:1px;background:currentColor}
+      .close-glyph:before{transform:rotate(45deg)}.close-glyph:after{transform:rotate(-45deg)}
+      .maximize-glyph:before{content:"";width:9px;height:9px;border:1px solid currentColor;border-radius:2px}
+      .maximize-glyph.restore:before,.maximize-glyph.restore:after{content:"";position:absolute;width:8px;height:8px;border:1px solid currentColor;border-radius:2px;background:#181613}
+      .maximize-glyph.restore:before{transform:translate(2px,-2px)}.maximize-glyph.restore:after{transform:translate(-2px,2px)}
       main{width:min(420px,calc(100vw - 48px));padding:28px;border:1px solid rgba(255,255,255,.1);border-radius:12px;background:rgba(255,255,255,.035);box-shadow:0 24px 80px rgba(0,0,0,.35)}
-      i{display:block;width:10px;height:10px;border-radius:50%;background:#d69a4c;box-shadow:0 0 16px rgba(214,154,76,.55);animation:pulse 1.4s ease-in-out infinite}
-      h1{margin:18px 0 8px;font-size:20px;letter-spacing:-.02em}
-      p{margin:0;color:#a9a198;font-size:13px;line-height:1.7}
+      .boot-heading{display:flex;align-items:center;gap:10px}
+      i{display:block;width:8px;height:8px;flex:0 0 auto;border-radius:50%;background:#d69a4c;box-shadow:0 0 16px rgba(214,154,76,.55);animation:pulse 1.4s ease-in-out infinite}
+      h1{margin:0;font-size:20px;letter-spacing:-.02em}
+      p{margin:8px 0 0;color:#a9a198;font-size:13px;line-height:1.7}
       @keyframes pulse{50%{opacity:.35;transform:scale(.78)}}
-      @media(prefers-reduced-motion:reduce){i{animation:none}}
+      @media(prefers-reduced-motion:reduce){i{animation:none}.window-button{transition:none}}
     </style>
   </head>
-  <body><main><i></i><h1>${message}</h1><p>${detail}</p></main></body>
+  <body>
+    <div class="titlebar" role="toolbar" aria-label="Bandi 窗口栏">
+      <div class="brand"><span class="mark">B</span><span>Bandi</span></div>
+      <span class="section">启动中</span>
+      <div class="controls" role="group" aria-label="窗口控制">
+        <button class="window-button" id="minimize" type="button" aria-label="最小化" title="最小化"><span class="minus" aria-hidden="true"></span></button>
+        <button class="window-button" id="maximize" type="button" aria-label="最大化" title="最大化"><span class="maximize-glyph" aria-hidden="true"></span></button>
+        <button class="window-button close" id="close" type="button" aria-label="关闭" title="关闭"><span class="close-glyph" aria-hidden="true"></span></button>
+      </div>
+    </div>
+    <main><div class="boot-heading"><i aria-hidden="true"></i><h1>${message}</h1></div><p>${detail}</p></main>
+    <script>
+      const bridge = window.bandiDesktop;
+      const maximizeButton = document.getElementById("maximize");
+      const maximizeGlyph = maximizeButton.querySelector("span");
+      const syncWindowState = (state) => {
+        const maximized = Boolean(state && state.isMaximized);
+        maximizeGlyph.className = maximized ? "maximize-glyph restore" : "maximize-glyph";
+        maximizeButton.setAttribute("aria-label", maximized ? "还原窗口" : "最大化");
+        maximizeButton.title = maximized ? "还原窗口" : "最大化";
+      };
+      document.getElementById("minimize").addEventListener("click", () => bridge && bridge.minimizeWindow());
+      maximizeButton.addEventListener("click", async () => bridge && syncWindowState(await bridge.toggleMaximizeWindow()));
+      document.getElementById("close").addEventListener("click", () => bridge && bridge.closeWindow());
+      if (bridge) {
+        bridge.getWindowState().then(syncWindowState);
+        bridge.onWindowStateChange(syncWindowState);
+      }
+    </script>
+  </body>
 </html>`;
 }
 
 function createWindow() {
+  Menu.setApplicationMenu(null);
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 820,
@@ -697,6 +783,10 @@ function createWindow() {
     backgroundColor: "#0f0d0a",
     title: "追番中心",
     icon: getAppIconPath(),
+    frame: false,
+    thickFrame: true,
+    roundedCorners: true,
+    autoHideMenuBar: true,
     show: false,
     webPreferences: {
       contextIsolation: true,
@@ -719,6 +809,8 @@ function createWindow() {
     }
     app.quit();
   });
+  mainWindow.on("maximize", publishDesktopWindowState);
+  mainWindow.on("unmaximize", publishDesktopWindowState);
   mainWindow.once("ready-to-show", () => mainWindow.show());
   void mainWindow.loadURL(
     `data:text/html;charset=utf-8,${encodeURIComponent(

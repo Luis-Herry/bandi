@@ -42,6 +42,10 @@ test("transition utilities expose the selected motion recipes", () => {
   );
   assert.match(uiExportsSource, /export \{ ShimmerText \}/);
   assert.match(uiExportsSource, /export \{ ResizePanel \}/);
+  assert.match(
+    globalsSource,
+    /\.desktop-titlebar-window-button\s*\{[^}]*var\(--duration-quick\)[^}]*var\(--ease-default\)/s,
+  );
 });
 
 test("search dialog uses side-by-side page motion and long-wait shimmer copy", () => {

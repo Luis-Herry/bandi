@@ -31,7 +31,7 @@ export function DesktopSessionGate({ from }: { from: string }) {
   }, [enterDesktop]);
 
   return (
-    <main className="relative grid min-h-screen place-items-center overflow-hidden bg-[color:var(--bg-base)] px-6">
+    <main className="desktop-viewport relative grid min-h-screen place-items-center overflow-hidden bg-[color:var(--bg-base)] px-6">
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0 opacity-70"
