@@ -15,14 +15,9 @@ import { useErrorShake } from "@/hooks/useErrorShake";
 interface LoginShellProps {
   from: string;
   initialError: string | null;
-  desktopLoginHint?: string | null;
 }
 
-export function LoginShell({
-  from,
-  initialError,
-  desktopLoginHint,
-}: LoginShellProps) {
+export function LoginShell({ from, initialError }: LoginShellProps) {
   const router = useRouter();
   const shouldReduceMotion = useReducedMotion();
   const [username, setUsername] = useState("");
@@ -193,12 +188,6 @@ export function LoginShell({
                 {loginError.message}
               </p>
             )}
-            {desktopLoginHint && !loginError.message && (
-              <p className="pt-1 text-center text-xs text-[color:var(--text-muted)]">
-                {desktopLoginHint}
-              </p>
-            )}
-
             <Button
               type="submit"
               variant="primary"
@@ -209,25 +198,23 @@ export function LoginShell({
             </Button>
           </form>
 
-          {!desktopLoginHint && (
-            <>
-              <div className="flex items-center gap-3 my-5">
-                <span className="flex-1 h-px bg-[color:var(--border-subtle)]" />
-                <span className="text-[11px] text-[color:var(--text-muted)] tracking-[0.05em]">
-                  或者
-                </span>
-                <span className="flex-1 h-px bg-[color:var(--border-subtle)]" />
-              </div>
+          <>
+            <div className="flex items-center gap-3 my-5">
+              <span className="flex-1 h-px bg-[color:var(--border-subtle)]" />
+              <span className="text-[11px] text-[color:var(--text-muted)] tracking-[0.05em]">
+                或者
+              </span>
+              <span className="flex-1 h-px bg-[color:var(--border-subtle)]" />
+            </div>
 
-              <Button variant="ghost" className="w-full">
-                通过邀请码注册
-              </Button>
+            <Button variant="ghost" className="w-full">
+              通过邀请码注册
+            </Button>
 
-              <p className="mt-5 text-center text-[11px] text-[color:var(--text-muted)]">
-                首次访问？联系 Bandi 管理员
-              </p>
-            </>
-          )}
+            <p className="mt-5 text-center text-[11px] text-[color:var(--text-muted)]">
+              首次访问？联系 Bandi 管理员
+            </p>
+          </>
         </motion.div>
       </div>
 

@@ -28,6 +28,7 @@ interface NavProps {
   username?: string | null;
   currentTheme: UserTheme;
   notifications: NavNotificationSummary;
+  isDesktop?: boolean;
 }
 
 const TEXT = {
@@ -100,7 +101,12 @@ function getDetailAnimeId(pathname: string): number | null {
   return Number.isFinite(animeId) && animeId > 0 ? animeId : null;
 }
 
-export function Nav({ username, currentTheme, notifications }: NavProps) {
+export function Nav({
+  username,
+  currentTheme,
+  notifications,
+  isDesktop = false,
+}: NavProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -232,7 +238,7 @@ export function Nav({ username, currentTheme, notifications }: NavProps) {
           {username ?? TEXT.user}
         </div>
         <div className="mt-0.5 text-[10px] text-[color:var(--text-muted)]">
-          {TEXT.account}
+          {isDesktop ? "本机资料" : TEXT.account}
         </div>
       </div>
       <DropdownMenu.Item
@@ -269,18 +275,20 @@ export function Nav({ username, currentTheme, notifications }: NavProps) {
           </span>
         </a>
       </DropdownMenu.Item>
-      <DropdownMenu.Item
-        onSelect={handleSignOut}
-        className={cn(
-          "grid grid-cols-[18px_1fr] items-center gap-2 rounded-[6px] px-2 py-2",
-          "cursor-pointer outline-none",
-          "text-[12px] text-[color:var(--text-primary)]",
-          "data-[highlighted]:bg-[color:var(--bg-surface-hover)]",
-        )}
-      >
-        <LogOut size={14} className="text-[color:var(--accent)]" />
-        <span>{TEXT.signOut}</span>
-      </DropdownMenu.Item>
+      {!isDesktop && (
+        <DropdownMenu.Item
+          onSelect={handleSignOut}
+          className={cn(
+            "grid grid-cols-[18px_1fr] items-center gap-2 rounded-[6px] px-2 py-2",
+            "cursor-pointer outline-none",
+            "text-[12px] text-[color:var(--text-primary)]",
+            "data-[highlighted]:bg-[color:var(--bg-surface-hover)]",
+          )}
+        >
+          <LogOut size={14} className="text-[color:var(--accent)]" />
+          <span>{TEXT.signOut}</span>
+        </DropdownMenu.Item>
+      )}
     </>
   );
 

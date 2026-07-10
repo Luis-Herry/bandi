@@ -16,6 +16,7 @@
 import NextAuth, { type DefaultSession } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import "next-auth/jwt";
+import { timingSafeEqual } from "node:crypto";
 import bcrypt from "bcryptjs";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
@@ -36,6 +37,26 @@ declare module "next-auth/jwt" {
     uid?: string;
     username?: string;
   }
+}
+
+function findUser(username: string) {
+  return db
+    .select({
+      id: users.id,
+      username: users.username,
+      passwordHash: users.passwordHash,
+    })
+    .from(users)
+    .where(eq(users.username, username))
+    .get();
+}
+
+function hasValidDesktopToken(request: Request) {
+  if (process.env.ANIME_DESKTOP_APP !== "1") return false;
+  const expected = process.env.DESKTOP_SESSION_TOKEN ?? "";
+  const received = request.headers.get("x-bandi-desktop-token") ?? "";
+  if (!expected || expected.length !== received.length) return false;
+  return timingSafeEqual(Buffer.from(expected), Buffer.from(received));
 }
 
 export const {
@@ -59,15 +80,7 @@ export const {
           typeof raw?.password === "string" ? raw.password : "";
         if (!username || !password) return null;
 
-        const row = db
-          .select({
-            id: users.id,
-            username: users.username,
-            passwordHash: users.passwordHash,
-          })
-          .from(users)
-          .where(eq(users.username, username))
-          .get();
+        const row = findUser(username);
         if (!row) return null;
 
         const ok = await bcrypt.compare(password, row.passwordHash);
@@ -79,5 +92,22 @@ export const {
         };
       },
     }),
+    ...(process.env.ANIME_DESKTOP_APP === "1"
+      ? [
+          Credentials({
+            id: "desktop-session",
+            name: "Bandi Desktop",
+            credentials: {},
+            async authorize(_raw, request) {
+              if (!hasValidDesktopToken(request)) return null;
+              const username =
+                process.env.DESKTOP_BOOTSTRAP_USER?.trim() || "admin";
+              const row = findUser(username);
+              if (!row) return null;
+              return { id: row.id, name: row.username };
+            },
+          }),
+        ]
+      : []),
   ],
 });

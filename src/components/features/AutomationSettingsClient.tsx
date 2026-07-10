@@ -25,6 +25,7 @@ import {
   TextSwap,
 } from "@/components/ui";
 import { ConfirmDialog } from "@/components/features/ConfirmDialog";
+import { DesktopDownloadSettings } from "@/components/features/DesktopDownloadSettings";
 import { QbitSetupGuideDialog } from "@/components/features/QbitSetupGuideDialog";
 import { RssEditDialog, type RssSourceDraft } from "@/components/features/RssEditDialog";
 import { cn } from "@/lib/cn";
@@ -243,6 +244,7 @@ export function AutomationSettingsClient() {
           }
         >
           <QbitStatusPanel qbit={qbit} loading={loading} />
+          {qbit?.managed && <DesktopDownloadSettings />}
         </SettingsSection>
       </section>
     </div>

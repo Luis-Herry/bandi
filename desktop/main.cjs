@@ -1,4 +1,12 @@
-const { app, BrowserWindow, Menu, Tray, shell } = require("electron");
+const {
+  app,
+  BrowserWindow,
+  Menu,
+  Tray,
+  dialog,
+  ipcMain,
+  shell,
+} = require("electron");
 const { spawn } = require("node:child_process");
 const crypto = require("node:crypto");
 const fs = require("node:fs");
@@ -10,6 +18,8 @@ const APP_PORT_START = 31245;
 const QBIT_PORT_START = 18180;
 const QBIT_START_TIMEOUT_MS = 25000;
 const CONFIG_NAME = "config.json";
+const ONBOARDING_VERSION = 1;
+const DESKTOP_AUTH_HEADER = "X-Bandi-Desktop-Token";
 const DEFAULT_APP_USER = "admin";
 const DEFAULT_APP_PASSWORD = "PUBLIC_HISTORY_REDACTED";
 const DEFAULT_QBIT_USER = "admin";
@@ -24,9 +34,11 @@ let qbitAutoRestartEnabled = false;
 let qbitRestartAttempt = 0;
 let qbitRestartTimer = null;
 let qbitRestarting = false;
+let pendingQbitDownloadDir = null;
 let isQuitting = false;
 let shutdownComplete = false;
 let shutdownPromise = null;
+let desktopSessionToken = null;
 
 function randomSecret(bytes = 32) {
   return crypto.randomBytes(bytes).toString("base64url");
@@ -34,6 +46,38 @@ function randomSecret(bytes = 32) {
 
 function ensureDir(dir) {
   fs.mkdirSync(dir, { recursive: true });
+}
+
+function inspectDownloadDirectory(value, { create = false } = {}) {
+  if (typeof value !== "string" || !value.trim()) {
+    return { ok: false, error: "请选择下载目录" };
+  }
+  const downloadDir = path.resolve(value.trim());
+  if (!path.isAbsolute(downloadDir) || downloadDir === path.parse(downloadDir).root) {
+    return { ok: false, error: "下载目录不能直接使用磁盘根目录" };
+  }
+
+  try {
+    if (create) ensureDir(downloadDir);
+    const stat = fs.statSync(downloadDir);
+    if (!stat.isDirectory()) {
+      return { ok: false, error: "所选位置不是文件夹" };
+    }
+    const probe = path.join(
+      downloadDir,
+      `.bandi-write-test-${process.pid}-${Date.now()}`,
+    );
+    fs.writeFileSync(probe, "ok", { encoding: "utf8", flag: "wx" });
+    fs.unlinkSync(probe);
+    const disk = fs.statfsSync(downloadDir);
+    const freeSpaceBytes = Number(disk.bavail) * Number(disk.bsize);
+    return { ok: true, downloadDir, freeSpaceBytes };
+  } catch (err) {
+    return {
+      ok: false,
+      error: `无法写入该目录：${err.code || err.message || "unknown"}`,
+    };
+  }
 }
 
 function readJson(file) {
@@ -59,6 +103,7 @@ function saveDesktopConfig() {
 
 function loadDesktopConfig(userDataDir) {
   const existing = readJson(configFile(userDataDir));
+  const hasExistingConfig = Object.keys(existing).length > 0;
   const existingQbitPort = Number(existing.qbitPort || 0);
   const qbitPort =
     Number.isInteger(existingQbitPort) &&
@@ -70,13 +115,33 @@ function loadDesktopConfig(userDataDir) {
     existing.qbitUser && existing.qbitUser !== "anime"
       ? existing.qbitUser
       : DEFAULT_QBIT_USER;
+  const fallbackDownloadDir = hasExistingConfig
+    ? path.join(userDataDir, "download")
+    : path.join(app.getPath("videos"), "Bandi", "Downloads");
+  const existingOnboardingVersion = Number(existing.onboardingVersion || 0);
   const config = {
     authSecret: existing.authSecret || randomSecret(48),
     appUser: existing.appUser || DEFAULT_APP_USER,
-    appPassword: existing.appPassword || DEFAULT_APP_PASSWORD,
+    appPassword:
+      existing.appPassword ||
+      (hasExistingConfig ? DEFAULT_APP_PASSWORD : randomSecret(18)),
     qbitUser,
     qbitPassword: existing.qbitPassword || randomSecret(18),
     qbitPort,
+    downloadDir:
+      typeof existing.downloadDir === "string" && existing.downloadDir.trim()
+        ? path.resolve(existing.downloadDir.trim())
+        : fallbackDownloadDir,
+    closeToTray: existing.closeToTray !== false,
+    onboardingVersion: Number.isInteger(existingOnboardingVersion)
+      ? Math.max(0, existingOnboardingVersion)
+      : 0,
+    onboardingMode:
+      existing.onboardingMode === "new" || existing.onboardingMode === "upgrade"
+        ? existing.onboardingMode
+        : hasExistingConfig
+          ? "upgrade"
+          : "new",
   };
   writeJson(configFile(userDataDir), config);
   return config;
@@ -310,6 +375,27 @@ async function probeQbit() {
   return qbitApi("/api/v2/app/version");
 }
 
+async function setQbitDownloadDirectory(downloadDir) {
+  const body = new URLSearchParams({
+    json: JSON.stringify({ save_path: downloadDir }),
+  });
+  return qbitApi("/api/v2/app/setPreferences", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body,
+  });
+}
+
+async function applyPendingQbitDownloadDirectory() {
+  if (!pendingQbitDownloadDir) return { ok: true };
+  const target = pendingQbitDownloadDir;
+  const result = await setQbitDownloadDirectory(target);
+  if (result.ok && pendingQbitDownloadDir === target) {
+    pendingQbitDownloadDir = null;
+  }
+  return result;
+}
+
 async function waitForQbit(timeoutMs = QBIT_START_TIMEOUT_MS) {
   const started = Date.now();
   let lastError = "webui_unreachable";
@@ -352,18 +438,23 @@ function attachQbitProcess(child) {
   });
 }
 
-async function startQbit() {
+async function startQbit(preselected = null) {
   const exe = getQbitExePath();
   if (!fs.existsSync(exe)) {
     throw new Error(`qBittorrent not found: ${exe}`);
   }
 
-  const selection = await selectQbitPort();
+  const selection = preselected ?? (await selectQbitPort());
   desktopConfig.qbitPort = selection.port;
   saveDesktopConfig();
 
   if (selection.adopt) {
     qbitReady = true;
+    const pending = await applyPendingQbitDownloadDirectory();
+    if (!pending.ok) {
+      qbitReady = false;
+      throw new Error(`qBittorrent save path update failed: ${pending.error}`);
+    }
     qbitRestartAttempt = 0;
     appendLog(
       "qbit.log",
@@ -374,7 +465,7 @@ async function startQbit() {
 
   const userData = app.getPath("userData");
   const profileDir = path.join(userData, "qbit-profile");
-  const downloadDir = path.join(userData, "download");
+  const downloadDir = desktopConfig.downloadDir;
   ensureDir(profileDir);
   ensureDir(downloadDir);
   writeQbitConfig({ profileDir, config: desktopConfig, downloadDir });
@@ -398,6 +489,11 @@ async function startQbit() {
 
   const status = await waitForQbit();
   qbitReady = true;
+  const pending = await applyPendingQbitDownloadDirectory();
+  if (!pending.ok) {
+    qbitReady = false;
+    throw new Error(`qBittorrent save path update failed: ${pending.error}`);
+  }
   qbitRestartAttempt = 0;
   appendLog(
     "qbit.log",
@@ -463,6 +559,7 @@ async function startNextServer() {
       ANIME_DESKTOP_APP: "1",
       DESKTOP_BOOTSTRAP_USER: desktopConfig.appUser,
       DESKTOP_BOOTSTRAP_PASSWORD: desktopConfig.appPassword,
+      DESKTOP_SESSION_TOKEN: desktopSessionToken,
     },
     stdio: ["ignore", "pipe", "pipe"],
     windowsHide: true,
@@ -476,6 +573,98 @@ async function startNextServer() {
 
   await waitForHttp(appUrl);
   return appUrl;
+}
+
+function getDesktopSettingsState() {
+  const inspection = inspectDownloadDirectory(desktopConfig.downloadDir);
+  return {
+    available: true,
+    downloadDir: desktopConfig.downloadDir,
+    freeSpaceBytes: inspection.ok ? inspection.freeSpaceBytes : null,
+    directoryWritable: inspection.ok,
+    directoryError: inspection.ok ? null : inspection.error,
+    closeToTray: desktopConfig.closeToTray,
+    onboardingComplete:
+      desktopConfig.onboardingVersion >= ONBOARDING_VERSION,
+    onboardingMode: desktopConfig.onboardingMode,
+  };
+}
+
+function writeManagedQbitConfig() {
+  const profileDir = path.join(app.getPath("userData"), "qbit-profile");
+  ensureDir(profileDir);
+  writeQbitConfig({
+    profileDir,
+    config: desktopConfig,
+    downloadDir: desktopConfig.downloadDir,
+  });
+}
+
+async function saveDesktopSettings(input) {
+  const inspection = inspectDownloadDirectory(input?.downloadDir, {
+    create: true,
+  });
+  if (!inspection.ok) return inspection;
+
+  const downloadDirChanged = inspection.downloadDir !== desktopConfig.downloadDir;
+  if (downloadDirChanged && qbitReady) {
+    const qbitResult = await setQbitDownloadDirectory(inspection.downloadDir);
+    if (!qbitResult.ok) {
+      return {
+        ok: false,
+        error: `下载服务暂时无法切换目录：${qbitResult.error}`,
+      };
+    }
+    pendingQbitDownloadDir = null;
+  } else if (downloadDirChanged) {
+    pendingQbitDownloadDir = inspection.downloadDir;
+  }
+
+  desktopConfig.downloadDir = inspection.downloadDir;
+  desktopConfig.closeToTray = input?.closeToTray !== false;
+  if (input?.completeOnboarding === true) {
+    desktopConfig.onboardingVersion = ONBOARDING_VERSION;
+  }
+  writeManagedQbitConfig();
+  saveDesktopConfig();
+  return { ok: true, settings: getDesktopSettingsState() };
+}
+
+function registerDesktopIpc() {
+  ipcMain.handle("bandi:get-desktop-settings", () =>
+    getDesktopSettingsState(),
+  );
+  ipcMain.handle("bandi:choose-download-directory", async () => {
+    const result = await dialog.showOpenDialog(mainWindow, {
+      title: "选择 Bandi 下载目录",
+      defaultPath: desktopConfig.downloadDir,
+      buttonLabel: "使用此文件夹",
+      properties: ["openDirectory", "createDirectory", "promptToCreate"],
+    });
+    if (result.canceled || !result.filePaths[0]) return { canceled: true };
+    const inspection = inspectDownloadDirectory(result.filePaths[0]);
+    return inspection.ok
+      ? {
+          canceled: false,
+          downloadDir: inspection.downloadDir,
+          freeSpaceBytes: inspection.freeSpaceBytes,
+        }
+      : { canceled: false, error: inspection.error };
+  });
+  ipcMain.handle("bandi:save-desktop-settings", (_event, input) =>
+    saveDesktopSettings(input),
+  );
+}
+
+function attachDesktopSessionHeader(appUrl) {
+  const origin = new URL(appUrl).origin;
+  mainWindow.webContents.session.webRequest.onBeforeSendHeaders(
+    { urls: [`${origin}/*`] },
+    (details, callback) => {
+      details.requestHeaders[DESKTOP_AUTH_HEADER] = desktopSessionToken;
+      callback({ requestHeaders: details.requestHeaders });
+    },
+  );
 }
 
 function bootPage(message, detail = "请稍候，追番中心会自动完成剩余步骤。") {
@@ -513,6 +702,7 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      preload: path.join(__dirname, "preload.cjs"),
     },
   });
 
@@ -521,10 +711,13 @@ function createWindow() {
     return { action: "deny" };
   });
   mainWindow.on("close", (event) => {
-    if (!isQuitting) {
-      event.preventDefault();
+    if (isQuitting) return;
+    event.preventDefault();
+    if (desktopConfig.closeToTray) {
       mainWindow.hide();
+      return;
     }
+    app.quit();
   });
   mainWindow.once("ready-to-show", () => mainWindow.show());
   void mainWindow.loadURL(
@@ -557,20 +750,30 @@ function createTray() {
 async function boot() {
   const userData = app.getPath("userData");
   ensureDir(userData);
+  desktopSessionToken = randomSecret(32);
   desktopConfig = loadDesktopConfig(userData);
+  registerDesktopIpc();
   createWindow();
   createTray();
 
-  try {
-    await startQbit();
-  } catch (err) {
+  const qbitSelection = await selectQbitPort();
+  desktopConfig.qbitPort = qbitSelection.port;
+  saveDesktopConfig();
+  const initialQbitStart = startQbit(qbitSelection).catch((err) => {
     appendLog("qbit.log", `[desktop] Initial qBit start failed: ${err.stack || err}\n`);
-  }
+  });
 
   const appUrl = await startNextServer();
+  attachDesktopSessionHeader(appUrl);
   qbitAutoRestartEnabled = true;
-  if (!qbitReady) scheduleQbitRestart();
-  await mainWindow.loadURL(appUrl);
+  void initialQbitStart.finally(() => {
+    if (!qbitReady) scheduleQbitRestart();
+  });
+  const initialPath =
+    desktopConfig.onboardingVersion >= ONBOARDING_VERSION
+      ? "/"
+      : "/onboarding";
+  await mainWindow.loadURL(new URL(initialPath, appUrl).toString());
 }
 
 async function waitForQbitExit(timeoutMs = 5000) {

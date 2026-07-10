@@ -27,6 +27,7 @@ export default async function MainLayout({
           username={username}
           currentTheme={currentTheme}
           notifications={notifications}
+          isDesktop={process.env.ANIME_DESKTOP_APP === "1"}
         />
         <ToastHost />
         {/* Nav 全断点 h=64；首页 Hero 用匹配的负 margin 自抵消，让背景透到顶栏后面。 */}

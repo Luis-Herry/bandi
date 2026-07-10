@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
+import { DesktopSessionGate } from "@/components/features/DesktopSessionGate";
 import { LoginShell } from "./LoginShell";
 
 export const metadata = { title: "登录" };
@@ -15,18 +16,14 @@ export default async function LoginPage({
     redirect(from && from.startsWith("/") ? from : "/");
   }
 
-  const desktopLoginHint =
-    process.env.ANIME_DESKTOP_APP === "1"
-      ? `桌面版默认账号：${process.env.DESKTOP_BOOTSTRAP_USER ?? "admin"} / ${
-          process.env.DESKTOP_BOOTSTRAP_PASSWORD ?? "PUBLIC_HISTORY_REDACTED"
-        }`
-      : null;
+  if (process.env.ANIME_DESKTOP_APP === "1") {
+    return <DesktopSessionGate from={from ?? "/"} />;
+  }
 
   return (
     <LoginShell
       from={from ?? "/"}
       initialError={error ?? null}
-      desktopLoginHint={desktopLoginHint}
     />
   );
 }

@@ -63,6 +63,7 @@ test("desktop packaging boundary survives web sync", () => {
   assert.match(gitignore, /\.desktop-verify\//);
   assert.ok(existsSync("desktop/assets/app-icon.ico"));
   assert.ok(existsSync("desktop/assets/app-icon.png"));
+  assert.ok(existsSync("desktop/preload.cjs"));
   assert.ok(existsSync("public/brand/app-logo.png"));
   assert.ok(existsSync("public/favicon.ico"));
   assert.ok(existsSync("public/favicon.png"));
@@ -95,7 +96,8 @@ test("desktop main keeps local qBit and userData runtime paths", () => {
   assert.match(mainSource, /findOpenPort\(QBIT_PORT_START\)/);
   assert.match(mainSource, /app\.getPath\("userData"\)/);
   assert.match(mainSource, /path\.join\(userData, "qbit-profile"\)/);
-  assert.match(mainSource, /path\.join\(userData, "download"\)/);
+  assert.match(mainSource, /path\.join\(userDataDir, "download"\)/);
+  assert.match(mainSource, /downloadDir = desktopConfig\.downloadDir/);
   assert.match(mainSource, /path\.join\(userData, "data"\)/);
   assert.match(mainSource, /DATABASE_URL: dbPath/);
   assert.match(mainSource, /QBIT_URL: `http:\/\/127\.0\.0\.1:\$\{desktopConfig\.qbitPort\}`/);
@@ -111,6 +113,8 @@ test("desktop owns qBit readiness, recovery, tray, and graceful shutdown", () =>
   assert.match(mainSource, /async function probeQbit\(\)/);
   assert.match(mainSource, /waitForQbit\(\)/);
   assert.match(mainSource, /Scheduling qBit recovery/);
+  assert.match(mainSource, /const initialQbitStart = startQbit\(qbitSelection\)/);
+  assert.match(mainSource, /void initialQbitStart\.finally/);
   assert.match(mainSource, /app\.requestSingleInstanceLock\(\)/);
   assert.match(mainSource, /new Tray\(getAppIconPath\(\)\)/);
   assert.match(mainSource, /退出并停止下载/);
@@ -241,19 +245,66 @@ test("download and settings panels hide infrastructure details in managed mode",
   assert.match(settingsSource, /关闭窗口后会缩到托盘继续下载/);
 });
 
-test("desktop login keeps default-account hint without losing the shared brand UI", () => {
+test("desktop login establishes a local session without showing credentials", () => {
   const loginPageSource = readFileSync("src/app/(auth)/login/page.tsx", "utf8");
   const loginShellSource = readFileSync(
     "src/app/(auth)/login/LoginShell.tsx",
     "utf8",
   );
+  const sessionGateSource = readFileSync(
+    "src/components/features/DesktopSessionGate.tsx",
+    "utf8",
+  );
+  const authSource = readFileSync("src/auth.ts", "utf8");
+  const middlewareSource = readFileSync("src/middleware.ts", "utf8");
 
   assert.match(loginPageSource, /ANIME_DESKTOP_APP/);
-  assert.match(loginPageSource, /DESKTOP_BOOTSTRAP_USER/);
-  assert.match(loginPageSource, /DESKTOP_BOOTSTRAP_PASSWORD/);
-  assert.match(loginPageSource, /desktopLoginHint=\{desktopLoginHint\}/);
-  assert.match(loginShellSource, /desktopLoginHint\?: string \| null/);
+  assert.match(loginPageSource, /DesktopSessionGate/);
+  assert.doesNotMatch(loginPageSource, /DESKTOP_BOOTSTRAP_PASSWORD/);
+  assert.doesNotMatch(loginShellSource, /desktopLoginHint/);
   assert.match(loginShellSource, /BrandLogo/);
-  assert.match(loginShellSource, /\{desktopLoginHint && !loginError\.message &&/);
-  assert.match(loginShellSource, /\{!desktopLoginHint && \(/);
+  assert.match(sessionGateSource, /signIn\("desktop-session"/);
+  assert.match(sessionGateSource, /正在打开你的私人放映厅/);
+  assert.match(authSource, /id: "desktop-session"/);
+  assert.match(authSource, /x-bandi-desktop-token/);
+  assert.match(authSource, /timingSafeEqual/);
+  assert.match(middlewareSource, /searchParams\.get\("from"\)/);
+  assert.match(middlewareSource, /from && from\.startsWith\("\/"\) \? from : "\/"/);
+});
+
+test("desktop first-run onboarding owns download location and tray behavior", () => {
+  const mainSource = readFileSync("desktop/main.cjs", "utf8");
+  const preloadSource = readFileSync("desktop/preload.cjs", "utf8");
+  const onboardingSource = readFileSync(
+    "src/components/features/DesktopOnboarding.tsx",
+    "utf8",
+  );
+  const desktopSettingsSource = readFileSync(
+    "src/components/features/DesktopDownloadSettings.tsx",
+    "utf8",
+  );
+  const navSource = readFileSync("src/components/features/Nav.tsx", "utf8");
+
+  assert.match(mainSource, /ONBOARDING_VERSION = 1/);
+  assert.match(mainSource, /app\.getPath\("videos"\), "Bandi", "Downloads"/);
+  assert.match(mainSource, /inspectDownloadDirectory/);
+  assert.match(mainSource, /fs\.statfsSync/);
+  assert.match(mainSource, /bandi:get-desktop-settings/);
+  assert.match(mainSource, /bandi:choose-download-directory/);
+  assert.match(mainSource, /bandi:save-desktop-settings/);
+  assert.match(mainSource, /\/api\/v2\/app\/setPreferences/);
+  assert.match(mainSource, /pendingQbitDownloadDir = inspection\.downloadDir/);
+  assert.match(mainSource, /applyPendingQbitDownloadDirectory/);
+  assert.match(mainSource, /preload: path\.join\(__dirname, "preload\.cjs"\)/);
+  assert.match(mainSource, /DESKTOP_SESSION_TOKEN: desktopSessionToken/);
+  assert.match(mainSource, /onBeforeSendHeaders/);
+  assert.match(mainSource, /"\/onboarding"/);
+  assert.match(mainSource, /if \(desktopConfig\.closeToTray\)/);
+  assert.match(preloadSource, /contextBridge\.exposeInMainWorld\("bandiDesktop"/);
+  assert.match(onboardingSource, /确认新版下载位置/);
+  assert.match(onboardingSource, /completeOnboarding: true/);
+  assert.match(onboardingSource, /1080p/);
+  assert.match(onboardingSource, /关闭窗口后继续下载/);
+  assert.match(desktopSettingsSource, /更改后只影响新下载/);
+  assert.match(navSource, /!isDesktop &&/);
 });

@@ -25,7 +25,9 @@ export default auth((req) => {
   if (PUBLIC_PATHS.has(pathname)) {
     if (isLoggedIn) {
       const url = req.nextUrl.clone();
-      url.pathname = "/";
+      const from = req.nextUrl.searchParams.get("from");
+      url.pathname = from && from.startsWith("/") ? from : "/";
+      url.search = "";
       return NextResponse.redirect(url);
     }
     return NextResponse.next();
