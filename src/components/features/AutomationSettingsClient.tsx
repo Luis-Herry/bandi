@@ -46,6 +46,7 @@ interface RssSource {
 
 interface QbitStatus {
   connected: boolean;
+  managed: boolean;
   url: string;
   version?: string;
   apiVersion?: string;
@@ -203,21 +204,27 @@ export function AutomationSettingsClient() {
       <section id="qbit" className="scroll-mt-20">
         <SettingsSection
           icon={<Settings2 size={16} />}
-          title="qBittorrent"
-          subtitle="连接配置由本地环境变量提供，页面负责检测当前可用性"
+          title={qbit?.managed ? "下载服务" : "qBittorrent"}
+          subtitle={
+            qbit?.managed
+              ? "桌面版自动管理下载引擎、连接和恢复"
+              : "连接配置由本地环境变量提供，页面负责检测当前可用性"
+          }
           action={
             <div className="flex flex-wrap items-center justify-start gap-2 sm:justify-end">
-              <QbitSetupGuideDialog
-                trigger={
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    leftIcon={<HelpCircle size={12} />}
-                  >
-                    不会设置看这里
-                  </Button>
-                }
-              />
+              {qbit && !qbit.managed && (
+                <QbitSetupGuideDialog
+                  trigger={
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      leftIcon={<HelpCircle size={12} />}
+                    >
+                      不会设置看这里
+                    </Button>
+                  }
+                />
+              )}
               <Button
                 variant="secondary"
                 size="sm"
@@ -487,24 +494,39 @@ function QbitStatusPanel({
   if (loading && !qbit) {
     return (
       <EmptyText>
-        <ShimmerText text="检测 qBittorrent 中…" />
+        <ShimmerText text="检测下载服务中…" />
       </EmptyText>
     );
   }
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-1 gap-3 min-[520px]:grid-cols-2 xl:grid-cols-5">
+      <div
+        className={cn(
+          "grid grid-cols-1 gap-3 min-[520px]:grid-cols-2",
+          qbit?.managed ? "xl:grid-cols-4" : "xl:grid-cols-5",
+        )}
+      >
         <SummaryTile
-          label="连接状态"
-          value={connected ? "已连接" : "未连接"}
+          label={qbit?.managed ? "服务状态" : "连接状态"}
+          value={
+            connected
+              ? qbit?.managed
+                ? "可用"
+                : "已连接"
+              : qbit?.managed
+                ? "自动恢复中"
+                : "未连接"
+          }
           active={connected}
         />
-        <SummaryTile
-          label="Web UI"
-          value={qbit?.url ?? "自动检测本机 Web UI"}
-          compact
-        />
+        {!qbit?.managed && (
+          <SummaryTile
+            label="Web UI"
+            value={qbit?.url ?? "自动检测本机 Web UI"}
+            compact
+          />
+        )}
         <SummaryTile label="当前下载" value={formatSpeed(qbit?.dlSpeed)} />
         <SummaryTile label="当前上传" value={formatSpeed(qbit?.upSpeed)} />
         <SummaryTile label="磁盘剩余" value={formatBytes(qbit?.freeSpaceOnDisk)} compact />
@@ -513,7 +535,9 @@ function QbitStatusPanel({
       <div className="rounded-[8px] border border-[color:var(--border-subtle)] bg-[color:var(--bg-surface)] p-3">
         <p className="flex items-center gap-2 text-[12px] font-medium text-[color:var(--text-primary)]">
           <Activity size={14} className="text-[color:var(--accent)]" />
-          桌面版默认 127.0.0.1:8080；连接配置由桌面主进程注入，可通过本地配置 qbitPort 调整。
+          {qbit?.managed
+            ? `内置下载引擎由桌面版自动启动${qbit.version ? `，当前版本 ${qbit.version}` : ""}。关闭窗口后会缩到托盘继续下载。`
+            : "连接外部 qBittorrent 时，Web UI 地址和账号由本地环境变量提供。"}
         </p>
         <AccordionDisclosure
           title="高级连接说明"
@@ -537,7 +561,9 @@ function QbitStatusPanel({
         </AccordionDisclosure>
         {qbit?.error && (
           <p className="mt-2 text-[12px] text-[color:var(--status-warning)]">
-            {qbit.error}
+            {qbit.managed
+              ? "下载服务暂时不可用，桌面版正在后台自动恢复。"
+              : qbit.error}
           </p>
         )}
       </div>

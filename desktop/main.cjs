@@ -1,4 +1,4 @@
-const { app, BrowserWindow, shell } = require("electron");
+const { app, BrowserWindow, Menu, Tray, shell } = require("electron");
 const { spawn } = require("node:child_process");
 const crypto = require("node:crypto");
 const fs = require("node:fs");
@@ -7,16 +7,26 @@ const net = require("node:net");
 const path = require("node:path");
 
 const APP_PORT_START = 31245;
-const QBIT_PORT_DEFAULT = 8080;
+const QBIT_PORT_START = 18180;
+const QBIT_START_TIMEOUT_MS = 25000;
 const CONFIG_NAME = "config.json";
 const DEFAULT_APP_USER = "admin";
 const DEFAULT_APP_PASSWORD = "PUBLIC_HISTORY_REDACTED";
 const DEFAULT_QBIT_USER = "admin";
 
 let mainWindow = null;
+let tray = null;
 let nextProcess = null;
 let qbitProcess = null;
 let desktopConfig = null;
+let qbitReady = false;
+let qbitAutoRestartEnabled = false;
+let qbitRestartAttempt = 0;
+let qbitRestartTimer = null;
+let qbitRestarting = false;
+let isQuitting = false;
+let shutdownComplete = false;
+let shutdownPromise = null;
 
 function randomSecret(bytes = 32) {
   return crypto.randomBytes(bytes).toString("base64url");
@@ -39,14 +49,23 @@ function writeJson(file, value) {
   fs.writeFileSync(file, `${JSON.stringify(value, null, 2)}\n`, "utf8");
 }
 
+function configFile(userDataDir = app.getPath("userData")) {
+  return path.join(userDataDir, CONFIG_NAME);
+}
+
+function saveDesktopConfig() {
+  writeJson(configFile(), desktopConfig);
+}
+
 function loadDesktopConfig(userDataDir) {
-  const file = path.join(userDataDir, CONFIG_NAME);
-  const existing = readJson(file);
+  const existing = readJson(configFile(userDataDir));
   const existingQbitPort = Number(existing.qbitPort || 0);
   const qbitPort =
-    existingQbitPort && existingQbitPort !== 18180
+    Number.isInteger(existingQbitPort) &&
+    existingQbitPort >= 1024 &&
+    existingQbitPort <= 65535
       ? existingQbitPort
-      : QBIT_PORT_DEFAULT;
+      : 0;
   const qbitUser =
     existing.qbitUser && existing.qbitUser !== "anime"
       ? existing.qbitUser
@@ -59,7 +78,7 @@ function loadDesktopConfig(userDataDir) {
     qbitPassword: existing.qbitPassword || randomSecret(18),
     qbitPort,
   };
-  writeJson(file, config);
+  writeJson(configFile(userDataDir), config);
   return config;
 }
 
@@ -73,20 +92,8 @@ function appendLog(name, chunk) {
   fs.appendFile(logFile(name), chunk, () => {});
 }
 
-function isPortOpen(port, host = "127.0.0.1") {
-  return new Promise((resolve) => {
-    const socket = net.createConnection({ port, host });
-    socket.setTimeout(700);
-    socket.once("connect", () => {
-      socket.end();
-      resolve(true);
-    });
-    socket.once("timeout", () => {
-      socket.destroy();
-      resolve(false);
-    });
-    socket.once("error", () => resolve(false));
-  });
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function canListen(port, host = "127.0.0.1") {
@@ -101,7 +108,7 @@ function canListen(port, host = "127.0.0.1") {
 }
 
 async function findOpenPort(start) {
-  for (let port = start; port < start + 80; port += 1) {
+  for (let port = start; port < start + 200; port += 1) {
     if (await canListen(port)) return port;
   }
   throw new Error(`No open local port found from ${start}`);
@@ -219,6 +226,7 @@ function writeQbitConfig({ profileDir, config, downloadDir }) {
   setIniValue(lines, "Preferences", "WebUI\\Port", String(config.qbitPort));
   setIniValue(lines, "Preferences", "WebUI\\Username", config.qbitUser);
   setIniValue(lines, "Preferences", "WebUI\\LocalHostAuth", "false");
+  setIniValue(lines, "Preferences", "WebUI\\UseUPnP", "false");
   setIniValue(
     lines,
     "Preferences",
@@ -232,23 +240,134 @@ function writeQbitConfig({ profileDir, config, downloadDir }) {
     "Session\\DefaultSavePath",
     escapeIniPath(downloadDir),
   );
-  setIniValue(lines, "BitTorrent", "Session\\QueueingSystemEnabled", "false");
+  setIniValue(lines, "BitTorrent", "Session\\QueueingSystemEnabled", "true");
+  setIniValue(lines, "BitTorrent", "Session\\MaxActiveDownloads", "3");
+  setIniValue(lines, "BitTorrent", "Session\\MaxActiveTorrents", "4");
+  setIniValue(lines, "BitTorrent", "Session\\MaxActiveUploads", "1");
   setIniValue(lines, "BitTorrent", "Session\\StartPaused", "false");
 
   fs.writeFileSync(iniPath, `${lines.join("\n").replace(/\n+$/, "")}\n`, "utf8");
 }
 
+async function qbitLogin() {
+  if (!desktopConfig?.qbitPort) {
+    return { ok: false, error: "missing_port" };
+  }
+  const baseUrl = `http://127.0.0.1:${desktopConfig.qbitPort}`;
+  try {
+    const body = new URLSearchParams({
+      username: desktopConfig.qbitUser,
+      password: desktopConfig.qbitPassword,
+    });
+    const response = await fetch(`${baseUrl}/api/v2/auth/login`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        Referer: baseUrl,
+      },
+      body,
+      signal: AbortSignal.timeout(1500),
+    });
+    const text = await response.text();
+    if (!response.ok) {
+      return { ok: false, error: `auth_http_${response.status}` };
+    }
+    if (text.trim().toLowerCase() === "fails.") {
+      return { ok: false, error: "auth_failed" };
+    }
+    const setCookie = response.headers.get("set-cookie");
+    const cookie = setCookie?.split(";")[0];
+    if (!cookie) return { ok: false, error: "auth_cookie_missing" };
+    return { ok: true, baseUrl, cookie };
+  } catch {
+    return { ok: false, error: "webui_unreachable" };
+  }
+}
+
+async function qbitApi(pathname, init = {}) {
+  const auth = await qbitLogin();
+  if (!auth.ok) return auth;
+  try {
+    const headers = new Headers(init.headers);
+    headers.set("Cookie", auth.cookie);
+    headers.set("Referer", auth.baseUrl);
+    const response = await fetch(`${auth.baseUrl}${pathname}`, {
+      ...init,
+      headers,
+      signal: AbortSignal.timeout(2000),
+    });
+    const text = await response.text();
+    if (!response.ok) {
+      return { ok: false, error: `http_${response.status}` };
+    }
+    return { ok: true, data: text };
+  } catch {
+    return { ok: false, error: "webui_unreachable" };
+  }
+}
+
+async function probeQbit() {
+  return qbitApi("/api/v2/app/version");
+}
+
+async function waitForQbit(timeoutMs = QBIT_START_TIMEOUT_MS) {
+  const started = Date.now();
+  let lastError = "webui_unreachable";
+  while (Date.now() - started < timeoutMs) {
+    const result = await probeQbit();
+    if (result.ok) return result;
+    lastError = result.error;
+    if (
+      result.error === "auth_failed" ||
+      result.error === "auth_cookie_missing" ||
+      result.error.startsWith("auth_http_")
+    ) {
+      break;
+    }
+    await delay(400);
+  }
+  throw new Error(`qBittorrent health check failed: ${lastError}`);
+}
+
+async function selectQbitPort() {
+  if (desktopConfig.qbitPort) {
+    const existing = await probeQbit();
+    if (existing.ok) return { port: desktopConfig.qbitPort, adopt: true };
+    if (await canListen(desktopConfig.qbitPort)) {
+      return { port: desktopConfig.qbitPort, adopt: false };
+    }
+  }
+  return { port: await findOpenPort(QBIT_PORT_START), adopt: false };
+}
+
+function attachQbitProcess(child) {
+  child.on("error", (err) => {
+    appendLog("qbit.log", `[desktop] qBit start error: ${err.stack || err}\n`);
+  });
+  child.on("exit", (code, signal) => {
+    if (qbitProcess === child) qbitProcess = null;
+    qbitReady = false;
+    appendLog("qbit.log", `[desktop] qBit exited: ${code ?? signal}\n`);
+    if (qbitAutoRestartEnabled && !isQuitting) scheduleQbitRestart();
+  });
+}
+
 async function startQbit() {
   const exe = getQbitExePath();
   if (!fs.existsSync(exe)) {
-    appendLog("qbit.log", `[desktop] qBittorrent not found: ${exe}\n`);
-    return;
+    throw new Error(`qBittorrent not found: ${exe}`);
   }
 
-  if (await isPortOpen(desktopConfig.qbitPort)) {
+  const selection = await selectQbitPort();
+  desktopConfig.qbitPort = selection.port;
+  saveDesktopConfig();
+
+  if (selection.adopt) {
+    qbitReady = true;
+    qbitRestartAttempt = 0;
     appendLog(
       "qbit.log",
-      `[desktop] qBit port already open: ${desktopConfig.qbitPort}\n`,
+      `[desktop] Reused managed qBittorrent on 127.0.0.1:${selection.port}\n`,
     );
     return;
   }
@@ -260,7 +379,7 @@ async function startQbit() {
   ensureDir(downloadDir);
   writeQbitConfig({ profileDir, config: desktopConfig, downloadDir });
 
-  qbitProcess = spawn(
+  const child = spawn(
     exe,
     [
       `--profile=${profileDir}`,
@@ -274,12 +393,41 @@ async function startQbit() {
       windowsHide: true,
     },
   );
-  qbitProcess.on("error", (err) => {
-    appendLog("qbit.log", `[desktop] qBit start error: ${err.stack || err}\n`);
-  });
-  qbitProcess.on("exit", (code, signal) => {
-    appendLog("qbit.log", `[desktop] qBit exited: ${code ?? signal}\n`);
-  });
+  qbitProcess = child;
+  attachQbitProcess(child);
+
+  const status = await waitForQbit();
+  qbitReady = true;
+  qbitRestartAttempt = 0;
+  appendLog(
+    "qbit.log",
+    `[desktop] Managed qBittorrent ready on 127.0.0.1:${desktopConfig.qbitPort} (${status.data.trim()})\n`,
+  );
+}
+
+function scheduleQbitRestart() {
+  if (qbitRestartTimer || qbitRestarting || isQuitting) return;
+  const waitMs = Math.min(1000 * 2 ** qbitRestartAttempt, 30000);
+  qbitRestartAttempt += 1;
+  appendLog(
+    "qbit.log",
+    `[desktop] Scheduling qBit recovery in ${waitMs}ms\n`,
+  );
+  qbitRestartTimer = setTimeout(async () => {
+    qbitRestartTimer = null;
+    qbitRestarting = true;
+    try {
+      await startQbit();
+    } catch (err) {
+      appendLog(
+        "qbit.log",
+        `[desktop] qBit recovery failed: ${err.stack || err}\n`,
+      );
+    } finally {
+      qbitRestarting = false;
+      if (!qbitReady && !isQuitting) scheduleQbitRestart();
+    }
+  }, waitMs);
 }
 
 async function startNextServer() {
@@ -311,6 +459,7 @@ async function startNextServer() {
       QBIT_URL: `http://127.0.0.1:${desktopConfig.qbitPort}`,
       QBIT_USER: desktopConfig.qbitUser,
       QBIT_PASS: desktopConfig.qbitPassword,
+      QBIT_CONFIG_PATH: configFile(userData),
       ANIME_DESKTOP_APP: "1",
       DESKTOP_BOOTSTRAP_USER: desktopConfig.appUser,
       DESKTOP_BOOTSTRAP_PASSWORD: desktopConfig.appPassword,
@@ -329,7 +478,28 @@ async function startNextServer() {
   return appUrl;
 }
 
-function createWindow(appUrl) {
+function bootPage(message, detail = "请稍候，追番中心会自动完成剩余步骤。") {
+  return `<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <style>
+      html,body{height:100%;margin:0;background:#0f0d0a;color:#f6f1e8;font-family:Inter,"Microsoft YaHei",sans-serif}
+      body{display:grid;place-items:center}
+      main{width:min(420px,calc(100vw - 48px));padding:28px;border:1px solid rgba(255,255,255,.1);border-radius:12px;background:rgba(255,255,255,.035);box-shadow:0 24px 80px rgba(0,0,0,.35)}
+      i{display:block;width:10px;height:10px;border-radius:50%;background:#d69a4c;box-shadow:0 0 16px rgba(214,154,76,.55);animation:pulse 1.4s ease-in-out infinite}
+      h1{margin:18px 0 8px;font-size:20px;letter-spacing:-.02em}
+      p{margin:0;color:#a9a198;font-size:13px;line-height:1.7}
+      @keyframes pulse{50%{opacity:.35;transform:scale(.78)}}
+      @media(prefers-reduced-motion:reduce){i{animation:none}}
+    </style>
+  </head>
+  <body><main><i></i><h1>${message}</h1><p>${detail}</p></main></body>
+</html>`;
+}
+
+function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 820,
@@ -338,6 +508,7 @@ function createWindow(appUrl) {
     backgroundColor: "#0f0d0a",
     title: "追番中心",
     icon: getAppIconPath(),
+    show: false,
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
@@ -349,37 +520,115 @@ function createWindow(appUrl) {
     shell.openExternal(url);
     return { action: "deny" };
   });
-  mainWindow.loadURL(appUrl);
+  mainWindow.on("close", (event) => {
+    if (!isQuitting) {
+      event.preventDefault();
+      mainWindow.hide();
+    }
+  });
+  mainWindow.once("ready-to-show", () => mainWindow.show());
+  void mainWindow.loadURL(
+    `data:text/html;charset=utf-8,${encodeURIComponent(
+      bootPage("正在启动下载服务"),
+    )}`,
+  );
+}
+
+function revealWindow() {
+  if (!mainWindow) return;
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.show();
+  mainWindow.focus();
+}
+
+function createTray() {
+  tray = new Tray(getAppIconPath());
+  tray.setToolTip("追番中心");
+  tray.setContextMenu(
+    Menu.buildFromTemplate([
+      { label: "打开追番中心", click: revealWindow },
+      { type: "separator" },
+      { label: "退出并停止下载", click: () => app.quit() },
+    ]),
+  );
+  tray.on("double-click", revealWindow);
 }
 
 async function boot() {
   const userData = app.getPath("userData");
   ensureDir(userData);
   desktopConfig = loadDesktopConfig(userData);
-  await startQbit();
+  createWindow();
+  createTray();
+
+  try {
+    await startQbit();
+  } catch (err) {
+    appendLog("qbit.log", `[desktop] Initial qBit start failed: ${err.stack || err}\n`);
+  }
+
   const appUrl = await startNextServer();
-  createWindow(appUrl);
+  qbitAutoRestartEnabled = true;
+  if (!qbitReady) scheduleQbitRestart();
+  await mainWindow.loadURL(appUrl);
 }
 
-app.whenReady().then(() => {
-  boot().catch((err) => {
-    appendLog("desktop.err.log", `${err.stack || err}\n`);
-    app.quit();
-  });
-});
-
-app.on("activate", () => {
-  if (BrowserWindow.getAllWindows().length === 0 && mainWindow) {
-    mainWindow.show();
+async function waitForQbitExit(timeoutMs = 5000) {
+  const started = Date.now();
+  while (Date.now() - started < timeoutMs) {
+    if (!qbitProcess || qbitProcess.exitCode != null) return;
+    await delay(100);
   }
-});
+}
 
-app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") app.quit();
-});
+async function shutdownServices() {
+  qbitAutoRestartEnabled = false;
+  if (qbitRestartTimer) {
+    clearTimeout(qbitRestartTimer);
+    qbitRestartTimer = null;
+  }
+  if (nextProcess && !nextProcess.killed) nextProcess.kill();
 
-app.on("before-quit", () => {
-  if (nextProcess && !nextProcess.killed) {
-    nextProcess.kill();
+  const shutdown = await qbitApi("/api/v2/app/shutdown", { method: "POST" });
+  if (!shutdown.ok && shutdown.error !== "webui_unreachable") {
+    appendLog("qbit.log", `[desktop] qBit graceful shutdown failed: ${shutdown.error}\n`);
+  }
+  await waitForQbitExit();
+  if (qbitProcess && !qbitProcess.killed) qbitProcess.kill();
+}
+
+const hasSingleInstanceLock = app.requestSingleInstanceLock();
+if (!hasSingleInstanceLock) {
+  app.quit();
+} else {
+  app.on("second-instance", revealWindow);
+  app.whenReady().then(() => {
+    boot().catch((err) => {
+      appendLog("desktop.err.log", `${err.stack || err}\n`);
+      if (mainWindow) {
+        void mainWindow.loadURL(
+          `data:text/html;charset=utf-8,${encodeURIComponent(
+            bootPage(
+              "追番中心启动失败",
+              "应用数据保持不变。请重新启动；如果仍然失败，可查看 logs/desktop.err.log。",
+            ),
+          )}`,
+        );
+      }
+    });
+  });
+}
+
+app.on("activate", revealWindow);
+
+app.on("before-quit", (event) => {
+  isQuitting = true;
+  if (shutdownComplete) return;
+  event.preventDefault();
+  if (!shutdownPromise) {
+    shutdownPromise = shutdownServices().finally(() => {
+      shutdownComplete = true;
+      app.quit();
+    });
   }
 });

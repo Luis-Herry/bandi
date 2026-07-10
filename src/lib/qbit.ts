@@ -8,20 +8,18 @@
  * Session cookie is cached in-memory and re-auths on 403.
  */
 
-const configuredQbitUrl = process.env.QBIT_URL?.trim();
+import { readFileSync } from "node:fs";
+
+const envQbitUrl = process.env.QBIT_URL?.trim();
 const DEFAULT_QBIT_URLS = [
   "http://localhost:8080",
   "http://127.0.0.1:18080",
 ];
 const isDesktopApp = process.env.ANIME_DESKTOP_APP === "1";
-const allowLocalFallback =
-  !isDesktopApp &&
-  (!configuredQbitUrl || isLocalDefaultWebUiUrl(configuredQbitUrl));
-const QBIT_USER = process.env.QBIT_USER ?? "admin";
-const QBIT_PASS = process.env.QBIT_PASS ?? "";
+const qbitConfigPath = process.env.QBIT_CONFIG_PATH?.trim();
 
-let activeUrl: string | null = configuredQbitUrl
-  ? normalizeUrl(configuredQbitUrl)
+let activeUrl: string | null = envQbitUrl
+  ? normalizeUrl(envQbitUrl)
   : null;
 const cookies = new Map<string, { value: string; at: number }>();
 const COOKIE_TTL = 25 * 60 * 1000; // 25 min
@@ -29,6 +27,13 @@ const COOKIE_TTL = 25 * 60 * 1000; // 25 min
 type AuthResult =
   | { ok: true; cookie: string }
   | { ok: false; error: string };
+
+interface QbitConnectionConfig {
+  configuredUrl?: string;
+  username: string;
+  password: string;
+  allowLocalFallback: boolean;
+}
 
 function normalizeUrl(url: string): string {
   return url.replace(/\/$/, "");
@@ -42,12 +47,46 @@ function isLocalDefaultWebUiUrl(url: string): boolean {
   );
 }
 
-function getCandidateUrls(): string[] {
-  const configured = configuredQbitUrl ? [normalizeUrl(configuredQbitUrl)] : [];
+function getConnectionConfig(): QbitConnectionConfig {
+  if (isDesktopApp && qbitConfigPath) {
+    try {
+      const config = JSON.parse(readFileSync(qbitConfigPath, "utf8")) as {
+        qbitPort?: number;
+        qbitUser?: string;
+        qbitPassword?: string;
+      };
+      const port = Number(config.qbitPort || 0);
+      if (Number.isInteger(port) && port >= 1024 && port <= 65535) {
+        return {
+          configuredUrl: `http://127.0.0.1:${port}`,
+          username: config.qbitUser || process.env.QBIT_USER || "admin",
+          password: config.qbitPassword || process.env.QBIT_PASS || "",
+          allowLocalFallback: false,
+        };
+      }
+    } catch {
+      // Electron may be rewriting the file while recovering qBittorrent.
+      // The injected environment values remain a safe same-process fallback.
+    }
+  }
+
+  return {
+    configuredUrl: envQbitUrl,
+    username: process.env.QBIT_USER ?? "admin",
+    password: process.env.QBIT_PASS ?? "",
+    allowLocalFallback:
+      !isDesktopApp && (!envQbitUrl || isLocalDefaultWebUiUrl(envQbitUrl)),
+  };
+}
+
+function getCandidateUrls(connection: QbitConnectionConfig): string[] {
+  const configured = connection.configuredUrl
+    ? [normalizeUrl(connection.configuredUrl)]
+    : [];
   if (isDesktopApp) {
     return configured.length > 0 ? configured : [DEFAULT_QBIT_URLS[0]];
   }
-  const defaults = allowLocalFallback ? DEFAULT_QBIT_URLS : [];
+  const defaults = connection.allowLocalFallback ? DEFAULT_QBIT_URLS : [];
   const candidates = [...configured, ...defaults].map(normalizeUrl);
   const urls = new Set<string>();
   if (activeUrl && candidates.includes(activeUrl)) urls.add(activeUrl);
@@ -55,15 +94,18 @@ function getCandidateUrls(): string[] {
   return [...urls];
 }
 
-async function auth(baseUrl: string): Promise<AuthResult> {
+async function auth(
+  baseUrl: string,
+  connection: QbitConnectionConfig,
+): Promise<AuthResult> {
   const cached = cookies.get(baseUrl);
   if (cached && Date.now() - cached.at < COOKIE_TTL) {
     return { ok: true, cookie: cached.value };
   }
   try {
     const body = new URLSearchParams({
-      username: QBIT_USER,
-      password: QBIT_PASS,
+      username: connection.username,
+      password: connection.password,
     });
     const res = await fetch(`${baseUrl}/api/v2/auth/login`, {
       method: "POST",
@@ -97,17 +139,18 @@ async function request<T = unknown>(
   | { ok: true; data: T; url: string }
   | { ok: false; error: string; url: string }
 > {
+  const connection = getConnectionConfig();
   let lastError:
     | { ok: false; error: string; url: string }
     | null = null;
-  for (const baseUrl of getCandidateUrls()) {
-    const result = await requestFromUrl<T>(baseUrl, path, init);
+  for (const baseUrl of getCandidateUrls(connection)) {
+    const result = await requestFromUrl<T>(baseUrl, connection, path, init);
     if (result.ok) {
       activeUrl = baseUrl;
       return result;
     }
     lastError = result;
-    if (!allowLocalFallback) return result;
+    if (!connection.allowLocalFallback) return result;
     if (result.error === "webui_unreachable") continue;
     if (result.error.startsWith("auth_http_")) continue;
     if (result.error.startsWith("http_")) continue;
@@ -116,12 +159,13 @@ async function request<T = unknown>(
   return lastError ?? {
     ok: false,
     error: "webui_unreachable",
-    url: activeUrl ?? DEFAULT_QBIT_URLS[0],
+    url: activeUrl ?? connection.configuredUrl ?? DEFAULT_QBIT_URLS[0],
   };
 }
 
 async function requestFromUrl<T = unknown>(
   baseUrl: string,
+  connection: QbitConnectionConfig,
   path: string,
   init: RequestInit = {},
 ): Promise<
@@ -129,7 +173,7 @@ async function requestFromUrl<T = unknown>(
   | { ok: false; error: string; url: string }
 > {
   try {
-    const authResult = await auth(baseUrl);
+    const authResult = await auth(baseUrl, connection);
     if (!authResult.ok)
       return { ok: false, error: authResult.error, url: baseUrl };
     const headers = new Headers(init.headers);
@@ -138,7 +182,7 @@ async function requestFromUrl<T = unknown>(
     const res = await fetch(`${baseUrl}${path}`, { ...init, headers });
     if (res.status === 403) {
       cookies.delete(baseUrl);
-      const retryAuth = await auth(baseUrl);
+      const retryAuth = await auth(baseUrl, connection);
       if (!retryAuth.ok)
         return { ok: false, error: retryAuth.error, url: baseUrl };
       headers.set("Cookie", retryAuth.cookie);
@@ -175,6 +219,7 @@ async function parse<T>(
 
 export interface QbitStatus {
   connected: boolean;
+  managed: boolean;
   url: string;
   version?: string;
   apiVersion?: string;
@@ -203,7 +248,12 @@ export interface QbitTorrent {
 export async function getStatus(): Promise<QbitStatus> {
   const version = await request<string>("/api/v2/app/version");
   if (!version.ok)
-    return { connected: false, url: version.url, error: version.error };
+    return {
+      connected: false,
+      managed: isDesktopApp,
+      url: version.url,
+      error: version.error,
+    };
   const apiVersion = await request<string>("/api/v2/app/webapiVersion");
   const xfer = await request<{
     dl_info_speed: number;
@@ -214,6 +264,7 @@ export async function getStatus(): Promise<QbitStatus> {
   }>("/api/v2/transfer/info");
   return {
     connected: true,
+    managed: isDesktopApp,
     url: version.url,
     version: version.data,
     apiVersion: apiVersion.ok ? apiVersion.data : undefined,

@@ -62,6 +62,7 @@ type DownloadListEntry =
 
 interface QbitStatus {
   connected: boolean;
+  managed: boolean;
   url: string;
   version?: string;
   apiVersion?: string;
@@ -265,7 +266,7 @@ export function DownloadsAdminClient() {
           uniqueIds.length === downloads.length
             ? "下载列表已清空"
             : `已移除 ${j.deleted ?? uniqueIds.length} 条下载记录`,
-        description: "qBittorrent 任务和本地文件未改动",
+        description: "下载引擎中的任务和本地文件未改动",
         tone: "info",
       });
       await refresh();
@@ -329,7 +330,7 @@ export function DownloadsAdminClient() {
             下载管理
           </h1>
           <p className="mt-1 text-[12px] text-[color:var(--text-muted)]">
-            查看下载队列与 qBittorrent 实时状态
+            查看下载队列与实时传输状态
           </p>
         </div>
         <Button
@@ -381,7 +382,7 @@ export function DownloadsAdminClient() {
               {selectedCount > 0 && (
                 <ConfirmDialog
                   title="移除已选下载记录？"
-                  description={`将从本地下载列表移除已选的 ${selectedCount} 条记录。不会删除 qBittorrent 中的任务或本地文件。`}
+                  description={`将从本地下载列表移除已选的 ${selectedCount} 条记录。不会删除下载引擎中的任务或本地文件。`}
                   confirmLabel="移除所选"
                   destructive
                   onConfirm={() => handleBulkDelete([...selectedDownloadIds])}
@@ -401,7 +402,7 @@ export function DownloadsAdminClient() {
               {downloads.length > 0 && (
                 <ConfirmDialog
                   title="清空下载列表？"
-                  description={`将从本地下载列表移除全部 ${downloads.length} 条记录。不会删除 qBittorrent 中的任务或本地文件。`}
+                  description={`将从本地下载列表移除全部 ${downloads.length} 条记录。不会删除下载引擎中的任务或本地文件。`}
                   confirmLabel="清空列表"
                   destructive
                   onConfirm={() => handleBulkDelete(downloads.map((d) => d.id))}
@@ -510,7 +511,9 @@ function QbitStatusCard({
   hasActiveDownload: boolean;
 }) {
   const connected = qbit?.connected ?? false;
-  const hint = qbit?.error ? qbitErrorHint(qbit.error) : null;
+  const hint = qbit?.error
+    ? qbitErrorHint(qbit.error, qbit.managed)
+    : null;
   const adviceReason = qbitConnectionAdviceReason(qbit, hasActiveDownload);
 
   return (
@@ -533,12 +536,23 @@ function QbitStatusCard({
             <div className="min-w-0">
               <p className="flex items-center gap-2 text-[13px] font-semibold text-[color:var(--text-primary)]">
                 <Activity size={13} />
-                qBittorrent {connected ? "已连接" : "未连接"}
+                {qbit?.managed ? "下载服务" : "qBittorrent"}{" "}
+                {connected
+                  ? qbit?.managed
+                    ? "可用"
+                    : "已连接"
+                  : qbit?.managed
+                    ? "恢复中"
+                    : "未连接"}
               </p>
               <p className="mt-0.5 break-words text-[11px] text-[color:var(--text-muted)]">
-                {qbit?.url ?? "—"}
-                {qbit?.version && ` · v${qbit.version}`}
-                {qbit?.error && ` · ${qbit.error}`}
+                {qbit?.managed
+                  ? qbit.version
+                    ? `内置引擎 ${qbit.version}`
+                    : "桌面版自动管理"
+                  : qbit?.url ?? "—"}
+                {!qbit?.managed && qbit?.version && ` · ${qbit.version}`}
+                {!qbit?.managed && qbit?.error && ` · ${qbit.error}`}
               </p>
               {hint && (
                 <p className="mt-1 break-words text-[11px] leading-5 text-[color:var(--status-warning)]">
@@ -553,20 +567,24 @@ function QbitStatusCard({
               <StatCell label="上传" value={formatSpeed(qbit?.upSpeed)} />
               <StatCell label="剩余空间" value={formatBytes(qbit?.freeSpaceOnDisk)} />
             </div>
-            <QbitSetupGuideDialog
-              trigger={
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  leftIcon={<HelpCircle size={12} />}
-                >
-                  不会设置看这里
-                </Button>
-              }
-            />
+            {qbit && !qbit.managed && (
+              <QbitSetupGuideDialog
+                trigger={
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    leftIcon={<HelpCircle size={12} />}
+                  >
+                    不会设置看这里
+                  </Button>
+                }
+              />
+            )}
           </div>
         </div>
-        {adviceReason && <QbitConnectionAdvice reason={adviceReason} />}
+        {adviceReason && (
+          <QbitConnectionAdvice reason={adviceReason} managed={qbit?.managed ?? false} />
+        )}
       </div>
     </GlassPanel>
   );
@@ -577,7 +595,11 @@ function qbitConnectionAdviceReason(
   hasActiveDownload: boolean,
 ): string | null {
   if (!qbit) return null;
-  if (!qbit.connected || qbit.error) return "qBittorrent Web UI 当前不可用。";
+  if (!qbit.connected || qbit.error) {
+    return qbit.managed
+      ? "内置下载服务暂时不可用，桌面版正在自动恢复。"
+      : "qBittorrent Web UI 当前不可用。";
+  }
   if ((qbit.upSpeed ?? 0) >= HIGH_QBIT_UPLOAD_BYTES) {
     return "当前上传偏高，可能影响同机网络。";
   }
@@ -587,7 +609,13 @@ function qbitConnectionAdviceReason(
   return null;
 }
 
-function QbitConnectionAdvice({ reason }: { reason: string }) {
+function QbitConnectionAdvice({
+  reason,
+  managed,
+}: {
+  reason: string;
+  managed: boolean;
+}) {
   return (
     <AccordionDisclosure
       title="查看连接建议"
@@ -598,16 +626,20 @@ function QbitConnectionAdvice({ reason }: { reason: string }) {
         <p>当前状态：{reason}</p>
         <p>安全下载模式会限制上传，并在下载完成后暂停 torrent。</p>
         <p>
-          如果正在使用 VPN / TUN / 代理，建议在代理软件里将 qbittorrent.exe
-          设为直连，qBittorrent 自身代理保持“无”。
+          {managed
+            ? "如果 VPN / TUN 仍受影响，可在代理软件里将内置 qbittorrent.exe 进程设为直连。"
+            : "如果正在使用 VPN / TUN / 代理，建议将 qbittorrent.exe 设为直连，qBittorrent 自身代理保持“无”。"}
         </p>
     </AccordionDisclosure>
   );
 }
 
-function qbitErrorHint(error: string): string {
+function qbitErrorHint(error: string, managed: boolean): string {
+  if (managed) {
+    return "桌面版会自动选择连接端口并重新启动下载服务，无需手动配置。";
+  }
   if (error === "webui_unreachable") {
-    return "qBittorrent 进程可能已启动，但 Web UI 没有监听；桌面版默认 127.0.0.1:8080，若端口被占用，可在本地配置里改 qbitPort 后重启。";
+    return "qBittorrent 进程可能已启动，但 Web UI 没有监听；请检查外部 qBittorrent 的 Web UI 设置。";
   }
   if (error === "auth_failed" || error === "auth_cookie_missing") {
     return "Web UI 能访问，但登录失败；检查 QBIT_USER / QBIT_PASS 是否和 qBit Web UI 一致。";
@@ -1030,7 +1062,7 @@ function DownloadRowItem({
           )}
           <ConfirmDialog
             title="从列表移除？"
-            description="只会从本地列表移除，qBittorrent 中的下载需要在 qBit 里单独处理。"
+            description="只会从本地列表移除，下载引擎中的任务和本地文件保持不变。"
             confirmLabel="移除"
             destructive
             onConfirm={onDelete}

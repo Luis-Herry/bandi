@@ -103,7 +103,7 @@ const SETTING_NAV = [
     icon: <SlidersHorizontal size={14} />,
   },
   { href: "#rss", label: "RSS 源", icon: <Rss size={14} /> },
-  { href: "#qbit", label: "qBittorrent", icon: <HardDrive size={14} /> },
+  { href: "#qbit", label: "下载服务", icon: <HardDrive size={14} /> },
   { href: "#data-maintenance", label: "数据与维护", icon: <Archive size={14} /> },
 ];
 

@@ -59,7 +59,7 @@ test("scan panel and save flows keep motion on long or height-changing states", 
   assert.match(cinemaScanSource, /<ShimmerText text="扫描中" \/>/);
   assert.match(automationSettingsSource, /<ShimmerText text="加载 RSS 源中/);
   assert.match(automationSettingsSource, /<ShimmerText text="加载下载偏好中/);
-  assert.match(automationSettingsSource, /<ShimmerText text="检测 qBittorrent 中/);
+  assert.match(automationSettingsSource, /<ShimmerText text="检测下载服务中/);
   assert.match(automationSettingsSource, /shimmer=\{saving\}/);
 });
 

@@ -68,32 +68,68 @@ test("desktop packaging boundary survives web sync", () => {
   assert.ok(existsSync("public/favicon.png"));
 });
 
+test("bundled qBittorrent keeps the pinned runtime and matching source notices", () => {
+  const notice = readFileSync("vendor/qbittorrent/NOTICE.txt", "utf8");
+
+  assert.match(notice, /qBittorrent v5\.2\.3/);
+  assert.match(
+    notice,
+    /ff508e2f912d59c9eabaf03633ebacfd45c2049f38dcac027b8a7d7ad867ab2f/,
+  );
+  assert.match(
+    notice,
+    /f69360ae8545a64f4fc84fb6bacef03d77a6aa0793a4c14d4a28651ca26a27d1/,
+  );
+  assert.ok(existsSync("vendor/qbittorrent/qbittorrent.exe"));
+  assert.ok(existsSync("vendor/qbittorrent/qbittorrent-5.2.3.tar.xz"));
+  assert.ok(existsSync("vendor/qbittorrent/COPYING"));
+  assert.ok(existsSync("vendor/qbittorrent/COPYING.GPLv2"));
+  assert.ok(existsSync("vendor/qbittorrent/COPYING.GPLv3"));
+  assert.ok(existsSync("vendor/qbittorrent/AUTHORS"));
+});
+
 test("desktop main keeps local qBit and userData runtime paths", () => {
   const mainSource = readFileSync("desktop/main.cjs", "utf8");
 
-  assert.match(mainSource, /QBIT_PORT_DEFAULT = 8080/);
-  assert.match(mainSource, /existingQbitPort !== 18180/);
+  assert.match(mainSource, /QBIT_PORT_START = 18180/);
+  assert.match(mainSource, /findOpenPort\(QBIT_PORT_START\)/);
   assert.match(mainSource, /app\.getPath\("userData"\)/);
   assert.match(mainSource, /path\.join\(userData, "qbit-profile"\)/);
   assert.match(mainSource, /path\.join\(userData, "download"\)/);
   assert.match(mainSource, /path\.join\(userData, "data"\)/);
   assert.match(mainSource, /DATABASE_URL: dbPath/);
   assert.match(mainSource, /QBIT_URL: `http:\/\/127\.0\.0\.1:\$\{desktopConfig\.qbitPort\}`/);
+  assert.match(mainSource, /QBIT_CONFIG_PATH: configFile\(userData\)/);
   assert.match(mainSource, /ANIME_DESKTOP_APP: "1"/);
   assert.match(mainSource, /getAppIconPath\(\)/);
   assert.match(mainSource, /icon: getAppIconPath\(\)/);
+});
+
+test("desktop owns qBit readiness, recovery, tray, and graceful shutdown", () => {
+  const mainSource = readFileSync("desktop/main.cjs", "utf8");
+
+  assert.match(mainSource, /async function probeQbit\(\)/);
+  assert.match(mainSource, /waitForQbit\(\)/);
+  assert.match(mainSource, /Scheduling qBit recovery/);
+  assert.match(mainSource, /app\.requestSingleInstanceLock\(\)/);
+  assert.match(mainSource, /new Tray\(getAppIconPath\(\)\)/);
+  assert.match(mainSource, /退出并停止下载/);
+  assert.match(mainSource, /\/api\/v2\/app\/shutdown/);
+  assert.match(mainSource, /mainWindow\.hide\(\)/);
 });
 
 test("desktop qBit client only uses the injected URL in desktop mode", () => {
   const qbitSource = readFileSync("src/lib/qbit.ts", "utf8");
 
   assert.match(qbitSource, /process\.env\.ANIME_DESKTOP_APP === "1"/);
-  assert.match(qbitSource, /!isDesktopApp &&/);
+  assert.match(qbitSource, /process\.env\.QBIT_CONFIG_PATH/);
+  assert.match(qbitSource, /readFileSync\(qbitConfigPath, "utf8"\)/);
   assert.match(qbitSource, /if \(isDesktopApp\)/);
   assert.match(
     qbitSource,
     /return configured\.length > 0 \? configured : \[DEFAULT_QBIT_URLS\[0\]\]/,
   );
+  assert.match(qbitSource, /managed: isDesktopApp/);
 });
 
 test("desktop bootstrap creates playback progress storage", () => {
@@ -167,7 +203,7 @@ test("desktop bootstrap migrates old anime rows for cinema fields", () => {
   sqlite.close();
 });
 
-test("desktop qBit setup guide keeps screenshots and 8080 defaults", () => {
+test("external qBit setup guide remains available as a web-mode fallback", () => {
   const guideSource = readFileSync(
     "src/components/features/QbitSetupGuideDialog.tsx",
     "utf8",
@@ -184,7 +220,7 @@ test("desktop qBit setup guide keeps screenshots and 8080 defaults", () => {
   assert.ok(existsSync("public/qbit-guide/webui-options.png"));
 });
 
-test("download and settings qBit panels keep the desktop guide entry", () => {
+test("download and settings panels hide infrastructure details in managed mode", () => {
   const downloadsSource = readFileSync(
     "src/app/(main)/admin/downloads/Client.tsx",
     "utf8",
@@ -197,10 +233,12 @@ test("download and settings qBit panels keep the desktop guide entry", () => {
   for (const source of [downloadsSource, settingsSource]) {
     assert.match(source, /QbitSetupGuideDialog/);
     assert.match(source, /不会设置看这里/);
-    assert.match(source, /默认 127\.0\.0\.1:8080/);
+    assert.match(source, /qbit && !qbit\.managed/);
+    assert.match(source, /下载服务/);
+    assert.doesNotMatch(source, /默认 127\.0\.0\.1:8080/);
   }
-  assert.match(downloadsSource, /qbitPort/);
-  assert.doesNotMatch(downloadsSource, /端口优先用 18080/);
+  assert.match(downloadsSource, /自动选择连接端口/);
+  assert.match(settingsSource, /关闭窗口后会缩到托盘继续下载/);
 });
 
 test("desktop login keeps default-account hint without losing the shared brand UI", () => {

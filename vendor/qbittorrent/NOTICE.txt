@@ -1,15 +1,34 @@
 qBittorrent vendor copy
 
-This folder contains an unmodified Windows copy of qBittorrent v5.0.3 from:
-E:\Program Files\qBittorrent
+This folder contains an unmodified Windows x64 copy of qBittorrent v5.2.3
+from the official standard installer:
+https://github.com/qbittorrent/qBittorrent/releases/tag/release-5.2.3
 
-Included files:
+Official installer SHA-256:
+ff508e2f912d59c9eabaf03633ebacfd45c2049f38dcac027b8a7d7ad867ab2f
+
+Vendored qbittorrent.exe SHA-256:
+f69360ae8545a64f4fc84fb6bacef03d77a6aa0793a4c14d4a28651ca26a27d1
+
+Included runtime files:
 - qbittorrent.exe
 - qt.conf
 - translations/
 
-Project: https://www.qbittorrent.org/
-Source code: https://github.com/qbittorrent/qBittorrent
-License: GNU General Public License v2.0 or later, with the OpenSSL linking exception stated by the qBittorrent project.
+Included compliance files:
+- COPYING
+- COPYING.GPLv2
+- COPYING.GPLv3
+- AUTHORS
+- qbittorrent-5.2.3.tar.xz (matching official source archive)
 
-Do not edit the binary in this project. For broader redistribution, keep this notice with the app and provide the matching qBittorrent source/license information.
+Source archive SHA-256:
+7573621859da7287ba708378ea9f5eb12f30962a1a7c28eba5f44ecf8c4c114c
+
+Project: https://www.qbittorrent.org/
+Source code: https://github.com/qbittorrent/qBittorrent/tree/release-5.2.3
+License: GPLv3+ for the binary distribution and GPLv2+ for source code, with
+the OpenSSL linking exception stated in COPYING.
+
+Keep these notices and the matching source archive with distributed builds.
+Do not patch the vendored executable.

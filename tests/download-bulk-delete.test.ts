@@ -35,7 +35,7 @@ test("downloads admin exposes bulk local-list removal controls", () => {
   assert.match(clientSource, /全选当前分类/);
   assert.match(clientSource, /删除所选/);
   assert.match(clientSource, /清空列表/);
-  assert.match(clientSource, /不会删除 qBittorrent 中的任务或本地文件/);
+  assert.match(clientSource, /不会删除下载引擎中的任务或本地文件/);
 });
 
 test("download row selection keeps only one visible checkbox frame", () => {
@@ -54,6 +54,7 @@ test("downloads admin exposes qBit connection advice only as an abnormal hint", 
   assert.match(clientSource, /qbitConnectionAdviceReason/);
   assert.match(clientSource, /QbitSetupGuideDialog/);
   assert.match(clientSource, /不会设置看这里/);
+  assert.match(clientSource, /qbit && !qbit\.managed/);
   assert.match(clientSource, /查看连接建议/);
   assert.match(clientSource, /hasActiveDownload/);
   assert.match(clientSource, /if \(!qbit\) return null/);
@@ -69,7 +70,8 @@ test("downloads admin exposes qBit connection advice only as an abnormal hint", 
 test("qBit status card keeps status and metrics in one responsive top row", () => {
   assert.match(clientSource, /min-\[900px\]:flex-row/);
   assert.match(clientSource, /min-\[900px\]:min-w-\[210px\]/);
-  assert.match(clientSource, /桌面版默认 127\.0\.0\.1:8080/);
+  assert.match(clientSource, /桌面版会自动选择连接端口/);
+  assert.match(clientSource, /下载服务/);
   assert.match(clientSource, /mt-\[5px\] h-2 w-2 shrink-0 rounded-full/);
   assert.match(clientSource, /break-words text-\[11px\] leading-5/);
   assert.match(clientSource, /className="w-full border-t/);
