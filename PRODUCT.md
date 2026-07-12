@@ -6,11 +6,11 @@ product
 
 ## Users
 
-Luis is the primary user: a UI/UX designer using the app as a personal anime tracking and media-center tool. The product may later be opened to friends, but the current workflow is personal and local-first.
+Luis is the primary user: a UI/UX designer using the Windows desktop app as a personal anime tracking and media-center tool. The product may later be shared with friends, while the current workflow remains personal and local-first.
 
 ## Product Purpose
 
-Bandi helps the user answer three questions quickly: 今天看什么, 看到第几集, 下集什么时候更新. Success means the user can open the app, understand current updates and watch progress within a few seconds, manage RSS/qBittorrent downloads without noisy setup, and jump into the built-in Web player when an episode is ready.
+Bandi helps the user answer three questions quickly: 今天看什么, 看到第几集, 下集什么时候更新. Success means the user can open one desktop app, understand current updates and watch progress within a few seconds, manage RSS and the bundled qBittorrent service without setup noise, and start the built-in player when an episode is ready.
 
 ## Brand Personality
 
@@ -26,8 +26,9 @@ Avoid looking like a generic resource index, noisy torrent site, blue-purple neo
 - Let anime artwork carry identity: product chrome stays restrained and uses cover-derived accent color only where it clarifies state or action.
 - Keep operational flows direct: tracking, finding sources, download state, and playback should avoid extra choices when the system can infer the next step.
 - Preserve local reliability: external API, RSS, and qBittorrent failures should degrade to cached or explanatory states without blocking normal browsing.
+- Keep runtime storage predictable: videos and caches live on the configured H/K data drives, while the small database, config, logs, and managed qBit profile remain in AppData.
 - Design dense screens for scanning: controls, episode states, metadata, and notes must stay readable across breakpoints without hiding core functionality.
 
 ## Accessibility & Inclusion
 
-Use readable contrast on the dark surface, visible focus states for keyboard users, touch targets large enough on smaller screens, and reduced-motion fallbacks for decorative or ambient animation. Responsive adaptation must keep core actions available on mobile, tablet, and desktop.
+Use readable contrast on the dark surface, visible focus states for keyboard users, practical pointer targets, and reduced-motion fallbacks for decorative or ambient animation. Window resizing must keep core actions available throughout the supported desktop range.

@@ -23,6 +23,10 @@ interface AnimeCoverProps {
   sizes?: string;
   /** Bangumi 图片按展示场景降尺寸，避免列表页拉原图后超时。 */
   imageRole?: BangumiImageRole;
+  /** 图片裁切方式。人物立绘等需要完整展示时可使用 contain。 */
+  fit?: "cover" | "contain";
+  /** 图片焦点位置，例如人物缩略图使用 "center top" 保留脸部。 */
+  objectPosition?: string;
 }
 
 /**
@@ -46,13 +50,18 @@ export function AnimeCover({
   priority = false,
   sizes = "(min-width: 1280px) 320px, (min-width: 768px) 33vw, 50vw",
   imageRole = "card",
+  fit = "cover",
+  objectPosition,
 }: AnimeCoverProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement | null>(null);
   const rawResolved = src ? resizeBangumiImageUrl(src, imageRole) : null;
-  // DMM 封面经自有代理端点（服务器走代理抓，浏览器只访问同源 /api/img，不直连 DMM）
+  // DMM / 豆瓣封面经自有代理端点。豆瓣必须带站内 Referer，浏览器原生 img 无法可靠伪装。
   const resolvedSrc =
-    rawResolved && /^https:\/\/pics\.dmm\.co\.jp\//.test(rawResolved)
+    rawResolved &&
+    /^https:\/\/(?:pics\.dmm\.co\.jp|img\d+\.doubanio\.com)\//.test(
+      rawResolved,
+    )
       ? `/api/img?url=${encodeURIComponent(rawResolved)}`
       : rawResolved;
   const [loaded, setLoaded] = useState(false);
@@ -60,7 +69,7 @@ export function AnimeCover({
   const [shouldLoad, setShouldLoad] = useState(priority);
   const [resetting, setResetting] = useState(false);
   const resetFrameRef = useRef<number | null>(null);
-  // bgm 直连图 + 同源 /api/img（DMM 代理）走原生 <img>；其余走 next/image 优化。
+  // bgm 直连图 + 同源 /api/img 走原生 <img>；其余走 next/image 优化。
   const bypassOptimization =
     resolvedSrc != null &&
     (/^https:\/\/(?:lain\.bgm\.tv|bangumi\.tv)\//.test(resolvedSrc) ||
@@ -166,8 +175,10 @@ export function AnimeCover({
           onError={() => setFailed(true)}
           className={cn(
             // Bangumi 直连图可能在 hydration 前已加载完；保持图片节点可见，避免错过 onLoad 后永久透明。
-            "absolute inset-0 h-full w-full object-cover",
+            "absolute inset-0 h-full w-full",
+            fit === "contain" ? "object-contain" : "object-cover",
           )}
+          style={objectPosition ? { objectPosition } : undefined}
         />
       )}
 
@@ -182,7 +193,11 @@ export function AnimeCover({
           loading={priority ? undefined : "eager"}
           onLoad={() => setLoaded(true)}
           onError={() => setFailed(true)}
-          className="t-skel-content object-cover"
+          className={cn(
+            "t-skel-content",
+            fit === "contain" ? "object-contain" : "object-cover",
+          )}
+          style={objectPosition ? { objectPosition } : undefined}
         />
       )}
 

@@ -38,8 +38,9 @@ const MOVIE_GENRES = [
   "悬疑",
   "灾难",
 ] as const;
+const ALL_MOVIES = "全部";
 const R_RATED = "R级";
-const MOVIE_GENRE_TABS = [...MOVIE_GENRES, R_RATED];
+const MOVIE_GENRE_TABS = [ALL_MOVIES, ...MOVIE_GENRES, R_RATED];
 
 type AdultKind = "all" | "jav" | "ova";
 const ADULT_KINDS: { value: AdultKind; label: string }[] = [
@@ -137,7 +138,7 @@ export function CinemaClient({
   const [genre, setGenre] = useState<string>(
     initialGenre && (MOVIE_GENRE_TABS as readonly string[]).includes(initialGenre)
       ? initialGenre
-      : MOVIE_GENRES[0],
+      : ALL_MOVIES,
   );
   const [adultKind, setAdultKind] = useState<AdultKind>(
     initialKind === "jav" || initialKind === "ova" ? initialKind : "all",
@@ -147,7 +148,7 @@ export function CinemaClient({
     const params = new URLSearchParams();
     if (tab === "movies") {
       params.set("tab", "movies");
-      if (genre !== MOVIE_GENRES[0]) params.set("genre", genre);
+      if (genre !== ALL_MOVIES) params.set("genre", genre);
       if (genre === R_RATED && adultKind !== "all") params.set("kind", adultKind);
     }
     const qs = params.toString();
@@ -166,6 +167,7 @@ export function CinemaClient({
   // 每个题材的本地电影数（R级 = 番号 + OVA）
   const genreCounts = useMemo(() => {
     const map: Record<string, number> = {};
+    map[ALL_MOVIES] = movie.length;
     for (const g of MOVIE_GENRES) {
       map[g] = movie.filter((m) => m.tags.includes(g)).length;
     }
@@ -179,9 +181,15 @@ export function CinemaClient({
     [adultKind, jav, ova],
   );
   const movieItems = useMemo(
-    () => (isRRated ? adultItems : movie.filter((m) => m.tags.includes(genre))),
+    () =>
+      isRRated
+        ? adultItems
+        : genre === ALL_MOVIES
+          ? movie
+          : movie.filter((m) => m.tags.includes(genre)),
     [adultItems, genre, isRRated, movie],
   );
+  const hasLocalItems = drama.length + movie.length + jav.length + ova.length > 0;
   const dramaGridRef = useCardGlow<HTMLDivElement>([drama, tab]);
   const movieGridRef = useCardGlow<HTMLDivElement>([
     movieItems,
@@ -214,7 +222,7 @@ export function CinemaClient({
           </p>
         </div>
         <div className="flex flex-wrap items-start justify-end gap-2">
-          <CinemaEnrichButton />
+          {hasLocalItems && <CinemaEnrichButton scope="local" />}
           <CinemaScanButton />
         </div>
       </header>
@@ -313,24 +321,26 @@ export function CinemaClient({
       {/* ===== 电影：题材 tab（R级 最后，承载成人内容）===== */}
       {tab === "movies" && (
         <section className="space-y-4">
-          <div
-            ref={genreTabsRef}
-            role="tablist"
-            aria-label="电影题材"
-            className="t-tabs t-tabs-segmented flex flex-wrap items-center gap-1 rounded-[8px] border border-[color:var(--border-subtle)] p-1"
-          >
-            <span className="t-tabs-pill" aria-hidden="true" />
-            {MOVIE_GENRE_TABS.map((g) => (
-              <PillTab
-                key={g}
-                active={genre === g}
-                onClick={() => setGenre(g)}
-                count={genreCounts[g] || undefined}
-              >
-                {g}
-              </PillTab>
-            ))}
-          </div>
+          {counts.movies > 0 && (
+            <div
+              ref={genreTabsRef}
+              role="tablist"
+              aria-label="电影题材"
+              className="t-tabs t-tabs-segmented flex flex-wrap items-center gap-1 rounded-[8px] border border-[color:var(--border-subtle)] p-1"
+            >
+              <span className="t-tabs-pill" aria-hidden="true" />
+              {MOVIE_GENRE_TABS.map((g) => (
+                <PillTab
+                  key={g}
+                  active={genre === g}
+                  onClick={() => setGenre(g)}
+                  count={genreCounts[g] || undefined}
+                >
+                  {g}
+                </PillTab>
+              ))}
+            </div>
+          )}
 
           {/* R级 内再分番号 / OVA */}
           {isRRated && (
@@ -373,7 +383,11 @@ export function CinemaClient({
             <GlassPanel className="flex flex-col items-center justify-center gap-2 px-6 py-16 text-center">
               <Clapperboard size={28} className="text-[color:var(--text-muted)]" />
               <p className="text-[14px] font-medium text-[color:var(--text-primary)]">
-                {isRRated ? "R级 还没有内容" : `本地还没有「${genre}」题材的电影`}
+                {isRRated
+                  ? "R级 还没有内容"
+                  : genre === ALL_MOVIES
+                    ? "本地库还没有电影"
+                    : `本地还没有「${genre}」题材的电影`}
               </p>
               <p className="max-w-[420px] text-[12px] leading-relaxed text-[color:var(--text-muted)]">
                 点「扫描本地库」把本地电影扫描入库，会按题材自动归到对应 tab；成人内容归到 R级。

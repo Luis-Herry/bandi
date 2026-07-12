@@ -28,6 +28,10 @@ export function CinemaDetailEnrichButton({ animeId }: Props) {
         setError(data?.error ?? "补全失败");
         return;
       }
+      if (data.result.reclassified) {
+        router.replace(`/anime/${data.result.animeId}`);
+        return;
+      }
       router.refresh();
     } catch {
       setError("补全出错");

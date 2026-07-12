@@ -19,7 +19,8 @@ const ROUTE_TITLES: Array<[RegExp, string]> = [
   [/^\/player/, "正在播放"],
   [/^\/anime/, "番剧详情"],
   [/^\/cinema-library/, "影视库"],
-  [/^\/cinema/, "影视本地库"],
+  [/^\/cinema\/[^/]+/, "影视详情"],
+  [/^\/cinema\/?$/, "影视本地库"],
   [/^\/character/, "角色资料"],
   [/^\/staff/, "制作人员资料"],
 ];

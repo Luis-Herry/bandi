@@ -31,13 +31,19 @@ import {
 import {
   getDoubanCatalog,
   getDoubanInfo,
+  getDoubanSubject,
+  hasDoubanAnimationGenre,
+  isReliableDoubanInfoMatch,
+  isReliableDoubanTitleSetMatch,
   type DoubanCatalogHit,
   type DoubanInfo,
 } from "@/lib/douban";
+import { getBangumiTitleAliases } from "@/lib/anime-title-aliases";
 import { extractJavCode, getJavInfo } from "@/lib/jav";
 import { cacheCover } from "@/lib/cover-cache";
 
 const POSTER_SIZE = "w500";
+type AnimeRow = typeof anime.$inferSelect;
 
 // 海外「在哪看」查询区。TMDB/JustWatch 对中国大陆无数据（CN provider 恒 0，见 tmdb.ts），
 // 国内「在哪看」走豆瓣 vendors；海外区拿 Netflix/Disney+/HBO 等。默认 US（数据最全），
@@ -51,6 +57,8 @@ export interface EnrichResult {
   doubanId?: string;
   title?: string;
   reason?: string;
+  reclassified?: boolean;
+  conflict?: boolean;
 }
 
 function doubanToProviders(d: DoubanInfo | null): WatchProvidersCache | null {
@@ -66,6 +74,96 @@ function doubanToProviders(d: DoubanInfo | null): WatchProvidersCache | null {
     providers,
     fetchedAt: Math.floor(Date.now() / 1000),
   };
+}
+
+export function mergeWatchProviderRegions(
+  existing:
+    | WatchProvidersCache
+    | WatchProvidersCache[]
+    | null
+    | undefined,
+  fresh: Array<WatchProvidersCache | null | undefined>,
+): WatchProvidersCache[] {
+  const merged = new Map<string, WatchProvidersCache>();
+  for (const lane of normalizeWatchProviders(existing)) {
+    merged.set(lane.region.toUpperCase(), lane);
+  }
+  for (const lane of fresh) {
+    if (!lane || lane.providers.length === 0) continue;
+    merged.set(lane.region.toUpperCase(), lane);
+  }
+  return [...merged.values()];
+}
+
+function mergeDoubanGenres(
+  row: AnimeRow,
+  detail: DoubanInfo | null,
+): string[] | null {
+  const genres = Array.from(
+    new Set([...(row.tags ?? []), ...(detail?.genres ?? [])]),
+  );
+  return genres.length > 0 ? genres : row.tags;
+}
+
+function hasEpisodeRows(animeId: number): boolean {
+  return (
+    db
+      .select({ id: episodes.id })
+      .from(episodes)
+      .where(eq(episodes.animeId, animeId))
+      .get() != null
+  );
+}
+
+/**
+ * 给已确认身份的动漫补豆瓣字段。现有 Bangumi 标题、封面和剧集是主数据；
+ * 豆瓣只补空字段、评分、CN providers 与题材。
+ */
+function applyDoubanAnimationMetadata(
+  row: AnimeRow,
+  detail: DoubanInfo | null,
+  hit: Pick<DoubanCatalogHit, "doubanId" | "rating" | "coverUrl">,
+  { reclassify = false } = {},
+): void {
+  const storedEpisodes = hasEpisodeRows(row.id);
+  const totalEpisodes = storedEpisodes
+    ? row.totalEpisodes
+    : row.totalEpisodes != null && row.totalEpisodes > 0
+      ? row.totalEpisodes
+      : detail?.totalEpisodes;
+  const watchProviders = detail
+    ? mergeWatchProviderRegions(row.watchProviders, [doubanToProviders(detail)])
+    : row.watchProviders;
+  const now = new Date();
+
+  db.update(anime)
+    .set({
+      ...(reclassify ? { mediaType: "anime" as const } : {}),
+      title: row.title,
+      titleJa: row.titleJa ?? detail?.originalTitle,
+      coverUrl: row.coverUrl ?? detail?.posterUrl ?? hit.coverUrl,
+      synopsis: row.synopsis ?? detail?.synopsis,
+      totalEpisodes,
+      year: row.year ?? detail?.year ?? null,
+      tags: mergeDoubanGenres(row, detail),
+      doubanId: row.doubanId ?? detail?.doubanId ?? hit.doubanId,
+      doubanRating: detail?.rating ?? hit.rating ?? row.doubanRating,
+      doubanRatingFetchedAt: now,
+      watchProviders,
+      updatedAt: now,
+    })
+    .where(eq(anime.id, row.id))
+    .run();
+
+  if (
+    !storedEpisodes &&
+    detail?.availableEpisodes != null
+  ) {
+    syncDoubanEpisodePlaceholdersInCurrentTransaction(
+      row.id,
+      detail.availableEpisodes,
+    );
+  }
 }
 
 /** 电视剧追更：用 TMDb 逐集播出日期填 episodes（删旧+插新，对齐 syncFromBangumi 模式）。 */
@@ -87,6 +185,50 @@ async function syncCinemaEpisodes(
       .run();
   }
   return eps.length;
+}
+
+/**
+ * 无 TMDB 时按豆瓣当前可用集数补占位行。只插缺失集号，保留已有标题、
+ * 播出日期、下载状态和主键，重复执行保持幂等。
+ */
+export function syncDoubanEpisodePlaceholders(
+  animeId: number,
+  availableEpisodes: number,
+): number {
+  return db.transaction(() =>
+    syncDoubanEpisodePlaceholdersInCurrentTransaction(
+      animeId,
+      availableEpisodes,
+    ),
+  );
+}
+
+function syncDoubanEpisodePlaceholdersInCurrentTransaction(
+  animeId: number,
+  availableEpisodes: number,
+): number {
+  const safeCount = Math.max(0, Math.floor(availableEpisodes));
+  if (safeCount === 0) return 0;
+
+  const existingNumbers = new Set(
+    db
+      .select({ number: episodes.number })
+      .from(episodes)
+      .where(eq(episodes.animeId, animeId))
+      .all()
+      .map((row) => row.number),
+  );
+  const missingNumbers = Array.from(
+    { length: safeCount },
+    (_, index) => index + 1,
+  ).filter((number) => !existingNumbers.has(number));
+
+  for (const number of missingNumbers) {
+    db.insert(episodes)
+      .values({ animeId, number, title: null, airedAt: null })
+      .run();
+  }
+  return missingNumbers.length;
 }
 
 // 标题是否值得拿去 TMDB/豆瓣 搜：纯数字 / 第N话 / 太短的不搜，避免乱配
@@ -185,9 +327,77 @@ export async function enrichCinemaItem(animeId: number): Promise<EnrichResult> {
   const tmdbDetail = tmdbHit ? await getDetail(tmdbHit.tmdbId, type) : null;
 
   // 豆瓣（best-effort）
-  const douban = await getDoubanInfo(row.title, { type, year: row.year });
+  const douban = row.doubanId
+    ? await getDoubanSubject(row.doubanId, type)
+    : await getDoubanInfo(row.title, { type, year: row.year });
+  const reliableDouban =
+    row.doubanId != null
+      ? douban?.doubanId === row.doubanId
+        ? douban
+        : null
+      : isReliableDoubanInfoMatch(row.title, row.year, douban)
+        ? douban
+        : null;
 
-  if (!tmdbHit && !douban) {
+  if (
+    reliableDouban &&
+    hasDoubanAnimationGenre(reliableDouban.genres)
+  ) {
+    const animationHit: DoubanCatalogHit = {
+      doubanId: reliableDouban.doubanId,
+      title: reliableDouban.title || row.title,
+      type,
+      rating: reliableDouban.rating,
+      coverUrl: reliableDouban.posterUrl,
+      source: "hot",
+      isAnimation: true,
+      animationClassificationKnown: true,
+    };
+    const preparedItem: PreparedDoubanCatalogHit = {
+      hit: animationHit,
+      detail: reliableDouban,
+      isAnimation: true,
+      classificationConfirmed: true,
+      exactConflict: false,
+    };
+    const aliases = await buildAnimeAliasCache([preparedItem]);
+    const resolution = applyAnimationCatalogHit(
+      animationHit,
+      reliableDouban,
+      aliases,
+      animeId,
+    );
+    if (resolution.kind === "mergeConflict") {
+      return {
+        animeId,
+        matched: false,
+        doubanId: reliableDouban.doubanId,
+        reason: "douban_animation_merge_conflict",
+        conflict: true,
+      };
+    }
+    if (resolution.kind === "skippedAnimeUnmatched") {
+      return {
+        animeId,
+        matched: false,
+        doubanId: reliableDouban.doubanId,
+        reason: "skipped_anime_unmatched",
+      };
+    }
+    return {
+      animeId: resolution.row.id,
+      matched: true,
+      doubanId: reliableDouban.doubanId,
+      title: resolution.row.title,
+      reason:
+        resolution.kind === "reclassified"
+          ? "douban_animation_reclassified"
+          : "douban_animation_matched",
+      reclassified: resolution.kind === "reclassified",
+    };
+  }
+
+  if (!tmdbHit && !reliableDouban) {
     // 标记已尝试，避免 onlyMissing 下次反复重试匹配不上的条目（如番号片）
     db.update(anime)
       .set({ doubanRatingFetchedAt: new Date(), updatedAt: new Date() })
@@ -198,44 +408,63 @@ export async function enrichCinemaItem(animeId: number): Promise<EnrichResult> {
 
   const poster =
     tmdbImageUrl(tmdbDetail?.posterPath ?? tmdbHit?.posterPath, POSTER_SIZE) ??
-    douban?.posterUrl ??
+    reliableDouban?.posterUrl ??
     row.coverUrl;
   const genres = Array.from(
     new Set([
       ...(row.tags ?? []),
       ...(tmdbDetail?.genres ?? []),
-      ...(douban?.genres ?? []),
+      ...(reliableDouban?.genres ?? []),
     ]),
   );
   // 「在哪看」双线：国内（豆瓣 vendors，region=CN）+ 海外（TMDb watch-providers，
   // 默认 US；CN 区 TMDb 无数据故查海外区）。best-effort，哪条没刮到就不放；两条都没
   // 刮到才保留旧值（归一成数组，兼容历史单对象行）。
-  const cnProviders = doubanToProviders(douban);
+  const cnProviders = doubanToProviders(reliableDouban);
   const overseasProviders = tmdbHit
     ? await getWatchProviders(tmdbHit.tmdbId, type, OVERSEAS_REGION)
     : null;
-  const freshProviders = [cnProviders, overseasProviders].filter(
-    (p): p is WatchProvidersCache => p != null,
-  );
-  const watchProviders =
-    freshProviders.length > 0
-      ? freshProviders
-      : normalizeWatchProviders(row.watchProviders);
+  const watchProviders = mergeWatchProviderRegions(row.watchProviders, [
+    cnProviders,
+    overseasProviders,
+  ]);
+  const totalEpisodes =
+    type === "tv" && reliableDouban?.totalEpisodes != null
+      ? Math.max(row.totalEpisodes ?? 0, reliableDouban.totalEpisodes)
+      : row.totalEpisodes;
 
   db.update(anime)
     .set({
       tmdbId: tmdbHit?.tmdbId ?? row.tmdbId,
-      title: tmdbDetail?.title || tmdbHit?.title || row.title,
-      titleJa: tmdbDetail?.originalTitle ?? tmdbHit?.originalTitle ?? row.titleJa,
+      title:
+        tmdbDetail?.title ||
+        tmdbHit?.title ||
+        reliableDouban?.title ||
+        row.title,
+      titleJa:
+        tmdbDetail?.originalTitle ??
+        tmdbHit?.originalTitle ??
+        reliableDouban?.originalTitle ??
+        row.titleJa,
       coverUrl: poster,
-      synopsis: tmdbDetail?.overview ?? tmdbHit?.overview ?? row.synopsis,
+      synopsis:
+        tmdbDetail?.overview ??
+        tmdbHit?.overview ??
+        reliableDouban?.synopsis ??
+        row.synopsis,
       tmdbRating: tmdbDetail?.voteAverage ?? tmdbHit?.voteAverage ?? row.tmdbRating,
-      doubanId: douban?.doubanId ?? row.doubanId,
-      doubanRating: douban?.rating ?? row.doubanRating,
+      doubanId: reliableDouban?.doubanId ?? row.doubanId,
+      doubanRating: reliableDouban?.rating ?? row.doubanRating,
       doubanRatingFetchedAt: new Date(), // 同时作为「已尝试刮削」标记
 
       imdbId: tmdbDetail?.imdbId ?? row.imdbId,
-      year: row.year ?? tmdbDetail?.year ?? tmdbHit?.year ?? douban?.year ?? null,
+      year:
+        row.year ??
+        tmdbDetail?.year ??
+        tmdbHit?.year ??
+        reliableDouban?.year ??
+        null,
+      totalEpisodes,
       tags: genres.length > 0 ? genres : row.tags,
       watchProviders,
       updatedAt: new Date(),
@@ -250,14 +479,26 @@ export async function enrichCinemaItem(animeId: number): Promise<EnrichResult> {
     } catch {
       /* 剧集拉取失败不影响条目刮削结果 */
     }
+  } else if (
+    type === "tv" &&
+    reliableDouban?.availableEpisodes != null
+  ) {
+    syncDoubanEpisodePlaceholders(
+      animeId,
+      reliableDouban.availableEpisodes,
+    );
   }
 
   return {
     animeId,
     matched: true,
     tmdbId: tmdbHit?.tmdbId,
-    doubanId: douban?.doubanId,
-    title: tmdbDetail?.title || tmdbHit?.title || douban?.title || row.title,
+    doubanId: reliableDouban?.doubanId,
+    title:
+      tmdbDetail?.title ||
+      tmdbHit?.title ||
+      reliableDouban?.title ||
+      row.title,
   };
 }
 
@@ -454,6 +695,12 @@ export interface DoubanCatalogImportSummary {
   total: number;
   created: number;
   matched: number;
+  routedToAnime: number;
+  matchedAnimation: number;
+  reclassifiedAnimation: number;
+  skippedAnimeUnmatched: number;
+  conflicts: number;
+  skippedUnclassified: number;
 }
 
 function mediaTypeOfDoubanCatalogHit(hit: DoubanCatalogHit): "drama" | "movie" {
@@ -464,84 +711,377 @@ function titleOfDoubanCatalogHit(hit: DoubanCatalogHit): string {
   return hit.title.trim() || `Douban ${hit.doubanId}`;
 }
 
-function findExistingDoubanCatalogRow(hit: DoubanCatalogHit) {
-  const mediaType = mediaTypeOfDoubanCatalogHit(hit);
-  const byDoubanId = db
+type ExactDoubanRows =
+  | { kind: "none"; rows: [] }
+  | { kind: "one"; rows: [AnimeRow]; row: AnimeRow }
+  | { kind: "conflict"; rows: AnimeRow[] };
+
+interface AnimeAliasEntry {
+  bangumiId: number;
+  aliases: string[];
+}
+
+type AnimeAliasCache = Map<number, AnimeAliasEntry>;
+
+type AnimationIdentityResolution =
+  | { kind: "matched"; row: AnimeRow }
+  | { kind: "reclassified"; row: AnimeRow }
+  | { kind: "skippedAnimeUnmatched" }
+  | { kind: "mergeConflict"; rowIds: number[] };
+
+function findDoubanCatalogRowsById(doubanId: string): ExactDoubanRows {
+  const rows = db
     .select()
     .from(anime)
-    .where(and(eq(anime.mediaType, mediaType), eq(anime.doubanId, hit.doubanId)))
-    .get();
-  if (byDoubanId) return byDoubanId;
+    .where(eq(anime.doubanId, doubanId))
+    .all();
+  if (rows.length === 0) return { kind: "none", rows: [] };
+  if (rows.length === 1) return { kind: "one", rows: [rows[0]], row: rows[0] };
+  return { kind: "conflict", rows };
+}
 
-  const title = titleOfDoubanCatalogHit(hit).toLowerCase();
-  return (
-    db
-      .select()
-      .from(anime)
-      .where(eq(anime.mediaType, mediaType))
-      .all()
-      .find((row) => row.title.trim().toLowerCase() === title) ?? null
+function doubanIdentityTitles(
+  hit: DoubanCatalogHit,
+  detail: DoubanInfo | null,
+): Array<string | null> {
+  return [hit.title, detail?.title ?? null, detail?.originalTitle ?? null];
+}
+
+function localIdentityTitles(
+  row: AnimeRow,
+  aliases: AnimeAliasCache,
+): Array<string | null> {
+  const cached = aliases.get(row.id);
+  const bangumiAliases =
+    cached && cached.bangumiId === row.bangumiId ? cached.aliases : [];
+  return [row.title, row.titleJa, ...bangumiAliases];
+}
+
+function findAnimeIdentityCandidates(
+  hit: DoubanCatalogHit,
+  detail: DoubanInfo | null,
+  aliases: AnimeAliasCache,
+): AnimeRow[] {
+  if (detail?.year == null) return [];
+  const doubanTitles = doubanIdentityTitles(hit, detail);
+  return db
+    .select()
+    .from(anime)
+    .where(eq(anime.mediaType, "anime"))
+    .all()
+    .filter((row) =>
+      isReliableDoubanTitleSetMatch({
+        doubanTitles,
+        localTitles: localIdentityTitles(row, aliases),
+        doubanYear: detail.year,
+        localYear: row.year,
+      }),
+    );
+}
+
+function resolveAnimationIdentity(
+  hit: DoubanCatalogHit,
+  detail: DoubanInfo | null,
+  aliases: AnimeAliasCache,
+): AnimationIdentityResolution {
+  const exact = findDoubanCatalogRowsById(hit.doubanId);
+  if (exact.kind === "conflict") {
+    return { kind: "mergeConflict", rowIds: exact.rows.map((row) => row.id) };
+  }
+  const candidates = findAnimeIdentityCandidates(hit, detail, aliases);
+  if (exact.kind === "one") {
+    if (exact.row.mediaType === "anime") return { kind: "matched", row: exact.row };
+    const otherAnime = candidates.filter((candidate) => candidate.id !== exact.row.id);
+    if (otherAnime.length > 0) {
+      return {
+        kind: "mergeConflict",
+        rowIds: [exact.row.id, ...otherAnime.map((row) => row.id)],
+      };
+    }
+    return { kind: "reclassified", row: exact.row };
+  }
+  if (candidates.length === 1) {
+    const candidate = candidates[0];
+    if (
+      candidate.doubanId != null &&
+      candidate.doubanId !== hit.doubanId
+    ) {
+      return { kind: "mergeConflict", rowIds: [candidate.id] };
+    }
+    return { kind: "matched", row: candidate };
+  }
+  if (candidates.length > 1) {
+    return { kind: "mergeConflict", rowIds: candidates.map((row) => row.id) };
+  }
+  return { kind: "skippedAnimeUnmatched" };
+}
+
+async function buildAnimeAliasCache(
+  items: PreparedDoubanCatalogHit[],
+): Promise<AnimeAliasCache> {
+  const years = new Set(
+    items
+      .filter((item) => item.isAnimation && item.detail?.year != null)
+      .map((item) => item.detail!.year!),
+  );
+  if (years.size === 0) return new Map();
+  const rows = db
+    .select()
+    .from(anime)
+    .where(eq(anime.mediaType, "anime"))
+    .all()
+    .filter(
+      (row) =>
+        row.year != null && years.has(row.year) && row.bangumiId != null,
+    );
+  const entries = await mapPool(rows, ENRICH_CONCURRENCY, async (row) => ({
+    animeId: row.id,
+    bangumiId: row.bangumiId!,
+    aliases: await getBangumiTitleAliases(row.bangumiId),
+  }));
+  return new Map(
+    entries.map((entry) => [
+      entry.animeId,
+      { bangumiId: entry.bangumiId, aliases: entry.aliases },
+    ]),
   );
 }
 
-function upsertDoubanCatalogHit(hit: DoubanCatalogHit): {
-  animeId: number;
-  created: boolean;
+function applyAnimationCatalogHit(
+  hit: DoubanCatalogHit,
+  detail: DoubanInfo | null,
+  aliases: AnimeAliasCache,
+  originAnimeId?: number,
+): AnimationIdentityResolution {
+  return db.transaction(() => {
+    const resolution = resolveAnimationIdentity(hit, detail, aliases);
+    if (
+      originAnimeId != null &&
+      resolution.kind === "matched" &&
+      resolution.row.id !== originAnimeId
+    ) {
+      return {
+        kind: "mergeConflict",
+        rowIds: [originAnimeId, resolution.row.id],
+      };
+    }
+    if (resolution.kind === "matched") {
+      applyDoubanAnimationMetadata(resolution.row, detail, hit);
+    } else if (resolution.kind === "reclassified") {
+      applyDoubanAnimationMetadata(resolution.row, detail, hit, {
+        reclassify: true,
+      });
+    }
+    return resolution;
+  });
+}
+
+function upsertDoubanCatalogHit(
+  hit: DoubanCatalogHit,
+  detail: DoubanInfo | null,
+): {
+  kind: "created" | "matched" | "conflict";
+  animeId?: number;
 } {
   const mediaType = mediaTypeOfDoubanCatalogHit(hit);
   const title = titleOfDoubanCatalogHit(hit);
   const now = new Date();
-  const existing = findExistingDoubanCatalogRow(hit);
+  const exact = findDoubanCatalogRowsById(hit.doubanId);
+  if (exact.kind === "conflict") return { kind: "conflict" };
+  const titleMatches = db
+    .select()
+    .from(anime)
+    .where(eq(anime.mediaType, mediaType))
+    .all()
+    .filter((row) => row.title.trim().toLowerCase() === title.toLowerCase());
+  if (exact.kind === "none" && titleMatches.length > 1) {
+    return { kind: "conflict" };
+  }
+  const existing = exact.kind === "one" ? exact.row : titleMatches[0];
 
   if (existing) {
+    const totalEpisodes =
+      detail?.totalEpisodes != null
+        ? Math.max(existing.totalEpisodes ?? 0, detail.totalEpisodes)
+        : existing.totalEpisodes;
+    const watchProviders = detail
+      ? mergeWatchProviderRegions(existing.watchProviders, [
+          doubanToProviders(detail),
+        ])
+      : existing.watchProviders;
     db.update(anime)
       .set({
         doubanId: existing.doubanId ?? hit.doubanId,
         title: existing.title || title,
-        coverUrl: existing.coverUrl ?? hit.coverUrl,
-        doubanRating: existing.doubanRating ?? hit.rating,
+        titleJa: existing.titleJa ?? detail?.originalTitle,
+        coverUrl: existing.coverUrl ?? detail?.posterUrl ?? hit.coverUrl,
+        synopsis: existing.synopsis ?? detail?.synopsis,
+        totalEpisodes,
+        year: existing.year ?? detail?.year,
+        tags: mergeDoubanGenres(existing, detail),
+        doubanRating:
+          existing.doubanRating ?? detail?.rating ?? hit.rating,
+        doubanRatingFetchedAt: detail
+          ? now
+          : existing.doubanRatingFetchedAt,
+        watchProviders,
         updatedAt: now,
       })
       .where(eq(anime.id, existing.id))
       .run();
-    return { animeId: existing.id, created: false };
+    if (hit.type === "tv" && detail?.availableEpisodes != null) {
+      syncDoubanEpisodePlaceholdersInCurrentTransaction(
+        existing.id,
+        detail.availableEpisodes,
+      );
+    }
+    return { kind: "matched", animeId: existing.id };
   }
 
   const inserted = db
     .insert(anime)
     .values({
-      title,
-      coverUrl: hit.coverUrl,
+      title: detail?.title.trim() || title,
+      titleJa: detail?.originalTitle,
+      coverUrl: detail?.posterUrl ?? hit.coverUrl,
+      synopsis: detail?.synopsis,
       type: hit.type === "movie" ? "Movie" : "TV",
       status: hit.type === "movie" ? "completed" : "airing",
-      totalEpisodes: null,
+      totalEpisodes: detail?.totalEpisodes,
+      year: detail?.year,
+      tags: detail?.genres.length ? detail.genres : null,
       mediaType,
       doubanId: hit.doubanId,
-      doubanRating: hit.rating,
+      doubanRating: detail?.rating ?? hit.rating,
+      doubanRatingFetchedAt: detail ? now : null,
+      watchProviders: detail
+        ? mergeWatchProviderRegions(null, [doubanToProviders(detail)])
+        : null,
       createdAt: now,
       updatedAt: now,
     })
     .returning({ id: anime.id })
     .get();
-  return { animeId: inserted.id, created: true };
+  if (hit.type === "tv" && detail?.availableEpisodes != null) {
+    syncDoubanEpisodePlaceholdersInCurrentTransaction(
+      inserted.id,
+      detail.availableEpisodes,
+    );
+  }
+  return { kind: "created", animeId: inserted.id };
+}
+
+interface PreparedDoubanCatalogHit {
+  hit: DoubanCatalogHit;
+  detail: DoubanInfo | null;
+  isAnimation: boolean;
+  classificationConfirmed: boolean;
+  exactConflict: boolean;
 }
 
 export async function importDoubanCatalog({
   limit = 40,
 }: { limit?: number } = {}): Promise<DoubanCatalogImportSummary> {
   const hits = await getDoubanCatalog({ limit });
+  // 热门接口没有 genres。动画集合先标记高概率候选；其余尚未可靠分类的 TV
+  // 在入库前受限并发读取详情。详情失败时暂不写影视库，避免把未知动画落成 drama。
+  const prepared = await mapPool(hits, ENRICH_CONCURRENCY, async (hit) => {
+    const exact = findDoubanCatalogRowsById(hit.doubanId);
+    const exactRows = exact.rows;
+    const alreadyClassifiedAsAnime =
+      exactRows.some((row) => row.mediaType === "anime") ||
+      exactRows.some((row) => hasDoubanAnimationGenre(row.tags));
+    if (
+      exact.kind === "one" &&
+      alreadyClassifiedAsAnime &&
+      exact.row.doubanRatingFetchedAt != null
+    ) {
+      return {
+        hit,
+        detail: null,
+        isAnimation: true,
+        classificationConfirmed: true,
+        exactConflict: false,
+      } satisfies PreparedDoubanCatalogHit;
+    }
+
+    const needsDetail =
+      alreadyClassifiedAsAnime ||
+      hit.isAnimation ||
+      hit.type === "tv" ||
+      !hit.animationClassificationKnown;
+    const detail = needsDetail
+      ? await getDoubanSubject(hit.doubanId, hit.type)
+      : null;
+    const detailHasGenres = (detail?.genres.length ?? 0) > 0;
+    return {
+      hit,
+      detail,
+      isAnimation:
+        alreadyClassifiedAsAnime ||
+        (detailHasGenres
+          ? hasDoubanAnimationGenre(detail?.genres)
+          : hit.isAnimation),
+      classificationConfirmed:
+        alreadyClassifiedAsAnime ||
+        (hit.type !== "tv" && hit.animationClassificationKnown) ||
+        hit.isAnimation ||
+        detailHasGenres,
+      exactConflict: exact.kind === "conflict",
+    } satisfies PreparedDoubanCatalogHit;
+  });
+  const aliases = await buildAnimeAliasCache(prepared);
   let created = 0;
   let matched = 0;
+  let routedToAnime = 0;
+  let matchedAnimation = 0;
+  let reclassifiedAnimation = 0;
+  let skippedAnimeUnmatched = 0;
+  let conflicts = 0;
+  let skippedUnclassified = 0;
 
-  for (const hit of hits) {
-    const row = upsertDoubanCatalogHit(hit);
-    if (row.created) created += 1;
-    else matched += 1;
+  for (const item of prepared) {
+    if (item.exactConflict) {
+      conflicts += 1;
+      if (item.isAnimation) routedToAnime += 1;
+      continue;
+    }
+    if (!item.classificationConfirmed) {
+      skippedUnclassified += 1;
+      continue;
+    }
+    if (item.isAnimation) {
+      routedToAnime += 1;
+      const resolution = applyAnimationCatalogHit(
+        item.hit,
+        item.detail,
+        aliases,
+      );
+      if (resolution.kind === "matched") matchedAnimation += 1;
+      else if (resolution.kind === "reclassified") reclassifiedAnimation += 1;
+      else if (resolution.kind === "skippedAnimeUnmatched") {
+        skippedAnimeUnmatched += 1;
+      } else conflicts += 1;
+      continue;
+    }
+
+    const row = db.transaction(() =>
+      upsertDoubanCatalogHit(item.hit, item.detail),
+    );
+    if (row.kind === "created") created += 1;
+    else if (row.kind === "matched") matched += 1;
+    else conflicts += 1;
   }
 
   return {
     total: hits.length,
     created,
     matched,
+    routedToAnime,
+    matchedAnimation,
+    reclassifiedAnimation,
+    skippedAnimeUnmatched,
+    conflicts,
+    skippedUnclassified,
   };
 }

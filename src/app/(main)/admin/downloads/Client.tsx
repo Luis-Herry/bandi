@@ -28,6 +28,7 @@ import { PlayButton } from "@/components/features/PlayButton";
 import { QbitSetupGuideDialog } from "@/components/features/QbitSetupGuideDialog";
 import { showToast } from "@/components/features/ToastHost";
 import { cn } from "@/lib/cn";
+import { formatDataSize, formatTransferSpeed } from "@/lib/transfer-format";
 import type { DownloadStatus } from "@/components/ui";
 
 /* ─── Types ─────────────────────────────────────────────────── */
@@ -563,9 +564,9 @@ function QbitStatusCard({
           </div>
           <div className="flex w-full flex-col items-start gap-3 min-[900px]:w-auto min-[900px]:min-w-[210px] min-[900px]:shrink-0 min-[900px]:items-end">
             <div className="grid w-full grid-cols-3 gap-3 text-[12px]">
-              <StatCell label="下载" value={formatSpeed(qbit?.dlSpeed)} accent />
-              <StatCell label="上传" value={formatSpeed(qbit?.upSpeed)} />
-              <StatCell label="剩余空间" value={formatBytes(qbit?.freeSpaceOnDisk)} />
+              <StatCell label="下载" value={formatTransferSpeed(qbit?.dlSpeed)} accent />
+              <StatCell label="上传" value={formatTransferSpeed(qbit?.upSpeed)} />
+              <StatCell label="剩余空间" value={formatDataSize(qbit?.freeSpaceOnDisk)} />
             </div>
             {qbit && !qbit.managed && (
               <QbitSetupGuideDialog
@@ -896,7 +897,7 @@ function DownloadRowItem({
       : row.progress;
 
   const speed = row.liveSpeed != null && row.liveSpeed > 0
-    ? formatSpeed(row.liveSpeed)
+    ? formatTransferSpeed(row.liveSpeed)
     : row.speed ?? null;
 
   const isControllableStatus =
@@ -1115,28 +1116,4 @@ function tabLabel(t: "all" | DownloadStatus): string {
     completed: "完成",
     failed: "失败",
   }[t];
-}
-
-function formatSpeed(bps?: number): string {
-  if (!bps || bps <= 0) return "—";
-  const units = ["B/s", "KB/s", "MB/s", "GB/s"];
-  let v = bps;
-  let u = 0;
-  while (v >= 1024 && u < units.length - 1) {
-    v /= 1024;
-    u++;
-  }
-  return `${v.toFixed(v >= 10 ? 0 : 1)} ${units[u]}`;
-}
-
-function formatBytes(b?: number): string {
-  if (!b || b <= 0) return "—";
-  const units = ["B", "KB", "MB", "GB", "TB"];
-  let v = b;
-  let u = 0;
-  while (v >= 1024 && u < units.length - 1) {
-    v /= 1024;
-    u++;
-  }
-  return `${v.toFixed(v >= 10 ? 0 : 1)} ${units[u]}`;
 }

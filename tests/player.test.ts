@@ -242,8 +242,9 @@ test("player polish saves screenshots locally and keeps desktop controls clean",
   assert.doesNotMatch(playerPageSource, /ChevronDown/);
   assert.doesNotMatch(playerPageSource, /PictureInPicture/);
   assert.doesNotMatch(playerPageSource, /requestPictureInPicture/);
-  assert.match(screenshotRouteSource, /output/);
-  assert.match(screenshotRouteSource, /player-screenshots/);
+  assert.match(screenshotRouteSource, /process\.env\.SCREENSHOT_DIR/);
+  assert.match(screenshotRouteSource, /screenshot_directory_unavailable/);
+  assert.doesNotMatch(screenshotRouteSource, /process\.cwd\(\)/);
   assert.match(screenshotRouteSource, /writeFileSync/);
   assert.match(screenshotRouteSource, /explorer\.exe/);
   assert.match(cssSource, /\.player-volume-range::-webkit-slider-thumb/);

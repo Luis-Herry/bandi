@@ -253,7 +253,7 @@ export function LibraryClient({ items }: LibraryClientProps) {
             这个分类下还没有番剧
           </p>
           <p className="text-[12px] text-[color:var(--text-muted)]">
-            试试切换状态 tab，或按 ⌘K 搜索添加新番
+            试试切换状态 tab，或按 Ctrl K 搜索添加新番
           </p>
         </div>
       ) : view === "grid" ? (

@@ -11,6 +11,7 @@ import {
 } from "@/lib/watch-progress";
 import type { WatchStatus } from "@/lib/watch-progress";
 import { normalizeRatingInput } from "@/lib/rating";
+import { validateEpisodeProgressBounds } from "@/lib/episode-progress-bounds";
 
 export const dynamic = "force-dynamic";
 
@@ -51,6 +52,43 @@ export async function PATCH(
     notes?: unknown;
   };
   const explicitStatus = isStatus(body.watchStatus) ? body.watchStatus : null;
+  let nextEp: number | null = null;
+  if (typeof body.currentEpisode === "number") {
+    nextEp = Math.max(0, Math.floor(body.currentEpisode));
+  }
+
+  let episodeRows: Array<{ id: number; number: number }> = [];
+  let completionEpisode: number | null = null;
+  if (nextEp != null) {
+    const a = db
+      .select({
+        mediaType: anime.mediaType,
+        totalEpisodes: anime.totalEpisodes,
+      })
+      .from(anime)
+      .where(eq(anime.id, animeId))
+      .get();
+    episodeRows = db
+      .select({ id: episodes.id, number: episodes.number })
+      .from(episodes)
+      .where(eq(episodes.animeId, animeId))
+      .all();
+    completionEpisode = getCompletionEpisodeNumber({
+      totalEpisodes: a?.totalEpisodes,
+      episodeNumbers: episodeRows.map((row) => row.number),
+    });
+    const boundsError = validateEpisodeProgressBounds({
+      mediaType: a?.mediaType,
+      currentEpisode: nextEp,
+      completionEpisode,
+    });
+    if (boundsError) {
+      return NextResponse.json(
+        { error: boundsError.error },
+        { status: boundsError.status },
+      );
+    }
+  }
 
   // 没有追踪行时按需创建：成人区 / 本地库可直接评分 + 影评，不强制先「想看」。
   // watchStatus 不可为空，缺省给 "watching"；成人区 UI 不显示状态、且 movie 不进
@@ -78,11 +116,7 @@ export async function PATCH(
   const now = new Date();
   const updates: Record<string, unknown> = { updatedAt: now };
   if (explicitStatus) updates.watchStatus = explicitStatus;
-  let nextEp: number | null = null;
-  if (typeof body.currentEpisode === "number") {
-    nextEp = Math.max(0, Math.floor(body.currentEpisode));
-    updates.currentEpisode = nextEp;
-  }
+  if (nextEp != null) updates.currentEpisode = nextEp;
   if (body.rating === null) updates.rating = null;
   else if (typeof body.rating === "number") {
     const normalizedRating = normalizeRatingInput(body.rating);
@@ -93,25 +127,10 @@ export async function PATCH(
 
   let autoCompleted = false;
   let resolvedWatchStatus: WatchStatus | null = explicitStatus;
-  let episodeRows: Array<{ id: number; number: number }> = [];
   if (nextEp != null && !explicitStatus) {
-    const a = db
-      .select({ totalEpisodes: anime.totalEpisodes })
-      .from(anime)
-      .where(eq(anime.id, animeId))
-      .get();
-    episodeRows = db
-      .select({ id: episodes.id, number: episodes.number })
-      .from(episodes)
-      .where(eq(episodes.animeId, animeId))
-      .all();
-    const completionEpisode = getCompletionEpisodeNumber({
-      totalEpisodes: a?.totalEpisodes,
-      episodeNumbers: episodeRows.map((row) => row.number),
-    });
     resolvedWatchStatus = resolveProgressWatchStatus({
       currentStatus: existing.watchStatus as WatchStatus,
-      nextEpisode: nextEp,
+      currentEpisode: nextEp,
       completionEpisode,
     });
     updates.watchStatus = resolvedWatchStatus;

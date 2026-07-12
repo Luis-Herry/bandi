@@ -47,6 +47,7 @@ export function CharacterCard({
             ratio="1/1"
             sizes="80px"
             className="h-full w-full"
+            objectPosition="center top"
           />
         </div>
 

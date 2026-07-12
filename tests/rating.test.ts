@@ -20,6 +20,7 @@ test("normalizeRatingInput keeps ratings on half-star steps", () => {
 test("formatRatingScore keeps the 10-point display scale", () => {
   assert.equal(formatRatingScore(0), "--");
   assert.equal(formatRatingScore(0.5), "1.0");
+  assert.equal(formatRatingScore(4), "8.0");
   assert.equal(formatRatingScore(4.5), "9.0");
   assert.equal(formatRatingScore(5), "10.0");
 });

@@ -49,14 +49,17 @@ test("new library additions default to planning at episode zero", () => {
   assert.match(subscriptionSource, /watchStatus: "planning"/);
 });
 
-test("player progress starts planning titles at the current episode", () => {
+test("player start changes status without marking an unfinished episode watched", () => {
   const playerProgressSource = readFileSync(
     "src/app/api/player/progress/route.ts",
     "utf8",
   );
 
   assert.match(playerProgressSource, /shouldMarkStarted/);
-  assert.match(playerProgressSource, /currentEpisode = Math\.max\(currentEpisode, ep\.number\)/);
+  assert.doesNotMatch(
+    playerProgressSource,
+    /currentEpisode = Math\.max\(currentEpisode, ep\.number\)/,
+  );
   assert.match(playerProgressSource, /watchStatus = "watching"/);
 });
 

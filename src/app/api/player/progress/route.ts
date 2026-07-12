@@ -8,7 +8,10 @@ import {
   userAnime,
   watchEvents,
 } from "@/db/schema";
-import { getPlaybackCompletionState } from "@/lib/player";
+import {
+  getPlaybackCompletionState,
+  getPreferredPlaybackEpisode,
+} from "@/lib/player";
 import { requireUser } from "@/lib/session";
 import { buildWatchEventDrafts } from "@/lib/watch-events";
 import {
@@ -38,16 +41,10 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "invalid_params" }, { status: 400 });
   }
 
-  const ep = db
-    .select({ id: episodes.id })
-    .from(episodes)
-    .where(
-      and(
-        eq(episodes.animeId, animeId),
-        eq(episodes.number, Math.floor(episodeNumber)),
-      ),
-    )
-    .get();
+  const ep = getPreferredPlaybackEpisode(
+    animeId,
+    Math.floor(episodeNumber),
+  );
   if (!ep) return NextResponse.json({ progress: null });
 
   const progress = db
@@ -99,15 +96,8 @@ export async function PATCH(req: Request) {
     .from(userAnime)
     .where(and(eq(userAnime.userId, user.id), eq(userAnime.animeId, animeId)))
     .get();
-  if (!existing) {
-    return NextResponse.json({ error: "not_in_library" }, { status: 404 });
-  }
 
-  const ep = db
-    .select({ id: episodes.id, number: episodes.number })
-    .from(episodes)
-    .where(and(eq(episodes.animeId, animeId), eq(episodes.number, episodeNumber)))
-    .get();
+  const ep = getPreferredPlaybackEpisode(animeId, episodeNumber);
   if (!ep) {
     return NextResponse.json({ error: "episode_not_found" }, { status: 404 });
   }
@@ -146,6 +136,17 @@ export async function PATCH(req: Request) {
     })
     .run();
 
+  if (!existing) {
+    return NextResponse.json({
+      ok: true,
+      completed: completion.completed,
+      progressRatio: completion.progressRatio,
+      currentEpisode: null,
+      watchStatus: null,
+      autoCompleted: false,
+    });
+  }
+
   let currentEpisode = existing.currentEpisode;
   let watchStatus = existing.watchStatus as WatchStatus;
   let autoCompleted = false;
@@ -154,10 +155,9 @@ export async function PATCH(req: Request) {
     hasStartedPlayback &&
     watchStatus !== "dropped" &&
     watchStatus !== "completed" &&
-    (watchStatus !== "watching" || currentEpisode < ep.number);
+    watchStatus !== "watching";
 
   if (shouldMarkStarted) {
-    currentEpisode = Math.max(currentEpisode, ep.number);
     watchStatus = "watching";
   }
 
@@ -180,7 +180,6 @@ export async function PATCH(req: Request) {
       currentEpisode,
       currentStatus: watchStatus,
       completedEpisode: ep.number,
-      episodeNumbers: episodeRows.map((row) => row.number),
       completionEpisode,
     });
 

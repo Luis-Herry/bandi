@@ -261,7 +261,8 @@ test("cinema follow-up UI never exposes anime RSS/source-search actions", () => 
   assert.doesNotMatch(source, /#where-to-watch/);
   assert.doesNotMatch(source, /href=\{`\/anime\/\$\{item\.animeId\}/);
   assert.match(animeCardSource, /href\?: string/);
-  assert.match(animeCardSource, /href=\{href \?\? `\/anime\/\$\{id\}`\}/);
+  assert.match(animeCardSource, /const cardHref = href \?\? `\/anime\/\$\{id\}`/);
+  assert.match(animeCardSource, /href=\{cardHref\}/);
   assert.match(animeRowItemSource, /href\?: string/);
   assert.match(animeRowItemSource, /href=\{href \?\? `\/anime\/\$\{id\}`\}/);
   assert.match(source, /size="sm"/);

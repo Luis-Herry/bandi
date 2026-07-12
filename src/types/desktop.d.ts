@@ -33,6 +33,16 @@ declare global {
     error?: string;
   }
 
+  interface DesktopMediaDirectoryChoice {
+    canceled: boolean;
+    directoryPath?: string;
+  }
+
+  interface DesktopMediaDirectoryInput {
+    defaultPath?: string;
+    kind?: "anime" | "cinema";
+  }
+
   interface DesktopWindowState {
     isMaximized: boolean;
   }
@@ -45,6 +55,9 @@ declare global {
     bandiDesktop?: {
       getSettings(): Promise<DesktopSettingsState>;
       chooseDownloadDirectory(): Promise<DesktopDirectoryChoice>;
+      chooseMediaDirectory(
+        input?: DesktopMediaDirectoryInput,
+      ): Promise<DesktopMediaDirectoryChoice>;
       saveSettings(
         input: DesktopSettingsSaveInput,
       ): Promise<DesktopSettingsSaveResult>;

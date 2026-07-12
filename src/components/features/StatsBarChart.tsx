@@ -11,6 +11,24 @@ export function StatsBarChart({ data, height = 150 }: StatsBarChartProps) {
     ...item,
     value: Math.max(0, item.value),
   }));
+  const hasWatchHistory = safeData.some((item) => item.value > 0);
+
+  if (!hasWatchHistory) {
+    return (
+      <div
+        role="status"
+        aria-label="暂无月度观看记录"
+        className="flex min-h-[174px] flex-col items-center justify-center rounded-[8px] border border-dashed border-[color:var(--border-subtle)] px-6 text-center"
+      >
+        <p className="text-[13px] font-medium text-[color:var(--text-secondary)]">
+          暂无观看记录
+        </p>
+        <p className="mt-1 max-w-[320px] text-[11px] leading-relaxed text-[color:var(--text-muted)]">
+          调整追番进度或完成播放后，这里会按月份统计观看时长。
+        </p>
+      </div>
+    );
+  }
   const max = Math.max(...safeData.map((item) => item.value), 1);
   const width = 420;
   const gap = 8;

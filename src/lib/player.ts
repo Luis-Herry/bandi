@@ -153,6 +153,64 @@ export function buildPlayerEpisodeNavigation(
   };
 }
 
+export function getPreferredPlaybackEpisode(
+  animeId: number,
+  episodeNumber: number,
+): typeof episodes.$inferSelect | null {
+  const targetNumber = Math.floor(episodeNumber);
+  if (!Number.isFinite(animeId) || !Number.isFinite(targetNumber)) return null;
+
+  const row = db
+    .select({ episode: episodes })
+    .from(episodes)
+    .leftJoin(
+      downloadQueue,
+      and(
+        eq(downloadQueue.animeId, animeId),
+        eq(downloadQueue.episodeId, episodes.id),
+        eq(downloadQueue.status, "completed"),
+      ),
+    )
+    .where(
+      and(eq(episodes.animeId, animeId), eq(episodes.number, targetNumber)),
+    )
+    .orderBy(
+      desc(downloadQueue.updatedAt),
+      desc(downloadQueue.id),
+      desc(episodes.id),
+    )
+    .get();
+
+  return row?.episode ?? null;
+}
+
+export function preferPlayableEpisodeRows<
+  T extends { id: number; number: number },
+>(rows: readonly T[], playableEpisodeIds: ReadonlySet<number>): T[] {
+  const preferredByNumber = new Map<number, T>();
+
+  for (const row of rows) {
+    const current = preferredByNumber.get(row.number);
+    if (!current) {
+      preferredByNumber.set(row.number, row);
+      continue;
+    }
+
+    const currentPlayable = playableEpisodeIds.has(current.id);
+    const candidatePlayable = playableEpisodeIds.has(row.id);
+    if (
+      (candidatePlayable && !currentPlayable) ||
+      (candidatePlayable === currentPlayable && row.id > current.id)
+    ) {
+      preferredByNumber.set(row.number, row);
+    }
+  }
+
+  return [...preferredByNumber.values()].sort(
+    (a, b) => a.number - b.number,
+  );
+}
+
 export function getVideoMimeType(name: string): string {
   return VIDEO_MIME[path.extname(name).toLowerCase()] ?? "application/octet-stream";
 }
@@ -325,11 +383,7 @@ export async function resolvePlayableEpisodeFile({
   }
   targetNumber = Math.floor(targetNumber);
 
-  const ep = db
-    .select()
-    .from(episodes)
-    .where(and(eq(episodes.animeId, animeId), eq(episodes.number, targetNumber)))
-    .get();
+  const ep = getPreferredPlaybackEpisode(animeId, targetNumber);
   if (!ep) {
     return {
       ok: false,
@@ -349,7 +403,7 @@ export async function resolvePlayableEpisodeFile({
         eq(downloadQueue.status, "completed"),
       ),
     )
-    .orderBy(desc(downloadQueue.updatedAt))
+    .orderBy(desc(downloadQueue.updatedAt), desc(downloadQueue.id))
     .get();
   if (!dl) {
     const a = db.select().from(anime).where(eq(anime.id, animeId)).get();

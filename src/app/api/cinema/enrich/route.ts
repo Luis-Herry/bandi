@@ -6,11 +6,14 @@
  */
 
 import { NextResponse } from "next/server";
-import { inArray } from "drizzle-orm";
+import { revalidatePath } from "next/cache";
+import { and, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { anime } from "@/db/schema";
 import { getCurrentUser } from "@/lib/session";
 import { extractJavCode } from "@/lib/jav";
+import { getLocalLibraryAnimeIds } from "@/lib/cinema-import";
+import { getCinemaWatchlist } from "@/lib/db-helpers/cinema";
 import {
   enrichCinemaItem,
   enrichCinemaLibrary,
@@ -29,14 +32,29 @@ function isScraped(r: {
   return (
     r.tmdbId != null ||
     r.doubanRating != null ||
-    /dmm\.co\.jp|image\.tmdb\.org/.test(r.coverUrl ?? "")
+    /(?:dmm\.co\.jp|image\.tmdb\.org|img\d+\.doubanio\.com)/i.test(
+      r.coverUrl ?? "",
+    )
   );
 }
 
-export async function GET() {
+export async function GET(req: Request) {
   const user = await getCurrentUser();
   if (!user) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+
+  const localOnly = new URL(req.url).searchParams.get("scope") === "local";
+  const localIds = localOnly ? [...getLocalLibraryAnimeIds()] : [];
+  if (localOnly && localIds.length === 0) {
+    return NextResponse.json({
+      pending: [],
+      total: 0,
+      jav: 0,
+      sourceCount: 0,
+      completeCount: 0,
+      scope: "local",
+    });
   }
 
   const rows = db
@@ -50,7 +68,14 @@ export async function GET() {
       isAdult: anime.isAdult,
     })
     .from(anime)
-    .where(inArray(anime.mediaType, ["drama", "movie"]))
+    .where(
+      localOnly
+        ? and(
+            inArray(anime.mediaType, ["drama", "movie"]),
+            inArray(anime.id, localIds),
+          )
+        : inArray(anime.mediaType, ["drama", "movie"]),
+    )
     .all();
 
   // 番号片：只要还没成功刮到就一直进队列（不被「已尝试」标记挡住，r18/jav321 是新源）。
@@ -59,16 +84,24 @@ export async function GET() {
   const withCode: number[] = [];
   const without: number[] = [];
   for (const r of rows) {
-    if (isScraped(r)) continue;
-    if (extractJavCode(r.title || "")) withCode.push(r.id);
-    else if (r.isAdult) continue;
-    else if (r.fetchedAt == null) without.push(r.id);
+    if (extractJavCode(r.title || "")) {
+      if (!isScraped(r)) withCode.push(r.id);
+    } else if (r.isAdult) {
+      continue;
+    } else if (r.fetchedAt == null) {
+      without.push(r.id);
+    }
   }
 
+  const pending = [...withCode, ...without];
+
   return NextResponse.json({
-    pending: [...withCode, ...without],
-    total: withCode.length + without.length,
+    pending,
+    total: pending.length,
     jav: withCode.length,
+    sourceCount: rows.length,
+    completeCount: Math.max(0, rows.length - pending.length),
+    scope: localOnly ? "local" : "all",
   });
 }
 
@@ -108,7 +141,9 @@ export async function POST(req: Request) {
         douban: doubanSummary,
       },
     };
-    return NextResponse.json({ ok: true, summary });
+    revalidatePath("/cinema-library");
+    const visible = getCinemaWatchlist(user.id).length;
+    return NextResponse.json({ ok: true, summary: { ...summary, visible } });
   }
 
   const onlyMissing = body.scope !== "all";

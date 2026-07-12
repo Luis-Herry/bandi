@@ -1,7 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
-import type { CSSProperties } from "react";
-import { Calendar, Download, ExternalLink, Star } from "lucide-react";
+import { Suspense, type CSSProperties } from "react";
+import { Calendar, Download, ExternalLink } from "lucide-react";
 import { GlassPanel, Tag } from "@/components/ui";
 import { AnimeCreditsTabs } from "@/components/features/AnimeCreditsTabs";
 import { AnimeSubscriptionButton } from "@/components/features/AnimeSubscriptionButton";
@@ -96,13 +96,6 @@ export default async function AnimeDetailPage({ params }: PageProps) {
   const nextAiring = episodes.find(
     (e) => e.airedAt && e.airedAt.getTime() > Date.now(),
   );
-  const relatedResources = anime.bangumiId
-    ? selectRelatedResourceViews(
-        await getSubjectRelations(anime.bangumiId),
-        anime.bangumiId,
-      )
-    : [];
-
   return (
     <div
       className="anime-detail-scope relative isolate"
@@ -179,22 +172,6 @@ export default async function AnimeDetailPage({ params }: PageProps) {
           )}
 
           <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2">
-            <div className="flex items-center gap-1.5">
-              <Star
-                size={16}
-                className="text-[color:var(--accent)]"
-                style={{ fill: "var(--accent)" }}
-              />
-              <span
-                data-tabular
-                className="text-[18px] font-semibold tracking-tight text-[color:var(--text-primary)]"
-              >
-                9.2
-              </span>
-              <span className="text-[11px] text-[color:var(--text-muted)]">
-                (1,287 评分)
-              </span>
-            </div>
             <span className="text-[12px] text-[color:var(--text-muted)]">
               {totalLabel}
               {userAnime && (
@@ -278,7 +255,10 @@ export default async function AnimeDetailPage({ params }: PageProps) {
           />
 
           {/* 剧集列表 */}
-          <div>
+          <div
+            id="episodes"
+            className="scroll-mt-[calc(5rem+var(--desktop-titlebar-shell-height,0px))]"
+          >
             <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
               <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
                 <h2 className="text-[18px] font-semibold tracking-[-0.01em] text-[color:var(--text-primary)]">
@@ -378,13 +358,70 @@ export default async function AnimeDetailPage({ params }: PageProps) {
             </dl>
           </GlassPanel>
 
-          <RelatedResourcesPanel
-            bangumiId={anime.bangumiId}
-            anilistId={anime.anilistId}
-            resources={relatedResources}
-          />
+          <Suspense fallback={<RelatedResourcesSkeleton />}>
+            <AsyncRelatedResourcesPanel
+              bangumiId={anime.bangumiId}
+              anilistId={anime.anilistId}
+            />
+          </Suspense>
         </aside>
       </section>
+    </div>
+  );
+}
+
+async function AsyncRelatedResourcesPanel({
+  bangumiId,
+  anilistId,
+}: {
+  bangumiId: number | null;
+  anilistId: number | null;
+}) {
+  let resources: ReturnType<typeof selectRelatedResourceViews> = [];
+  if (bangumiId) {
+    try {
+      resources = selectRelatedResourceViews(
+        await getSubjectRelations(bangumiId),
+        bangumiId,
+      );
+    } catch (error) {
+      console.error("[anime-detail] getSubjectRelations failed:", error);
+    }
+  }
+
+  return (
+    <RelatedResourcesPanel
+      bangumiId={bangumiId}
+      anilistId={anilistId}
+      resources={resources}
+    />
+  );
+}
+
+function RelatedResourcesSkeleton() {
+  return (
+    <GlassPanel className="p-5" aria-label="关联资源加载中" aria-busy="true">
+      <div className="space-y-2">
+        <SkeletonBlock className="h-4 w-20" />
+        <SkeletonBlock className="h-3 w-44 max-w-full" />
+      </div>
+      <div className="mt-4 space-y-2">
+        {[0, 1].map((item) => (
+          <SkeletonBlock key={item} className="h-[68px] w-full" />
+        ))}
+      </div>
+    </GlassPanel>
+  );
+}
+
+function SkeletonBlock({ className }: { className: string }) {
+  return (
+    <div
+      className={`relative overflow-hidden rounded-[8px] bg-[color:var(--bg-elevated)] ${className}`}
+    >
+      <div className="t-skel-skeleton is-pulsing">
+        <div className="t-skel-block" />
+      </div>
     </div>
   );
 }

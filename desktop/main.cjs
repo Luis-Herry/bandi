@@ -13,9 +13,20 @@ const fs = require("node:fs");
 const http = require("node:http");
 const net = require("node:net");
 const path = require("node:path");
+const { buildNextProxyEnv } = require("./proxy-env.cjs");
+const {
+  isSafeAbsoluteWindowsPath,
+  normalizeManagedQbitPort,
+  resolveConfiguredDownloadDir,
+} = require("./runtime-paths.cjs");
+const {
+  getDesktopSessionOrigins,
+  withDesktopSessionHeader,
+} = require("./session-header.cjs");
 
 const APP_PORT_START = 31245;
 const QBIT_PORT_START = 18180;
+const LOCAL_PROXY_PORT = 10808;
 const QBIT_START_TIMEOUT_MS = 25000;
 const CONFIG_NAME = "config.json";
 const ONBOARDING_VERSION = 1;
@@ -23,6 +34,11 @@ const DESKTOP_AUTH_HEADER = "X-Bandi-Desktop-Token";
 const DEFAULT_APP_USER = "admin";
 const DEFAULT_APP_PASSWORD = "PUBLIC_HISTORY_REDACTED";
 const DEFAULT_QBIT_USER = "admin";
+const NEXT_RUNTIME_DIRECTORIES = Object.freeze({
+  COVER_CACHE_DIR: "H:\\BandiData\\cache\\covers",
+  SCREENSHOT_DIR: "H:\\BandiData\\screenshots",
+});
+const ELECTRON_SESSION_DATA_DIR = "H:\\BandiData\\cache\\electron";
 
 let mainWindow = null;
 let tray = null;
@@ -52,10 +68,13 @@ function inspectDownloadDirectory(value, { create = false } = {}) {
   if (typeof value !== "string" || !value.trim()) {
     return { ok: false, error: "请选择下载目录" };
   }
-  const downloadDir = path.resolve(value.trim());
-  if (!path.isAbsolute(downloadDir) || downloadDir === path.parse(downloadDir).root) {
-    return { ok: false, error: "下载目录不能直接使用磁盘根目录" };
+  if (!isSafeAbsoluteWindowsPath(value)) {
+    return {
+      ok: false,
+      error: `必须使用完整的 Windows 盘符或 UNC 子目录：${value.trim()}`,
+    };
   }
+  const downloadDir = path.resolve(value.trim());
 
   try {
     if (create) ensureDir(downloadDir);
@@ -78,6 +97,36 @@ function inspectDownloadDirectory(value, { create = false } = {}) {
       error: `无法写入该目录：${err.code || err.message || "unknown"}`,
     };
   }
+}
+
+function prepareNextRuntimeDirectories(downloadDir) {
+  const runtimeEnv = {};
+  for (const [envName, configuredPath] of Object.entries(
+    { ...NEXT_RUNTIME_DIRECTORIES, DOWNLOAD_ROOT: downloadDir },
+  )) {
+    const inspection = inspectDownloadDirectory(configuredPath, {
+      create: true,
+    });
+    if (!inspection.ok) {
+      throw new Error(
+        `${envName} 路径不可用：${configuredPath}。${inspection.error}`,
+      );
+    }
+    runtimeEnv[envName] = inspection.downloadDir;
+  }
+  return runtimeEnv;
+}
+
+function configureElectronSessionData() {
+  const inspection = inspectDownloadDirectory(ELECTRON_SESSION_DATA_DIR, {
+    create: true,
+  });
+  if (!inspection.ok) {
+    throw new Error(
+      `Electron 缓存路径不可用：${ELECTRON_SESSION_DATA_DIR}。${inspection.error}`,
+    );
+  }
+  app.setPath("sessionData", inspection.downloadDir);
 }
 
 function readJson(file) {
@@ -104,20 +153,12 @@ function saveDesktopConfig() {
 function loadDesktopConfig(userDataDir) {
   const existing = readJson(configFile(userDataDir));
   const hasExistingConfig = Object.keys(existing).length > 0;
-  const existingQbitPort = Number(existing.qbitPort || 0);
-  const qbitPort =
-    Number.isInteger(existingQbitPort) &&
-    existingQbitPort >= 1024 &&
-    existingQbitPort <= 65535
-      ? existingQbitPort
-      : 0;
+  const qbitPort = normalizeManagedQbitPort(existing.qbitPort);
   const qbitUser =
     existing.qbitUser && existing.qbitUser !== "anime"
       ? existing.qbitUser
       : DEFAULT_QBIT_USER;
-  const fallbackDownloadDir = hasExistingConfig
-    ? path.join(userDataDir, "download")
-    : path.join(app.getPath("videos"), "Bandi", "Downloads");
+  const videosDir = app.getPath("videos");
   const existingOnboardingVersion = Number(existing.onboardingVersion || 0);
   const config = {
     authSecret: existing.authSecret || randomSecret(48),
@@ -128,10 +169,11 @@ function loadDesktopConfig(userDataDir) {
     qbitUser,
     qbitPassword: existing.qbitPassword || randomSecret(18),
     qbitPort,
-    downloadDir:
-      typeof existing.downloadDir === "string" && existing.downloadDir.trim()
-        ? path.resolve(existing.downloadDir.trim())
-        : fallbackDownloadDir,
+    downloadDir: resolveConfiguredDownloadDir({
+      existingDownloadDir: existing.downloadDir,
+      userDataDir,
+      videosDir,
+    }),
     closeToTray: existing.closeToTray !== false,
     onboardingVersion: Number.isInteger(existingOnboardingVersion)
       ? Math.max(0, existingOnboardingVersion)
@@ -170,6 +212,38 @@ function canListen(port, host = "127.0.0.1") {
     });
     server.listen(port, host);
   });
+}
+
+function canConnect(port, host = "127.0.0.1", timeoutMs = 500) {
+  return new Promise((resolve) => {
+    const socket = net.createConnection({ port, host });
+    let settled = false;
+    const finish = (available) => {
+      if (settled) return;
+      settled = true;
+      socket.destroy();
+      resolve(available);
+    };
+    socket.setTimeout(timeoutMs);
+    socket.once("connect", () => finish(true));
+    socket.once("timeout", () => finish(false));
+    socket.once("error", () => finish(false));
+  });
+}
+
+async function getNextProxyEnv() {
+  const hasConfiguredProxy = Boolean(
+    process.env.HTTPS_PROXY ||
+      process.env.HTTP_PROXY ||
+      process.env.https_proxy ||
+      process.env.http_proxy,
+  );
+  if (hasConfiguredProxy) return buildNextProxyEnv(process.env);
+  if (!(await canConnect(LOCAL_PROXY_PORT))) {
+    return buildNextProxyEnv(process.env);
+  }
+  const proxyUrl = `http://127.0.0.1:${LOCAL_PROXY_PORT}`;
+  return buildNextProxyEnv(process.env, proxyUrl);
 }
 
 async function findOpenPort(start) {
@@ -526,7 +600,7 @@ function scheduleQbitRestart() {
   }, waitMs);
 }
 
-async function startNextServer() {
+async function startNextServer(runtimePathEnv) {
   const standaloneDir = getStandaloneDir();
   const serverEntry = path.join(standaloneDir, "server.js");
   if (!fs.existsSync(serverEntry)) {
@@ -539,11 +613,14 @@ async function startNextServer() {
   const dbPath = path.join(dataDir, "anime.db");
   const port = await findOpenPort(APP_PORT_START);
   const appUrl = `http://127.0.0.1:${port}`;
+  const proxyEnv = await getNextProxyEnv();
 
-  nextProcess = spawn(getNodeExePath(), [serverEntry], {
+  nextProcess = spawn(getNodeExePath(), ["--use-env-proxy", serverEntry], {
     cwd: standaloneDir,
     env: {
       ...process.env,
+      ...proxyEnv,
+      ...runtimePathEnv,
       NODE_ENV: "production",
       HOSTNAME: "127.0.0.1",
       PORT: String(port),
@@ -556,6 +633,7 @@ async function startNextServer() {
       QBIT_USER: desktopConfig.qbitUser,
       QBIT_PASS: desktopConfig.qbitPassword,
       QBIT_CONFIG_PATH: configFile(userData),
+      DESKTOP_CONFIG_PATH: configFile(userData),
       ANIME_DESKTOP_APP: "1",
       DESKTOP_BOOTSTRAP_USER: desktopConfig.appUser,
       DESKTOP_BOOTSTRAP_PASSWORD: desktopConfig.appPassword,
@@ -651,6 +729,29 @@ function registerDesktopIpc() {
         }
       : { canceled: false, error: inspection.error };
   });
+  ipcMain.handle("bandi:choose-media-directory", async (_event, input) => {
+    const mediaKind = input?.kind === "anime" ? "anime" : "cinema";
+    const requestedDefault =
+      typeof input?.defaultPath === "string" ? input.defaultPath.trim() : "";
+    const defaultPath =
+      requestedDefault && fs.existsSync(requestedDefault)
+        ? requestedDefault
+        : desktopConfig.downloadDir;
+    const result = await dialog.showOpenDialog(mainWindow, {
+      title:
+        mediaKind === "anime"
+          ? "选择本地动漫文件夹"
+          : "选择本地影视文件夹",
+      defaultPath,
+      buttonLabel: mediaKind === "anime" ? "扫描动漫目录" : "扫描此文件夹",
+      properties: ["openDirectory"],
+    });
+    if (result.canceled || !result.filePaths[0]) return { canceled: true };
+    return {
+      canceled: false,
+      directoryPath: path.resolve(result.filePaths[0]),
+    };
+  });
   ipcMain.handle("bandi:save-desktop-settings", (_event, input) =>
     saveDesktopSettings(input),
   );
@@ -693,17 +794,35 @@ function publishDesktopWindowState() {
 }
 
 function attachDesktopSessionHeader(appUrl) {
-  const origin = new URL(appUrl).origin;
+  const allowedOrigins = getDesktopSessionOrigins(appUrl);
   mainWindow.webContents.session.webRequest.onBeforeSendHeaders(
-    { urls: [`${origin}/*`] },
+    { urls: [...allowedOrigins].map((origin) => `${origin}/*`) },
     (details, callback) => {
-      details.requestHeaders[DESKTOP_AUTH_HEADER] = desktopSessionToken;
-      callback({ requestHeaders: details.requestHeaders });
+      callback({
+        requestHeaders: withDesktopSessionHeader({
+          allowedOrigins,
+          requestUrl: details.url,
+          requestHeaders: details.requestHeaders,
+          headerName: DESKTOP_AUTH_HEADER,
+          headerValue: desktopSessionToken,
+        }),
+      });
     },
   );
 }
 
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
 function bootPage(message, detail = "请稍候，追番中心会自动完成剩余步骤。") {
+  const safeMessage = escapeHtml(message);
+  const safeDetail = escapeHtml(detail);
   return `<!doctype html>
 <html lang="zh-CN">
   <head>
@@ -750,7 +869,7 @@ function bootPage(message, detail = "请稍候，追番中心会自动完成剩�
         <button class="window-button close" id="close" type="button" aria-label="关闭" title="关闭"><span class="close-glyph" aria-hidden="true"></span></button>
       </div>
     </div>
-    <main><div class="boot-heading"><i aria-hidden="true"></i><h1>${message}</h1></div><p>${detail}</p></main>
+    <main><div class="boot-heading"><i aria-hidden="true"></i><h1>${safeMessage}</h1></div><p>${safeDetail}</p></main>
     <script>
       const bridge = window.bandiDesktop;
       const maximizeButton = document.getElementById("maximize");
@@ -848,6 +967,13 @@ async function boot() {
   createWindow();
   createTray();
 
+  // Validate every non-default runtime directory before starting qBit or Next.
+  // Missing H:/K: drives must stop startup instead of creating fallback data on C:.
+  const runtimePathEnv = prepareNextRuntimeDirectories(
+    desktopConfig.downloadDir,
+  );
+  pendingQbitDownloadDir = desktopConfig.downloadDir;
+
   const qbitSelection = await selectQbitPort();
   desktopConfig.qbitPort = qbitSelection.port;
   saveDesktopConfig();
@@ -855,7 +981,7 @@ async function boot() {
     appendLog("qbit.log", `[desktop] Initial qBit start failed: ${err.stack || err}\n`);
   });
 
-  const appUrl = await startNextServer();
+  const appUrl = await startNextServer(runtimePathEnv);
   attachDesktopSessionHeader(appUrl);
   qbitAutoRestartEnabled = true;
   void initialQbitStart.finally(() => {
@@ -892,6 +1018,19 @@ async function shutdownServices() {
   if (qbitProcess && !qbitProcess.killed) qbitProcess.kill();
 }
 
+try {
+  configureElectronSessionData();
+} catch (error) {
+  const reason = error?.message || String(error);
+  console.error("[desktop] Electron sessionData setup failed:", error);
+  dialog.showErrorBox(
+    "追番中心启动失败",
+    `Electron 缓存目录初始化失败：${reason}\n\n请确认失败路径所在磁盘已连接且可写。`,
+  );
+  app.exit(1);
+  throw error;
+}
+
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
 if (!hasSingleInstanceLock) {
   app.quit();
@@ -901,11 +1040,12 @@ if (!hasSingleInstanceLock) {
     boot().catch((err) => {
       appendLog("desktop.err.log", `${err.stack || err}\n`);
       if (mainWindow) {
+        const reason = err?.message || String(err);
         void mainWindow.loadURL(
           `data:text/html;charset=utf-8,${encodeURIComponent(
             bootPage(
               "追番中心启动失败",
-              "应用数据保持不变。请重新启动；如果仍然失败，可查看 logs/desktop.err.log。",
+              `运行路径初始化失败：${reason}。数据库内容未改动；下载目录运行路径尚未初始化完成，请检查上方实际失败路径；详细记录位于 logs/desktop.err.log。`,
             ),
           )}`,
         );

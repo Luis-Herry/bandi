@@ -86,6 +86,10 @@ test("cinema catalog can refresh from public TMDb discovery lists", () => {
     "src/app/(main)/cinema-library/CinemaLibraryClient.tsx",
     "utf8",
   );
+  const importButtonSource = readFileSync(
+    "src/components/features/CinemaCatalogImportButton.tsx",
+    "utf8",
+  );
 
   assert.match(tmdbSource, /export async function getCinemaCatalog/);
   assert.match(tmdbSource, /\/trending\/all\/week/);
@@ -103,7 +107,17 @@ test("cinema catalog can refresh from public TMDb discovery lists", () => {
   assert.match(routeSource, /scope === "catalog"/);
   assert.match(routeSource, /importCinemaCatalog\(\{ limit, enrich: false \}\)/);
   assert.match(routeSource, /importDoubanCatalog\(\{ limit/);
+  assert.match(routeSource, /revalidatePath\("\/cinema-library"\)/);
   assert.match(clientSource, /CinemaCatalogImportButton/);
+  assert.match(importButtonSource, /router\.refresh\(\)/);
+  assert.doesNotMatch(importButtonSource, /useTransition|startRefresh/);
+  assert.match(importButtonSource, /当前可展示/);
+  assert.match(importButtonSource, /动漫分流/);
+  assert.match(importButtonSource, /匹配已有/);
+  assert.match(importButtonSource, /原地纠正/);
+  assert.match(importButtonSource, /未匹配跳过/);
+  assert.match(importButtonSource, /身份冲突/);
+  assert.match(importButtonSource, /题材待确认/);
 });
 
 test("cinema catalog cards only navigate internally;正版链接 stay in detail page", () => {
@@ -176,6 +190,8 @@ test("cinema detail includes progress control and episode state legend", () => {
   assert.match(detailSource, /<EpisodeProgressControl/);
   assert.match(detailSource, /initialCurrent=\{watchedCount\}/);
   assert.match(detailSource, /maxEpisode=\{maxEpisodeNumber\}/);
+  assert.match(detailSource, /enabled=\{canEditEpisodeProgress\}/);
+  assert.match(detailSource, /disabledLabel="同步剧集后可记录"/);
   assert.match(detailSource, /detailContinueEpisode/);
   assert.match(detailSource, /episode\.number > watchedThroughEpisode/);
   assert.match(detailSource, /watchStatus=\{userAnime\?\.watchStatus\}/);
@@ -202,6 +218,48 @@ test("cinema detail can enrich one item on demand without running the full catal
 
   assert.match(detailSource, /CinemaDetailEnrichButton/);
   assert.match(detailSource, /needsMetadata/);
+  assert.match(detailSource, /metadataAttempted/);
+  assert.match(detailSource, /anime\.doubanRatingFetchedAt != null/);
+  assert.doesNotMatch(detailSource, /anime\.tmdbId == null/);
   assert.match(buttonSource, /body: JSON\.stringify\(\{ animeId \}\)/);
+  assert.match(buttonSource, /data\.result\.reclassified/);
+  assert.match(buttonSource, /router\.replace\(`\/anime\/\$\{data\.result\.animeId\}`\)/);
   assert.doesNotMatch(buttonSource, /scope: "catalog"|scope: "all"|scope: "missing"/);
+});
+
+test("Douban TV animation is routed away from cinema at import and query time", () => {
+  const doubanSource = readFileSync("src/lib/douban.ts", "utf8");
+  const enrichSource = readFileSync("src/lib/cinema-enrich.ts", "utf8");
+  const cinemaQuerySource = readFileSync(
+    "src/lib/db-helpers/cinema.ts",
+    "utf8",
+  );
+
+  assert.match(doubanSource, /tag: "日本动画"/);
+  assert.match(doubanSource, /tag: "动画"/);
+  assert.match(doubanSource, /hasDoubanAnimationGenre/);
+  assert.match(enrichSource, /applyDoubanAnimationMetadata/);
+  assert.match(enrichSource, /mediaType: "anime"/);
+  assert.match(enrichSource, /findDoubanCatalogRowsById/);
+  assert.match(enrichSource, /\.where\(eq\(anime\.doubanId, doubanId\)\)[\s\S]*?\.all\(\)/);
+  assert.match(enrichSource, /skippedAnimeUnmatched/);
+  assert.match(cinemaQuerySource, /hasDoubanAnimationGenre\(row\.tags\)/);
+});
+
+test("cinema local movies default to 全部 and local enrichment uses local scope", () => {
+  const cinemaSource = readFileSync(
+    "src/app/(main)/cinema/CinemaClient.tsx",
+    "utf8",
+  );
+  const enrichButtonSource = readFileSync(
+    "src/components/features/CinemaEnrichButton.tsx",
+    "utf8",
+  );
+
+  assert.match(cinemaSource, /const ALL_MOVIES = "全部"/);
+  assert.match(cinemaSource, /: ALL_MOVIES/);
+  assert.match(cinemaSource, /genre === ALL_MOVIES\s*\? movie/);
+  assert.match(cinemaSource, /<CinemaEnrichButton scope="local"/);
+  assert.match(enrichButtonSource, /\/api\/cinema\/enrich\?scope=local/);
+  assert.match(enrichButtonSource, /请先扫描文件/);
 });

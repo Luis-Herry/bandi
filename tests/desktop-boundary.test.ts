@@ -1,10 +1,223 @@
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, readFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
+import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import Database from "better-sqlite3";
 import { ensureDatabaseSchema } from "../src/db/bootstrap";
+import {
+  isSafeAbsoluteWindowsPath as isSafeTypeScriptWindowsPath,
+  resolveDownloadRoot,
+} from "../src/lib/download-root";
+
+const nodeRequire = createRequire(import.meta.url);
+const { buildNextProxyEnv, mergeNoProxy } = nodeRequire(
+  "../desktop/proxy-env.cjs",
+) as {
+  buildNextProxyEnv: (
+    env: Record<string, string | undefined>,
+    fallbackProxyUrl?: string | null,
+  ) => Record<string, string>;
+  mergeNoProxy: (value?: string) => string;
+};
+const {
+  DEFAULT_DOWNLOAD_DIR,
+  isSafeAbsoluteWindowsPath: isSafeDesktopWindowsPath,
+  normalizeManagedQbitPort,
+  resolveConfiguredDownloadDir,
+} = nodeRequire("../desktop/runtime-paths.cjs") as {
+  DEFAULT_DOWNLOAD_DIR: string;
+  isSafeAbsoluteWindowsPath: (value: unknown) => boolean;
+  normalizeManagedQbitPort: (value: unknown) => number;
+  resolveConfiguredDownloadDir: (input: {
+    existingDownloadDir?: unknown;
+    userDataDir: string;
+    videosDir: string;
+  }) => string;
+};
+
+test("managed qBit ports stay isolated from external compatibility ports", () => {
+  assert.equal(normalizeManagedQbitPort(18180), 18180);
+  assert.equal(normalizeManagedQbitPort(65535), 65535);
+  for (const legacyOrInvalid of [undefined, 0, 8080, 18080, 18179, 65536]) {
+    assert.equal(normalizeManagedQbitPort(legacyOrInvalid), 0, String(legacyOrInvalid));
+  }
+});
+const {
+  getDesktopSessionOrigins,
+  withDesktopSessionHeader,
+} = nodeRequire("../desktop/session-header.cjs") as {
+  getDesktopSessionOrigins: (appUrl: string) => Set<string>;
+  withDesktopSessionHeader: (input: {
+    allowedOrigins: Set<string>;
+    requestUrl: string;
+    requestHeaders: Record<string, string>;
+    headerName: string;
+    headerValue: string;
+  }) => Record<string, string>;
+};
+
+test("desktop proxy environment always bypasses its local services", () => {
+  assert.equal(
+    mergeNoProxy("internal.example,LOCALHOST"),
+    "internal.example,LOCALHOST,127.0.0.1,::1",
+  );
+
+  const existing = buildNextProxyEnv({
+    HTTPS_PROXY: "http://proxy.example:8080",
+    NO_PROXY: "internal.example",
+  });
+  assert.equal(existing.HTTP_PROXY, undefined);
+  assert.match(existing.NO_PROXY, /internal\.example/);
+  assert.match(existing.NO_PROXY, /127\.0\.0\.1/);
+  assert.match(existing.NO_PROXY, /localhost/);
+  assert.match(existing.NO_PROXY, /::1/);
+
+  const fallback = buildNextProxyEnv({}, "http://127.0.0.1:10808");
+  assert.equal(fallback.HTTP_PROXY, "http://127.0.0.1:10808");
+  assert.equal(fallback.HTTPS_PROXY, "http://127.0.0.1:10808");
+});
+
+test("desktop download policy migrates legacy defaults and preserves custom paths", () => {
+  const userDataDir =
+    "C:\\Users\\ExampleUser\\AppData\\Roaming\\anime-tracker";
+  const videosDir = "C:\\Users\\ExampleUser\\Videos";
+  const resolve = (existingDownloadDir?: unknown) =>
+    resolveConfiguredDownloadDir({
+      existingDownloadDir,
+      userDataDir,
+      videosDir,
+    });
+
+  assert.equal(DEFAULT_DOWNLOAD_DIR, "K:\\BandiData\\downloads");
+  assert.equal(resolve(undefined), DEFAULT_DOWNLOAD_DIR);
+  assert.equal(resolve("relative/downloads"), DEFAULT_DOWNLOAD_DIR);
+  assert.equal(resolve("C:downloads"), DEFAULT_DOWNLOAD_DIR);
+  assert.equal(resolve("\\downloads"), DEFAULT_DOWNLOAD_DIR);
+  assert.equal(resolve("C:\\"), DEFAULT_DOWNLOAD_DIR);
+  assert.equal(
+    resolve(`${userDataDir}\\download`),
+    DEFAULT_DOWNLOAD_DIR,
+  );
+  assert.equal(
+    resolve(`${videosDir}\\Bandi\\Downloads`),
+    DEFAULT_DOWNLOAD_DIR,
+  );
+  assert.equal(
+    resolve("D:\\Media\\Bandi Downloads"),
+    "D:\\Media\\Bandi Downloads",
+  );
+  assert.equal(
+    resolve("\\\\media-server\\anime\\Bandi Downloads"),
+    "\\\\media-server\\anime\\Bandi Downloads",
+  );
+});
+
+test("runtime paths require a complete Windows drive or UNC subpath", () => {
+  const accepted = [
+    "D:\\Media\\Bandi",
+    "D:/Media/Bandi",
+    "\\\\media-server\\anime\\Bandi",
+  ];
+  const rejected = [
+    "relative/path",
+    "C:relative",
+    "\\root-relative",
+    "/root-relative",
+    "C:\\",
+    "\\\\media-server\\anime\\",
+    "\\\\?\\C:\\BandiData",
+  ];
+
+  for (const value of accepted) {
+    assert.equal(isSafeDesktopWindowsPath(value), true, value);
+    assert.equal(isSafeTypeScriptWindowsPath(value), true, value);
+  }
+  for (const value of rejected) {
+    assert.equal(isSafeDesktopWindowsPath(value), false, value);
+    assert.equal(isSafeTypeScriptWindowsPath(value), false, value);
+  }
+});
+
+test("desktop download root follows config changes without restarting Next", () => {
+  const root = mkdtempSync(join(tmpdir(), "bandi-download-root-"));
+  const first = join(root, "first");
+  const second = join(root, "second");
+  const configPath = join(root, "config.json");
+  mkdirSync(first);
+  mkdirSync(second);
+
+  writeFileSync(configPath, JSON.stringify({ downloadDir: first }), "utf8");
+  const env = {
+    ANIME_DESKTOP_APP: "1",
+    DESKTOP_CONFIG_PATH: configPath,
+    DOWNLOAD_ROOT: "Z:\\ignored-in-desktop-mode",
+  };
+  assert.deepEqual(resolveDownloadRoot(env), {
+    ok: true,
+    path: first,
+  });
+
+  for (const configPathValue of [
+    "relative/config.json",
+    "C:config.json",
+    "\\config.json",
+  ]) {
+    const invalidConfigPath = resolveDownloadRoot({
+      ANIME_DESKTOP_APP: "1",
+      DESKTOP_CONFIG_PATH: configPathValue,
+    });
+    assert.equal(invalidConfigPath.ok, false, configPathValue);
+  }
+
+  writeFileSync(configPath, JSON.stringify({ downloadDir: second }), "utf8");
+  assert.deepEqual(resolveDownloadRoot(env), {
+    ok: true,
+    path: second,
+  });
+  assert.deepEqual(
+    resolveDownloadRoot({
+      ANIME_DESKTOP_APP: "0",
+      DESKTOP_CONFIG_PATH: configPath,
+      DOWNLOAD_ROOT: first,
+    }),
+    { ok: true, path: first },
+  );
+
+  const missing = join(root, "missing");
+  writeFileSync(configPath, JSON.stringify({ downloadDir: missing }), "utf8");
+  const result = resolveDownloadRoot(env);
+  assert.equal(result.ok, false);
+  if (!result.ok) assert.ok(result.message.includes(missing));
+
+  writeFileSync(configPath, "{}", "utf8");
+  const missingSetting = resolveDownloadRoot(env);
+  assert.equal(missingSetting.ok, false);
+  if (!missingSetting.ok) {
+    assert.ok(missingSetting.message.includes(configPath));
+  }
+
+  for (const invalidDownloadDir of [
+    "relative/downloads",
+    "C:downloads",
+    "\\downloads",
+  ]) {
+    writeFileSync(
+      configPath,
+      JSON.stringify({ downloadDir: invalidDownloadDir }),
+      "utf8",
+    );
+    const invalidDownloadRoot = resolveDownloadRoot(env);
+    assert.equal(invalidDownloadRoot.ok, false, invalidDownloadDir);
+  }
+});
 
 test("desktop packaging boundary survives web sync", () => {
   const pkg = JSON.parse(readFileSync("package.json", "utf8")) as {
@@ -56,8 +269,14 @@ test("desktop packaging boundary survives web sync", () => {
 
   assert.match(nextConfig, /output:\s*"standalone"/);
   assert.match(prepareScript, /\.next", "standalone"/);
-  assert.match(prepareScript, /copyDir\(staticDir, targetStatic\)/);
-  assert.match(prepareScript, /copyDir\(publicDir, path\.join\(standaloneDir, "public"\)\)/);
+  assert.match(
+    prepareScript,
+    /mirrorDir\(staticDir, path\.join\(standaloneDir, "\.next", "static"\)\)/,
+  );
+  assert.match(
+    prepareScript,
+    /mirrorDir\(publicDir, path\.join\(standaloneDir, "public"\)\)/,
+  );
   assert.match(gitignore, /\/release/);
   assert.match(gitignore, /\/dist/);
   assert.match(gitignore, /\.desktop-verify\//);
@@ -96,15 +315,93 @@ test("desktop main keeps local qBit and userData runtime paths", () => {
   assert.match(mainSource, /findOpenPort\(QBIT_PORT_START\)/);
   assert.match(mainSource, /app\.getPath\("userData"\)/);
   assert.match(mainSource, /path\.join\(userData, "qbit-profile"\)/);
-  assert.match(mainSource, /path\.join\(userDataDir, "download"\)/);
   assert.match(mainSource, /downloadDir = desktopConfig\.downloadDir/);
   assert.match(mainSource, /path\.join\(userData, "data"\)/);
   assert.match(mainSource, /DATABASE_URL: dbPath/);
+  assert.ok(
+    mainSource.includes(
+      'COVER_CACHE_DIR: "H:\\\\BandiData\\\\cache\\\\covers"',
+    ),
+  );
+  assert.ok(
+    mainSource.includes('SCREENSHOT_DIR: "H:\\\\BandiData\\\\screenshots"'),
+  );
+  assert.match(
+    mainSource,
+    /resolveConfiguredDownloadDir\(\{[\s\S]*existingDownloadDir: existing\.downloadDir/,
+  );
+  assert.match(
+    mainSource,
+    /prepareNextRuntimeDirectories\([\s\S]*desktopConfig\.downloadDir/,
+  );
+  assert.match(mainSource, /\.\.\.runtimePathEnv/);
+  assert.match(mainSource, /startNextServer\(runtimePathEnv\)/);
   assert.match(mainSource, /QBIT_URL: `http:\/\/127\.0\.0\.1:\$\{desktopConfig\.qbitPort\}`/);
   assert.match(mainSource, /QBIT_CONFIG_PATH: configFile\(userData\)/);
+  assert.match(mainSource, /DESKTOP_CONFIG_PATH: configFile\(userData\)/);
   assert.match(mainSource, /ANIME_DESKTOP_APP: "1"/);
   assert.match(mainSource, /getAppIconPath\(\)/);
   assert.match(mainSource, /icon: getAppIconPath\(\)/);
+});
+
+test("runtime storage APIs require injected absolute directories", () => {
+  const mainSource = readFileSync("desktop/main.cjs", "utf8");
+  const coverSource = readFileSync("src/lib/cover-cache.ts", "utf8");
+  const screenshotSource = readFileSync(
+    "src/app/api/player/screenshots/route.ts",
+    "utf8",
+  );
+  const downloadsSource = readFileSync(
+    "src/app/api/downloads/route.ts",
+    "utf8",
+  );
+  const downloadRootSource = readFileSync(
+    "src/lib/download-root.ts",
+    "utf8",
+  );
+
+  assert.match(coverSource, /process\.env\.COVER_CACHE_DIR/);
+  assert.match(screenshotSource, /process\.env\.SCREENSHOT_DIR/);
+  assert.match(downloadRootSource, /env\.DOWNLOAD_ROOT/);
+  assert.match(downloadRootSource, /env\.DESKTOP_CONFIG_PATH/);
+  assert.match(
+    downloadRootSource,
+    /readFileSync\(desktopConfigPath, "utf8"\)/,
+  );
+  assert.match(mainSource, /isSafeAbsoluteWindowsPath\(value\)[\s\S]*path\.resolve/);
+  assert.match(coverSource, /isSafeAbsoluteWindowsPath\(configured\)/);
+  assert.match(screenshotSource, /isSafeAbsoluteWindowsPath\(configured\)/);
+  assert.match(downloadsSource, /resolveDownloadRoot\(\)/);
+  for (const source of [
+    coverSource,
+    screenshotSource,
+    downloadsSource,
+    downloadRootSource,
+  ]) {
+    assert.doesNotMatch(source, /process\.cwd\(\)/);
+  }
+  assert.match(screenshotSource, /screenshot_directory_unavailable/);
+  assert.match(downloadsSource, /download_directory_unavailable/);
+  assert.match(
+    downloadsSource,
+    /syncExternalDownloads\(live, downloadRoot\.path\)/,
+  );
+});
+
+test("Electron session data moves to H before app readiness", () => {
+  const mainSource = readFileSync("desktop/main.cjs", "utf8");
+  assert.ok(
+    mainSource.includes(
+      'ELECTRON_SESSION_DATA_DIR = "H:\\\\BandiData\\\\cache\\\\electron"',
+    ),
+  );
+  assert.match(mainSource, /app\.setPath\("sessionData", inspection\.downloadDir\)/);
+  const setupIndex = mainSource.lastIndexOf("configureElectronSessionData();");
+  const lockIndex = mainSource.indexOf("app.requestSingleInstanceLock()");
+  const readyIndex = mainSource.indexOf("app.whenReady()");
+  assert.ok(setupIndex >= 0 && setupIndex < lockIndex);
+  assert.ok(lockIndex < readyIndex);
+  assert.match(mainSource, /app\.exit\(1\);[\s\S]*throw error/);
 });
 
 test("desktop owns qBit readiness, recovery, tray, and graceful shutdown", () => {
@@ -134,6 +431,21 @@ test("desktop qBit client only uses the injected URL in desktop mode", () => {
     /return configured\.length > 0 \? configured : \[DEFAULT_QBIT_URLS\[0\]\]/,
   );
   assert.match(qbitSource, /managed: isDesktopApp/);
+  assert.match(qbitSource, /\/api\/v2\/sync\/maindata\?rid=0/);
+  assert.match(qbitSource, /serverState\?\.free_space_on_disk/);
+  assert.doesNotMatch(qbitSource, /xfer\.data\.free_space_on_disk/);
+});
+
+test("desktop automation settings use non-blocking app feedback", () => {
+  const settingsSource = readFileSync(
+    "src/components/features/AutomationSettingsClient.tsx",
+    "utf8",
+  );
+
+  assert.match(settingsSource, /showToast\(\{/);
+  assert.match(settingsSource, /title: "RSS 测试成功"/);
+  assert.match(settingsSource, /title: "RSS 测试失败"/);
+  assert.doesNotMatch(settingsSource, /\balert\(/);
 });
 
 test("desktop bootstrap creates playback progress storage", () => {
@@ -246,6 +558,7 @@ test("download and settings panels hide infrastructure details in managed mode",
 });
 
 test("desktop login establishes a local session without showing credentials", () => {
+  const mainSource = readFileSync("desktop/main.cjs", "utf8");
   const loginPageSource = readFileSync("src/app/(auth)/login/page.tsx", "utf8");
   const loginShellSource = readFileSync(
     "src/app/(auth)/login/LoginShell.tsx",
@@ -270,6 +583,73 @@ test("desktop login establishes a local session without showing credentials", ()
   assert.match(authSource, /timingSafeEqual/);
   assert.match(middlewareSource, /searchParams\.get\("from"\)/);
   assert.match(middlewareSource, /from && from\.startsWith\("\/"\) \? from : "\/"/);
+  assert.match(mainSource, /require\("\.\/session-header\.cjs"\)/);
+  assert.match(
+    mainSource,
+    /urls: \[\.\.\.allowedOrigins\]\.map\(\(origin\) => `\$\{origin\}\/\*`\)/,
+  );
+  assert.match(mainSource, /withDesktopSessionHeader\(\{/);
+});
+
+test("desktop session header stays on the two local app origins", () => {
+  const appUrl = "http://127.0.0.1:31245";
+  const headerName = "X-Bandi-Desktop-Token";
+  const headerValue = "test-token";
+  const allowedOrigins = getDesktopSessionOrigins(appUrl);
+
+  assert.deepEqual([...allowedOrigins], [
+    "http://127.0.0.1:31245",
+    "http://localhost:31245",
+  ]);
+
+  for (const requestUrl of [
+    "http://127.0.0.1:31245/api/auth/providers",
+    "http://localhost:31245/api/auth/callback/desktop-session",
+  ]) {
+    const requestHeaders = { Accept: "application/json" };
+    const result = withDesktopSessionHeader({
+      allowedOrigins,
+      requestUrl,
+      requestHeaders,
+      headerName,
+      headerValue,
+    });
+
+    assert.notStrictEqual(result, requestHeaders);
+    assert.deepEqual(result, {
+      Accept: "application/json",
+      [headerName]: headerValue,
+    });
+    assert.deepEqual(requestHeaders, { Accept: "application/json" });
+  }
+
+  for (const requestUrl of [
+    "http://127.0.0.1:31246/api/auth/providers",
+    "http://localhost:31246/api/auth/providers",
+    "https://127.0.0.1:31245/api/auth/providers",
+    "https://localhost:31245/api/auth/providers",
+    "http://localhost.evil.test:31245/api/auth/providers",
+    "http://example.com:31245/api/auth/providers",
+  ]) {
+    const requestHeaders = {
+      Accept: "application/json",
+      "X-Existing": "kept",
+    };
+    const result = withDesktopSessionHeader({
+      allowedOrigins,
+      requestUrl,
+      requestHeaders,
+      headerName,
+      headerValue,
+    });
+
+    assert.strictEqual(result, requestHeaders);
+    assert.deepEqual(result, {
+      Accept: "application/json",
+      "X-Existing": "kept",
+    });
+    assert.equal(Object.hasOwn(result, headerName), false);
+  }
 });
 
 test("desktop first-run onboarding owns download location and tray behavior", () => {
@@ -286,7 +666,9 @@ test("desktop first-run onboarding owns download location and tray behavior", ()
   const navSource = readFileSync("src/components/features/Nav.tsx", "utf8");
 
   assert.match(mainSource, /ONBOARDING_VERSION = 1/);
-  assert.match(mainSource, /app\.getPath\("videos"\), "Bandi", "Downloads"/);
+  assert.equal(DEFAULT_DOWNLOAD_DIR, "K:\\BandiData\\downloads");
+  assert.match(mainSource, /const videosDir = app\.getPath\("videos"\)/);
+  assert.match(mainSource, /resolveConfiguredDownloadDir/);
   assert.match(mainSource, /inspectDownloadDirectory/);
   assert.match(mainSource, /fs\.statfsSync/);
   assert.match(mainSource, /bandi:get-desktop-settings/);
@@ -317,6 +699,10 @@ test("desktop replaces native Windows chrome with a themed custom titlebar", () 
     "src/components/features/DesktopTitlebar.tsx",
     "utf8",
   );
+  const backButtonSource = readFileSync(
+    "src/components/features/BackButton.tsx",
+    "utf8",
+  );
   const navSource = readFileSync("src/components/features/Nav.tsx", "utf8");
   const spaceSwitcherSource = readFileSync(
     "src/components/features/SpaceSwitcher.tsx",
@@ -327,6 +713,10 @@ test("desktop replaces native Windows chrome with a themed custom titlebar", () 
   assert.match(mainSource, /frame: false/);
   assert.match(mainSource, /thickFrame: true/);
   assert.match(mainSource, /roundedCorners: true/);
+  assert.match(mainSource, /\["--use-env-proxy", serverEntry\]/);
+  assert.match(mainSource, /const LOCAL_PROXY_PORT = 10808/);
+  assert.match(mainSource, /const proxyEnv = await getNextProxyEnv\(\)/);
+  assert.match(mainSource, /buildNextProxyEnv\(process\.env/);
   assert.match(mainSource, /Menu\.setApplicationMenu\(null\)/);
   assert.match(mainSource, /bandi:minimize-window/);
   assert.match(mainSource, /bandi:toggle-maximize-window/);
@@ -337,10 +727,20 @@ test("desktop replaces native Windows chrome with a themed custom titlebar", () 
   assert.match(mainSource, /\.boot-heading\{display:flex;align-items:center;gap:10px\}/);
   assert.match(mainSource, /h1\{margin:0;/);
   assert.match(preloadSource, /bandi:window-state-changed/);
+  assert.match(preloadSource, /bandi:choose-media-directory/);
+  assert.match(mainSource, /ipcMain\.handle\("bandi:choose-media-directory"/);
+  assert.match(mainSource, /选择本地影视文件夹/);
+  assert.match(mainSource, /选择本地动漫文件夹/);
+  assert.match(mainSource, /mediaKind === "anime"/);
+  assert.equal(
+    titlebarSource.includes('[/^\\/cinema\\/[^/]+/, "影视详情"]'),
+    true,
+  );
   assert.match(rootLayoutSource, /data-desktop-app=/);
   assert.match(rootLayoutSource, /isDesktop && <DesktopTitlebar/);
   assert.match(titlebarSource, /desktop-titlebar-controls/);
   assert.match(titlebarSource, /aria-label="窗口控制"/);
+  assert.match(backButtonSource, /"back-button"/);
   assert.match(navSource, /--desktop-titlebar-shell-height/);
   assert.doesNotMatch(navSource, /<BrandLogo \/>/);
   assert.equal([...navSource.matchAll(/<SpaceSwitcher /g)].length, 1);
@@ -348,6 +748,10 @@ test("desktop replaces native Windows chrome with a themed custom titlebar", () 
   assert.match(spaceSwitcherSource, /aria-label=\{s\.label\}/);
   assert.match(globalsSource, /-webkit-app-region: drag/);
   assert.match(globalsSource, /-webkit-app-region: no-drag/);
+  assert.match(
+    globalsSource,
+    /html\[data-desktop-app="true"\] \.fixed > \.back-button\s*\{[^}]*translate: 0 var\(--desktop-titlebar-shell-height\)/s,
+  );
   const titlebarRule =
     /\.desktop-titlebar\s*\{(?<body>[^}]*)\}/s.exec(globalsSource)?.groups
       ?.body ?? "";

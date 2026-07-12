@@ -21,6 +21,8 @@ test("empty home points primary CTA to browse and opens search as secondary acti
   assert.match(searchButtonSource, /bandi:open-search/);
   assert.match(searchCommandSource, /bandi:open-search/);
   assert.match(navSource, /bandi:open-search/);
+  assert.match(homeSource, /Ctrl K/);
+  assert.doesNotMatch(homeSource, /⌘K/);
 });
 
 test("empty home capability copy reflects the current product structure", () => {

@@ -2,6 +2,7 @@ import type { CSSProperties } from "react";
 import { ExternalLink, Star } from "lucide-react";
 import { GlassPanel, Tag } from "@/components/ui";
 import { BackButton } from "@/components/features/BackButton";
+import { AnimeCover } from "@/components/features/AnimeCover";
 import { CinemaEpisodeList } from "@/components/features/CinemaEpisodeList";
 import { CinemaDetailEnrichButton } from "@/components/features/CinemaDetailEnrichButton";
 import { CinemaWatchControl } from "@/components/features/CinemaWatchControl";
@@ -63,15 +64,26 @@ export function CinemaDetail({ detail }: { detail: AnimeDetail }) {
   const lanes = normalizeWatchProviders(anime.watchProviders);
   const cnLane = lanes.find((l) => l.region === "CN");
   const overseasLanes = lanes.filter((l) => l.region !== "CN");
+  const metadataAttempted = anime.doubanRatingFetchedAt != null;
   const needsMetadata =
-    anime.tmdbId != null &&
-    (rating == null || lanes.length === 0 || (!isMovie && episodes.length === 0));
+    !metadataAttempted ||
+    rating == null ||
+    anime.year == null ||
+    (!isMovie && episodes.length === 0);
 
   const watchedCount = userAnime?.currentEpisode ?? 0;
   const maxEpisodeNumber =
     episodes.length > 0
       ? Math.max(...episodes.map((episode) => episode.number))
       : anime.totalEpisodes;
+  const canEditEpisodeProgress =
+    maxEpisodeNumber != null && maxEpisodeNumber > 0;
+  const episodeCountLabel =
+    episodes.length === 0
+      ? "暂无剧集数据"
+      : anime.totalEpisodes != null && anime.totalEpisodes > episodes.length
+        ? `已收录 ${episodes.length} / 共 ${anime.totalEpisodes} 集`
+        : `${episodes.length} 集`;
   const completionEpisode = getCompletionEpisodeNumber({
     totalEpisodes: anime.totalEpisodes,
     episodeNumbers: episodes.map((episode) => episode.number),
@@ -120,11 +132,14 @@ export function CinemaDetail({ detail }: { detail: AnimeDetail }) {
       {/* ========== Hero ========== */}
       <section className="relative min-h-[430px] w-full overflow-hidden sm:min-h-[460px] lg:h-[460px]">
         {anime.coverUrl && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
+          <AnimeCover
             src={anime.coverUrl}
             alt={anime.title}
-            className="absolute inset-0 h-full w-full object-cover"
+            ratio="auto"
+            className="!absolute inset-0 z-0 h-full w-full"
+            priority
+            sizes="100vw"
+            imageRole="hero"
           />
         )}
         <div
@@ -156,7 +171,7 @@ export function CinemaDetail({ detail }: { detail: AnimeDetail }) {
           <BackButton />
         </div>
 
-        <div className="relative mx-auto flex min-h-[430px] max-w-[1440px] flex-col justify-end px-4 pb-8 pt-20 sm:min-h-[460px] sm:px-6 sm:pb-10 lg:h-full lg:px-8 lg:pb-12 lg:pt-16">
+        <div className="relative z-10 mx-auto flex min-h-[430px] max-w-[1440px] flex-col justify-end px-4 pb-8 pt-20 sm:min-h-[460px] sm:px-6 sm:pb-10 lg:h-full lg:px-8 lg:pb-12 lg:pt-16">
           <div className="mb-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-[color:var(--text-secondary)]">
             <span data-tabular>{anime.year ?? "—"}</span>
             <span>·</span>
@@ -164,7 +179,7 @@ export function CinemaDetail({ detail }: { detail: AnimeDetail }) {
             {hasEpisodeSection && episodes.length > 0 && (
               <>
                 <span>·</span>
-                <span data-tabular>共 {episodes.length} 集</span>
+                <span data-tabular>{episodeCountLabel}</span>
               </>
             )}
           </div>
@@ -294,16 +309,15 @@ export function CinemaDetail({ detail }: { detail: AnimeDetail }) {
                     data-tabular
                     className="text-[12px] text-[color:var(--text-muted)]"
                   >
-                    {episodes.length > 0
-                      ? `${episodes.length} 集`
-                      : "暂无剧集数据"}
+                    {episodeCountLabel}
                   </span>
                 </div>
                 <EpisodeProgressControl
                   animeId={anime.id}
                   initialCurrent={watchedCount}
                   maxEpisode={maxEpisodeNumber}
-                  enabled={true}
+                  enabled={canEditEpisodeProgress}
+                  disabledLabel="同步剧集后可记录"
                 />
               </div>
               {episodes.length > 0 ? (
@@ -315,7 +329,7 @@ export function CinemaDetail({ detail }: { detail: AnimeDetail }) {
                 />
               ) : (
                 <GlassPanel className="p-6 text-center text-[13px] text-[color:var(--text-muted)]">
-                  暂无剧集数据，刮削元数据后会从 TMDB 同步播出日期
+                  暂无剧集数据，补全资料后会尝试同步可用剧集
                 </GlassPanel>
               )}
             </div>
@@ -333,7 +347,9 @@ export function CinemaDetail({ detail }: { detail: AnimeDetail }) {
             </div>
             {lanes.length === 0 ? (
               <p className="text-[12px] text-[color:var(--text-muted)]">
-                暂无在哪看数据
+                {metadataAttempted && anime.doubanId
+                  ? "豆瓣当前未提供正版平台数据"
+                  : "暂无在哪看数据，补全资料后会尝试查找"}
               </p>
             ) : (
               <div className="space-y-3">
@@ -412,9 +428,11 @@ export function CinemaDetail({ detail }: { detail: AnimeDetail }) {
                   "集数",
                   isMovie
                     ? "—"
-                    : episodes.length > 0
-                      ? `${episodes.length} 集`
-                      : "—",
+                    : anime.totalEpisodes != null
+                      ? `${anime.totalEpisodes} 集`
+                      : episodes.length > 0
+                        ? `${episodes.length} 集`
+                        : "—",
                 ],
                 [
                   "豆瓣",

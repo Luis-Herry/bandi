@@ -47,6 +47,8 @@ export default async function CharacterPage({ params }: PageProps) {
             ratio="3/4"
             priority
             sizes="360px"
+            fit="contain"
+            objectPosition="center top"
           />
         </GlassPanel>
 

@@ -255,24 +255,27 @@ export async function getStatus(): Promise<QbitStatus> {
       error: version.error,
     };
   const apiVersion = await request<string>("/api/v2/app/webapiVersion");
-  const xfer = await request<{
-    dl_info_speed: number;
-    up_info_speed: number;
-    dl_info_data: number;
-    up_info_data: number;
-    free_space_on_disk?: number;
-  }>("/api/v2/transfer/info");
+  const mainData = await request<{
+    server_state?: {
+      dl_info_speed?: number;
+      up_info_speed?: number;
+      dl_info_data?: number;
+      up_info_data?: number;
+      free_space_on_disk?: number;
+    };
+  }>("/api/v2/sync/maindata?rid=0");
+  const serverState = mainData.ok ? mainData.data?.server_state : undefined;
   return {
     connected: true,
     managed: isDesktopApp,
     url: version.url,
     version: version.data,
     apiVersion: apiVersion.ok ? apiVersion.data : undefined,
-    dlSpeed: xfer.ok ? xfer.data.dl_info_speed : 0,
-    upSpeed: xfer.ok ? xfer.data.up_info_speed : 0,
-    dlInfoData: xfer.ok ? xfer.data.dl_info_data : 0,
-    upInfoData: xfer.ok ? xfer.data.up_info_data : 0,
-    freeSpaceOnDisk: xfer.ok ? xfer.data.free_space_on_disk : undefined,
+    dlSpeed: serverState?.dl_info_speed ?? 0,
+    upSpeed: serverState?.up_info_speed ?? 0,
+    dlInfoData: serverState?.dl_info_data ?? 0,
+    upInfoData: serverState?.up_info_data ?? 0,
+    freeSpaceOnDisk: serverState?.free_space_on_disk,
   };
 }
 

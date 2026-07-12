@@ -22,6 +22,7 @@ interface BackButtonProps {
 }
 
 const sharedClass = cn(
+  "back-button",
   "inline-flex items-center justify-center",
   "w-10 h-10 rounded-full",
   "bg-black/40 backdrop-blur",

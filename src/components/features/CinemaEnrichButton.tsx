@@ -13,7 +13,11 @@ import { Button } from "@/components/ui";
  */
 const CONCURRENCY = 4;
 
-export function CinemaEnrichButton() {
+export function CinemaEnrichButton({
+  scope = "all",
+}: {
+  scope?: "all" | "local";
+}) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -28,7 +32,11 @@ export function CinemaEnrichButton() {
 
     let ids: number[] = [];
     try {
-      const res = await fetch("/api/cinema/enrich");
+      const res = await fetch(
+        scope === "local"
+          ? "/api/cinema/enrich?scope=local"
+          : "/api/cinema/enrich",
+      );
       const data = await res.json().catch(() => null);
       if (!res.ok || !Array.isArray(data?.pending)) {
         setError(data?.error ?? "获取待刮列表失败");
@@ -36,6 +44,15 @@ export function CinemaEnrichButton() {
         return;
       }
       ids = data.pending as number[];
+      if (ids.length === 0 && data.sourceCount === 0) {
+        setMsg(
+          scope === "local"
+            ? "本地库还没有可刮削的条目，请先扫描文件。"
+            : "当前没有可刮削的影视条目。",
+        );
+        setBusy(false);
+        return;
+      }
     } catch {
       setError("获取待刮列表出错");
       setBusy(false);
@@ -44,7 +61,7 @@ export function CinemaEnrichButton() {
 
     const total = ids.length;
     if (total === 0) {
-      setMsg("没有待刮削的条目（都刮过了）。");
+      setMsg(scope === "local" ? "本地条目资料已补全。" : "影视资料已补全。");
       setBusy(false);
       return;
     }

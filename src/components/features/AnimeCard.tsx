@@ -44,8 +44,14 @@ export function AnimeCard({
   className,
   href,
 }: AnimeCardProps) {
+  const cardHref = href ?? `/anime/${id}`;
+  const episodesHref = `${cardHref.split("#")[0]}#episodes`;
   const denom = totalEpisodes && totalEpisodes > 0 ? totalEpisodes : null;
   const pct = denom ? Math.min(1, currentEpisode / denom) : 0;
+  const unwatchedCount =
+    airedCount !== undefined && denom
+      ? Math.max(0, airedCount - currentEpisode)
+      : 0;
   const epLabel = denom
     ? `EP ${String(currentEpisode).padStart(2, "0")} / ${String(denom).padStart(2, "0")}`
     : `EP ${String(currentEpisode).padStart(2, "0")}`;
@@ -64,7 +70,7 @@ export function AnimeCard({
       >
         {/* Keep the glow host outside the anchor; Chrome can freeze conic-gradient angles inside link subtrees. */}
         <a
-          href={href ?? `/anime/${id}`}
+          href={cardHref}
           aria-label={`查看 ${title}`}
           className="absolute inset-0 z-[8] rounded-[8px] touch-pan-y"
         >
@@ -107,16 +113,17 @@ export function AnimeCard({
               >
                 {epLabel}
               </span>
-              {airedCount !== undefined &&
-                denom &&
-                airedCount > currentEpisode && (
-                  <span
-                    data-tabular
-                    className="text-[10px] px-1.5 py-0.5 rounded-full bg-[color:var(--accent)] text-[color:var(--accent-contrast)] font-semibold"
-                  >
-                    +{airedCount - currentEpisode}
-                  </span>
-                )}
+              {unwatchedCount > 0 && (
+                <a
+                  href={episodesHref}
+                  aria-label={`查看 ${title} 的 ${unwatchedCount} 集待看`}
+                  title={`${unwatchedCount} 集待看`}
+                  data-tabular
+                  className="pointer-events-auto relative z-[20] inline-flex rounded-full bg-[color:var(--accent)] px-1.5 py-0.5 text-[10px] font-semibold text-[color:var(--accent-contrast)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--accent)]"
+                >
+                  待看 {unwatchedCount}
+                </a>
+              )}
             </div>
           </div>
 

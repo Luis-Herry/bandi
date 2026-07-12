@@ -420,6 +420,11 @@ html[data-desktop-app="true"] .desktop-viewport {
   transform: scale(0.94);
 }
 
+/* 主导航在桌面标题栏下方整体下移；浮动返回键同步避开这 44px。 */
+html[data-desktop-app="true"] .fixed > .back-button {
+  translate: 0 var(--desktop-titlebar-shell-height);
+}
+
 .desktop-titlebar-close-button:hover {
   background: rgba(205, 62, 62, 0.82);
   color: #fff;

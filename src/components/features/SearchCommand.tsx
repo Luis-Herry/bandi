@@ -32,6 +32,7 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { Loader2, Search } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { ClearableInput, ShimmerText } from "@/components/ui";
+import { AnimeCover } from "@/components/features/AnimeCover";
 import { showToast } from "@/components/features/ToastHost";
 
 interface SearchHit {
@@ -55,6 +56,10 @@ interface SearchRecommendations {
 
 const DEBOUNCE_MS = 220;
 
+function searchHitKey(hit: SearchHit): string {
+  return `${hit.source}:${hit.id ?? hit.bangumiId ?? hit.title}`;
+}
+
 export default function SearchCommand() {
   const router = useRouter();
 
@@ -67,7 +72,7 @@ export default function SearchCommand() {
   const [loading, setLoading] = useState(false);
   const [recommendationsLoading, setRecommendationsLoading] = useState(false);
   const [active, setActive] = useState(0);
-  const [adding, setAdding] = useState(false);
+  const [openingKey, setOpeningKey] = useState<string | null>(null);
 
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -176,7 +181,7 @@ export default function SearchCommand() {
   /* ── navigation handler ─────────────────────────────────────── */
   const go = useCallback(
     async (hit: SearchHit) => {
-      if (adding) return;
+      if (openingKey) return;
       if (hit.source === "local" && hit.id != null) {
         const href =
           hit.mediaType === "anime" ? `/anime/${hit.id}` : `/cinema/${hit.id}`;
@@ -185,7 +190,7 @@ export default function SearchCommand() {
         return;
       }
       if (hit.source === "bangumi" && hit.bangumiId != null) {
-        setAdding(true);
+        setOpeningKey(searchHitKey(hit));
         try {
           const res = await fetch("/api/anime/sync", {
             method: "POST",
@@ -206,11 +211,11 @@ export default function SearchCommand() {
             tone: "error",
           });
         } finally {
-          setAdding(false);
+          setOpeningKey(null);
         }
       }
     },
-    [adding, router],
+    [openingKey, router],
   );
 
   /* ── keyboard nav within input ──────────────────────────────── */
@@ -262,7 +267,8 @@ export default function SearchCommand() {
                 hit={hit}
                 index={i}
                 active={i === active}
-                busy={adding && i === active}
+                busy={openingKey === searchHitKey(hit)}
+                locked={openingKey != null}
                 onHover={() => setActive(i)}
                 onSelect={() => void go(hit)}
               />
@@ -309,7 +315,7 @@ export default function SearchCommand() {
           <RecommendationSections
             recommendations={recommendations}
             active={active}
-            busy={adding}
+            openingKey={openingKey}
             onHover={setActive}
             onSelect={(hit) => void go(hit)}
           />
@@ -420,13 +426,13 @@ function flattenRecommendations(
 function RecommendationSections({
   recommendations,
   active,
-  busy,
+  openingKey,
   onHover,
   onSelect,
 }: {
   recommendations: SearchRecommendations | null;
   active: number;
-  busy: boolean;
+  openingKey: string | null;
   onHover: (index: number) => void;
   onSelect: (hit: SearchHit) => void;
 }) {
@@ -466,7 +472,8 @@ function RecommendationSections({
                     hit={hit}
                     index={rowIndex}
                     active={active === rowIndex}
-                    busy={busy && active === rowIndex}
+                    busy={openingKey === searchHitKey(hit)}
+                    locked={openingKey != null}
                     onHover={() => onHover(rowIndex)}
                     onSelect={() => onSelect(hit)}
                   />
@@ -485,6 +492,7 @@ function Row({
   index,
   active,
   busy,
+  locked,
   onHover,
   onSelect,
 }: {
@@ -492,6 +500,7 @@ function Row({
   index: number;
   active: boolean;
   busy: boolean;
+  locked: boolean;
   onHover: () => void;
   onSelect: () => void;
 }) {
@@ -502,7 +511,7 @@ function Row({
         data-row={index}
         onMouseEnter={onHover}
         onClick={onSelect}
-        disabled={busy}
+        disabled={locked}
         role="option"
         aria-selected={active}
         className={cn(
@@ -515,17 +524,14 @@ function Row({
         )}
       >
         {/* cover */}
-        <div className="relative w-9 h-[52px] rounded-[4px] overflow-hidden bg-[color:var(--bg-surface)] shrink-0 border border-[color:var(--border-subtle)]">
-          {hit.coverUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={hit.coverUrl}
-              alt=""
-              className="absolute inset-0 w-full h-full object-cover"
-              loading="lazy"
-            />
-          ) : null}
-        </div>
+        <AnimeCover
+          src={hit.coverUrl}
+          alt=""
+          ratio="9/13"
+          className="w-9 h-[52px] rounded-[4px] shrink-0 border border-[color:var(--border-subtle)]"
+          sizes="36px"
+          imageRole="thumb"
+        />
 
         {/* title block */}
         <div className="flex-1 min-w-0">

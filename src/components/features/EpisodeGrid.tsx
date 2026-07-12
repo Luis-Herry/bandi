@@ -13,7 +13,7 @@ interface EpisodeGridProps {
   episodes: Episode[];
   animeStatus?: string | null;
   /**
-   * 用户当前进度（下一集/当前要看的那一集）。视觉上：
+   * 用户当前/最后看过的绝对集号。视觉上：
    *   - EP < currentEpisode → 已看
    *   - EP === currentEpisode → 当前要看（描边 + dot）
    *   - currentEpisode = 0 表示一集都没看，此时没有当前高亮
@@ -162,7 +162,7 @@ export function EpisodeGrid({
             displayWatchStatus === "completed"
               ? Math.max(...episodes.map((episode) => episode.number))
               : Math.max(0, displayCurrentEpisode - 1);
-          // currentEpisode 是「下一集/当前要看的那一集」。
+          // currentEpisode 是「当前/最后看过的绝对集号」。
           //   小于 currentEpisode → 已看；等于 → 当前；大于 → 未看。
           // currentEpisode = 0 表示一集没看；此时没有「当前」高亮。
           const isWatched =

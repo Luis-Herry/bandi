@@ -118,10 +118,14 @@ export default async function ProfilePage() {
         </GlassPanel>
 
         <GlassPanel variant="elevated" className="p-4 sm:p-5 lg:col-span-4">
-          <PanelHeader title="继续观看" subtitle="最近更新的在看条目" />
+          <PanelHeader title="可继续播放" subtitle="有播放记录或已下载的在看条目" />
           <div className="mt-4 space-y-3">
             {continueWatching.length === 0 ? (
-              <EmptyText>暂无正在观看的番剧</EmptyText>
+              <EmptyText>
+                {libraryStats.watching > 0
+                  ? `暂无可直接播放的内容；仍有 ${libraryStats.watching} 部正在观看，可前往追番列表找资源`
+                  : "还没有正在观看的番剧"}
+              </EmptyText>
             ) : (
               continueWatching.map((item) => (
                 <CompactAnimeRow

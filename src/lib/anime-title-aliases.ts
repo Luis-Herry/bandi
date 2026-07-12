@@ -54,6 +54,18 @@ export function selectTitleAliasesFromBangumi(
   return out;
 }
 
+/** 只读取指定 Bangumi 条目的标题别名；身份匹配时不回退到模糊 AniList 搜索。 */
+export async function getBangumiTitleAliases(
+  bangumiId: number | null | undefined,
+): Promise<string[]> {
+  if (typeof bangumiId !== "number" || !Number.isFinite(bangumiId)) return [];
+  try {
+    return selectTitleAliasesFromBangumi(await getSubject(bangumiId));
+  } catch {
+    return [];
+  }
+}
+
 export async function getAutoTitleAliases(
   input:
     | Array<string | null | undefined>

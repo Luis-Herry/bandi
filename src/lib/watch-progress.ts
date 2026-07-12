@@ -15,30 +15,35 @@ export function getCompletionEpisodeNumber({
   const normalized = episodeNumbers.filter(
     (number) => Number.isFinite(number) && number > 0,
   );
-  if (normalized.length > 0) return Math.max(...normalized);
-  return typeof totalEpisodes === "number" && totalEpisodes > 0
-    ? totalEpisodes
-    : null;
+  const highestStoredEpisode =
+    normalized.length > 0 ? Math.max(...normalized) : null;
+  const declaredTotal =
+    typeof totalEpisodes === "number" && totalEpisodes > 0
+      ? totalEpisodes
+      : null;
+  if (highestStoredEpisode == null) return declaredTotal;
+  if (declaredTotal == null) return highestStoredEpisode;
+  return Math.max(highestStoredEpisode, declaredTotal);
 }
 
 export function resolveProgressWatchStatus({
   currentStatus,
   explicitStatus,
-  nextEpisode,
+  currentEpisode,
   completionEpisode,
 }: {
   currentStatus: WatchStatus;
   explicitStatus?: WatchStatus | null;
-  nextEpisode: number;
+  currentEpisode: number;
   completionEpisode: number | null;
 }): WatchStatus {
   if (explicitStatus) return explicitStatus;
   if (currentStatus === "dropped") return currentStatus;
-  if (nextEpisode <= 0) return "planning";
-  if (completionEpisode != null && nextEpisode >= completionEpisode) {
+  if (currentEpisode <= 0) return "planning";
+  if (completionEpisode != null && currentEpisode >= completionEpisode) {
     return "completed";
   }
-  if (currentStatus === "planning" && nextEpisode > 0) return "watching";
+  if (currentStatus === "planning" && currentEpisode > 0) return "watching";
   if (currentStatus === "completed") return "watching";
   return currentStatus;
 }
@@ -57,7 +62,7 @@ export function resolveWatchedThroughWatchStatus({
   return resolveProgressWatchStatus({
     currentStatus,
     explicitStatus,
-    nextEpisode: watchedThroughEpisode,
+    currentEpisode: watchedThroughEpisode,
     completionEpisode,
   });
 }
@@ -75,42 +80,18 @@ export function getWatchedThroughEpisodeNumber({
   if (watchStatus === "completed") {
     return completionEpisode ?? safeCurrent;
   }
-  return Math.max(0, safeCurrent - 1);
-}
-
-export function getCurrentEpisodeAfterWatchedThrough({
-  watchedThroughEpisode,
-  episodeNumbers,
-  completionEpisode,
-}: {
-  watchedThroughEpisode: number;
-  episodeNumbers: number[];
-  completionEpisode: number | null;
-}): number {
-  const safeWatchedThrough = Math.max(0, Math.floor(watchedThroughEpisode));
-  const nextEpisode = Array.from(
-    new Set(
-      episodeNumbers
-        .map((number) => Math.floor(number))
-        .filter((number) => Number.isFinite(number) && number > safeWatchedThrough),
-    ),
-  ).sort((a, b) => a - b)[0];
-
-  if (nextEpisode != null) return nextEpisode;
-  return completionEpisode ?? safeWatchedThrough;
+  return safeCurrent;
 }
 
 export function resolveCompletedPlaybackProgress({
   currentEpisode,
   currentStatus,
   completedEpisode,
-  episodeNumbers,
   completionEpisode,
 }: {
   currentEpisode: number;
   currentStatus: WatchStatus;
   completedEpisode: number;
-  episodeNumbers: number[];
   completionEpisode: number | null;
 }): {
   advanced: boolean;
@@ -144,11 +125,7 @@ export function resolveCompletedPlaybackProgress({
     advanced,
     previousWatchedThrough,
     watchedThroughEpisode,
-    currentEpisode: getCurrentEpisodeAfterWatchedThrough({
-      watchedThroughEpisode,
-      episodeNumbers,
-      completionEpisode,
-    }),
+    currentEpisode: watchedThroughEpisode,
     watchStatus: resolveWatchedThroughWatchStatus({
       currentStatus,
       watchedThroughEpisode,

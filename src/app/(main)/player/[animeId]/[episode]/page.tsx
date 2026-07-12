@@ -1,5 +1,5 @@
 import { redirect, notFound } from "next/navigation";
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import {
   anime,
@@ -8,7 +8,11 @@ import {
   playbackProgress,
   userAnime,
 } from "@/db/schema";
-import { buildPlayerEpisodeNavigation } from "@/lib/player";
+import {
+  buildPlayerEpisodeNavigation,
+  getPreferredPlaybackEpisode,
+  preferPlayableEpisodeRows,
+} from "@/lib/player";
 import { getCurrentUser } from "@/lib/session";
 import {
   getCompletionEpisodeNumber,
@@ -40,6 +44,9 @@ export default async function PlayerPage({ params, searchParams }: PageProps) {
     notFound();
   }
 
+  const preferredEpisode = getPreferredPlaybackEpisode(animeId, episodeNumber);
+  if (!preferredEpisode) notFound();
+
   // userAnime 用 LEFT JOIN：本地库 / 成人区的内容多半没被「想看」追踪过（userAnime 行不存在），
   // 但有本地文件就该能播（不要求先追踪）。INNER JOIN 会让这些未追踪内容 404。
   const row = db
@@ -54,7 +61,7 @@ export default async function PlayerPage({ params, searchParams }: PageProps) {
       userAnime,
       and(eq(userAnime.animeId, anime.id), eq(userAnime.userId, user.id)),
     )
-    .where(and(eq(anime.id, animeId), eq(episodes.number, episodeNumber)))
+    .where(and(eq(anime.id, animeId), eq(episodes.id, preferredEpisode.id)))
     .get();
 
   if (!row) notFound();
@@ -72,7 +79,7 @@ export default async function PlayerPage({ params, searchParams }: PageProps) {
     )
     .get();
 
-  const episodeRows = db
+  const rawEpisodeRows = db
     .select({
       id: episodes.id,
       number: episodes.number,
@@ -83,6 +90,38 @@ export default async function PlayerPage({ params, searchParams }: PageProps) {
     .where(eq(episodes.animeId, animeId))
     .orderBy(asc(episodes.number))
     .all();
+
+  const completedDownloads = db
+    .select({
+      episodeId: downloadQueue.episodeId,
+      episodeNumber: episodes.number,
+    })
+    .from(downloadQueue)
+    .innerJoin(episodes, eq(downloadQueue.episodeId, episodes.id))
+    .where(
+      and(
+        eq(downloadQueue.animeId, animeId),
+        eq(downloadQueue.status, "completed"),
+      ),
+    )
+    .orderBy(desc(downloadQueue.updatedAt), desc(downloadQueue.id))
+    .all();
+  const playableEpisodeIds = new Set<number>();
+  const playableEpisodeNumbers = new Set<number>();
+  for (const item of completedDownloads) {
+    if (
+      item.episodeId == null ||
+      playableEpisodeNumbers.has(item.episodeNumber)
+    ) {
+      continue;
+    }
+    playableEpisodeNumbers.add(item.episodeNumber);
+    playableEpisodeIds.add(item.episodeId);
+  }
+  const episodeRows = preferPlayableEpisodeRows(
+    rawEpisodeRows,
+    playableEpisodeIds,
+  );
 
   const progressRows = db
     .select({
@@ -115,22 +154,6 @@ export default async function PlayerPage({ params, searchParams }: PageProps) {
         completionEpisode,
       })
     : 0;
-
-  const completedDownloads = db
-    .select({ episodeId: downloadQueue.episodeId })
-    .from(downloadQueue)
-    .where(
-      and(
-        eq(downloadQueue.animeId, animeId),
-        eq(downloadQueue.status, "completed"),
-      ),
-    )
-    .all();
-  const playableEpisodeIds = new Set(
-    completedDownloads
-      .map((item) => item.episodeId)
-      .filter((id): id is number => typeof id === "number"),
-  );
 
   const playerEpisodes = episodeRows.map((episode) => {
     const playback = progressByEpisodeId.get(episode.id);

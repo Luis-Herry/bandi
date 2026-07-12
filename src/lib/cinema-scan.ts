@@ -44,9 +44,47 @@ const TV_NXNN = /\b(\d{1,2})x(\d{2,3})\b/i;
 const TV_CJK_EP = /第\s*0*(\d{1,3})\s*[集话話]/;
 const TV_EP = /\bEP\.?\s*0*(\d{1,3})\b/i;
 const TV_EPISODE_WORD = /\bEpisode\s*0*(\d{1,3})\b/i;
-const TV_SEASON_CJK = /第\s*0*(\d{1,3})\s*[季期]/;
+const CJK_SEASON_NUMBER =
+  "(?:[一二两三四五六七八九]百(?:零[一二三四五六七八九]|[一二三四五六七八九]?十[一二三四五六七八九]?)?|[二三四五六七八九]十[一二三四五六七八九]?|十[一二三四五六七八九]?|[零〇一二两三四五六七八九])";
+const TV_SEASON_CJK = new RegExp(
+  `第\\s*(0*\\d{1,3}|${CJK_SEASON_NUMBER})\\s*[季期]`,
+);
 const TV_SEASON_S = /\bS(\d{1,2})\b/i;
 const BARE_EPISODE_STEM = /^(?:ep(?:isode)?[\s._-]*)?0*(\d{1,3})$/i;
+
+function parseSeasonNumber(raw: string): number {
+  if (/^\d+$/.test(raw)) return Math.max(1, Number(raw));
+
+  const digitOf: Record<string, number> = {
+    零: 0,
+    〇: 0,
+    一: 1,
+    二: 2,
+    两: 2,
+    三: 3,
+    四: 4,
+    五: 5,
+    六: 6,
+    七: 7,
+    八: 8,
+    九: 9,
+  };
+  if (!/[十百]/.test(raw)) {
+    return Math.max(1, Number([...raw].map((char) => digitOf[char]).join("")));
+  }
+
+  let total = 0;
+  let current = 0;
+  for (const char of raw) {
+    if (char === "十" || char === "百") {
+      total += (current || 1) * (char === "百" ? 100 : 10);
+      current = 0;
+    } else {
+      current = digitOf[char] ?? 0;
+    }
+  }
+  return Math.max(1, total + current);
+}
 
 // 标题切断标记（取最早出现的那个）
 const TITLE_CUT_MARKERS = [
@@ -68,13 +106,13 @@ function detectTv(stem: string): { season: number; episode: number } | null {
   m = TV_CJK_EP.exec(stem);
   if (m) {
     const sm = TV_SEASON_CJK.exec(stem);
-    return { season: sm ? Number(sm[1]) : 1, episode: Number(m[1]) };
+    return { season: sm ? parseSeasonNumber(sm[1]) : 1, episode: Number(m[1]) };
   }
 
   m = TV_EP.exec(stem) ?? TV_EPISODE_WORD.exec(stem);
   if (m) {
     const sm = TV_SEASON_CJK.exec(stem) ?? TV_SEASON_S.exec(stem);
-    return { season: sm ? Number(sm[1]) : 1, episode: Number(m[1]) };
+    return { season: sm ? parseSeasonNumber(sm[1]) : 1, episode: Number(m[1]) };
   }
 
   return null;
@@ -127,6 +165,8 @@ const FANSUB_MULTITRACK = /\b(?:SRTx?\d|ASSx?\d|AACx?\d|FLACx?\d|JPS?C|JPTC)\b/i
 const PAREN_YEAR_RE = /[([{]\s*(?:19|20)\d{2}\s*[)\]}]/;
 const FANSUB_EP_RE =
   /(?:^|[\s\-_.([])0*(\d{1,3})(?=\s*(?:[\])]|-\s*(?:SRT|ASS|AAC|FLAC)|\[|\b(?:JPS?C|JPTC|WebRip|WEB-?DL|BDRip|1080p|720p|2160p|HEVC|x26[45])\b))/i;
+const ANIME_DASH_EP_RE =
+  /\s+-\s*0*(\d{1,3})(?=\s*(?:[\[\](){}]|$|[-_.]))/i;
 
 function detectFansubTv(
   stem: string,
@@ -185,6 +225,10 @@ function cleanTitle(raw: string): string {
     .trim();
 }
 
+function cleanTvTitle(raw: string): string {
+  return cleanTitle(raw.replace(TV_SEASON_CJK, " ").replace(TV_SEASON_S, " "));
+}
+
 export function normalizeMediaTitleKey(raw: string | null | undefined): string {
   return cleanTitle(raw ?? "").toLowerCase();
 }
@@ -205,15 +249,32 @@ export function parseMediaFileName(
   // 字幕组动画（`[组] 番名 - NN [SRTx2/ASSx2/JPSC]` / `组 番名 NN JPSC` 等）：跳过，不进 cinema。
   // 这种 `- NN` 既不是 SxxExx 也不是 EP，detectTv 抓不到、本会被当成一集一行的电影。
   // 动漫该走动漫侧（/library/local, mediaType=anime），不污染影视库。
-  if (!tv && detectFansubTv(stem)) {
+  const fansub = !tv ? detectFansubTv(stem) : null;
+  if (fansub) {
+    const stemYear = extractYear(stem);
+    const parentYear = fallbackToParent ? extractYear(parent) : null;
+    const seasonMatch =
+      TV_SEASON_CJK.exec(stem) ??
+      TV_SEASON_S.exec(stem) ??
+      TV_SEASON_CJK.exec(parent) ??
+      TV_SEASON_S.exec(parent);
+    let title = cleanTitle(
+      stem
+        .slice(0, fansub.index)
+        .replace(TV_SEASON_CJK, " ")
+        .replace(TV_SEASON_S, " "),
+    );
+    if ((!title || title.length < 2) && fallbackToParent) {
+      title = cleanTvTitle(titleSegment(parent, parentYear));
+    }
     return {
       absPath,
       fileName,
       kind: "skip",
-      title: stem,
-      year: null,
-      season: 0,
-      episode: 0,
+      title: title || stem,
+      year: stemYear ?? parentYear,
+      season: seasonMatch ? parseSeasonNumber(seasonMatch[1]) : 1,
+      episode: fansub.episode,
     };
   }
   const bareEpisode = tv ? null : detectBareEpisode(stem);
@@ -240,7 +301,7 @@ export function parseMediaFileName(
   if (!title) title = stem;
 
   if (!tv && bareEpisode != null && fallbackToParent) {
-    const parentTitle = cleanTitle(titleSegment(parent, parentYear));
+    const parentTitle = cleanTvTitle(titleSegment(parent, parentYear));
     if (parentLooksLikeShowTitle(parentTitle)) {
       const sm = TV_SEASON_CJK.exec(parent) ?? TV_SEASON_S.exec(parent);
       return {
@@ -249,7 +310,7 @@ export function parseMediaFileName(
         kind: "tv",
         title: parentTitle,
         year: parentYear,
-        season: sm ? Number(sm[1]) : 1,
+        season: sm ? parseSeasonNumber(sm[1]) : 1,
         episode: bareEpisode,
       };
     }
@@ -260,13 +321,56 @@ export function parseMediaFileName(
       absPath,
       fileName,
       kind: "tv",
-      title,
+      title: cleanTvTitle(title) || title,
       year,
       season: tv.season || 1,
       episode: tv.episode,
     };
   }
   return { absPath, fileName, kind: "movie", title, year, season: 0, episode: 1 };
+}
+
+/**
+ * 动漫目录专用解析。影视扫描继续把字幕组动画标成 skip；动漫扫描在用户明确选择的
+ * 动漫目录内接纳这些文件，并额外识别常见的 `标题 - 01` 命名。
+ */
+export function parseAnimeMediaFileName(absPath: string): ScannedMediaFile {
+  const parsed = parseMediaFileName(absPath);
+  if (parsed.kind === "skip") return { ...parsed, kind: "tv" };
+  if (parsed.kind === "tv") return parsed;
+
+  const fileName = path.basename(absPath);
+  const ext = path.extname(fileName);
+  const stem = ext ? fileName.slice(0, -ext.length) : fileName;
+  const match = ANIME_DASH_EP_RE.exec(stem);
+  if (!match) return parsed;
+
+  const parent = path.basename(path.dirname(absPath));
+  const stemYear = extractYear(stem);
+  const parentYear = extractYear(parent);
+  const seasonMatch =
+    TV_SEASON_CJK.exec(stem) ??
+    TV_SEASON_S.exec(stem) ??
+    TV_SEASON_CJK.exec(parent) ??
+    TV_SEASON_S.exec(parent);
+  const rawTitle = stem
+    .slice(0, match.index)
+    .replace(TV_SEASON_CJK, " ")
+    .replace(TV_SEASON_S, " ");
+  let title = cleanTitle(titleSegment(rawTitle, stemYear));
+  if (!title || title.length < 2) {
+    title = cleanTitle(titleSegment(parent, parentYear));
+  }
+
+  return {
+    absPath,
+    fileName,
+    kind: "tv",
+    title: title || parsed.title,
+    year: stemYear ?? parentYear,
+    season: seasonMatch ? parseSeasonNumber(seasonMatch[1]) : 1,
+    episode: Number(match[1]),
+  };
 }
 
 /**

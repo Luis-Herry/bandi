@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { Star } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { formatRatingScore } from "@/lib/rating";
 import { Button, Tag } from "@/components/ui";
 import { PlayButton } from "./PlayButton";
 
@@ -174,7 +175,7 @@ export function HomeHero({ slides }: HomeHeroProps) {
                     data-tabular
                     className="text-[16px] font-semibold tracking-tight text-[color:var(--text-primary)]"
                   >
-                    {(slide.rating ?? 9.0).toFixed(1)}
+                    {formatRatingScore(slide.rating)}
                   </span>
                 </div>
                 <span

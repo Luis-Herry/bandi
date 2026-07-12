@@ -1,8 +1,10 @@
 import {
   copyFileSync,
   existsSync,
+  lstatSync,
   mkdirSync,
   readdirSync,
+  rmSync,
   statSync,
 } from "node:fs";
 import path from "node:path";
@@ -38,14 +40,42 @@ function copyDir(src, dest) {
   }
 }
 
-if (existsSync(staticDir)) {
-  const targetStatic = path.join(standaloneDir, ".next", "static");
-  mkdirSync(path.dirname(targetStatic), { recursive: true });
-  copyDir(staticDir, targetStatic);
+function assertNoLinkPath(base, target) {
+  const relativeTarget = path.relative(base, target);
+  if (
+    !relativeTarget ||
+    relativeTarget.startsWith("..") ||
+    path.isAbsolute(relativeTarget)
+  ) {
+    throw new Error(`Unsafe standalone mirror target: ${target}`);
+  }
+  let current = base;
+  if (lstatSync(current).isSymbolicLink()) {
+    throw new Error(`Refusing to mirror through a link or junction: ${current}`);
+  }
+  for (const segment of relativeTarget.split(path.sep)) {
+    current = path.join(current, segment);
+    if (existsSync(current) && lstatSync(current).isSymbolicLink()) {
+      throw new Error(`Refusing to mirror through a link or junction: ${current}`);
+    }
+  }
 }
 
-if (existsSync(publicDir)) {
-  copyDir(publicDir, path.join(standaloneDir, "public"));
+function mirrorDir(src, dest) {
+  const relativeTarget = path.relative(standaloneDir, dest);
+  if (
+    !relativeTarget ||
+    relativeTarget.startsWith("..") ||
+    path.isAbsolute(relativeTarget)
+  ) {
+    throw new Error(`Unsafe standalone mirror target: ${dest}`);
+  }
+  assertNoLinkPath(root, dest);
+  rmSync(dest, { recursive: true, force: true });
+  if (existsSync(src)) copyDir(src, dest);
 }
+
+mirrorDir(staticDir, path.join(standaloneDir, ".next", "static"));
+mirrorDir(publicDir, path.join(standaloneDir, "public"));
 
 console.log("[desktop] standalone assets prepared");

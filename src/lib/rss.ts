@@ -186,8 +186,12 @@ const CN_NUM: Record<string, number> = {
  */
 export function extractSeason(title: string): number | null {
   if (!title) return null;
+  // S03E01 这类文件名同时带季号和集号，必须先取季号。
+  // 原来的 `S3` 规则要求数字后是单词边界，遇到紧随其后的 E 会漏判。
+  let m = title.match(/\bS0*(\d{1,2})E0*\d{1,3}\b/i);
+  if (m) return Number(m[1]);
   // 中文/日文 "第N季/期"
-  let m = title.match(/第\s*([0-9]+|[一二三四五六七八九十])\s*[季期]/);
+  m = title.match(/第\s*([0-9]+|[一二三四五六七八九十])\s*[季期]/);
   if (m) {
     const v = m[1];
     return /^\d+$/.test(v) ? Number(v) : CN_NUM[v] ?? null;

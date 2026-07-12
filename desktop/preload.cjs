@@ -4,6 +4,8 @@ contextBridge.exposeInMainWorld("bandiDesktop", {
   getSettings: () => ipcRenderer.invoke("bandi:get-desktop-settings"),
   chooseDownloadDirectory: () =>
     ipcRenderer.invoke("bandi:choose-download-directory"),
+  chooseMediaDirectory: (input) =>
+    ipcRenderer.invoke("bandi:choose-media-directory", input),
   saveSettings: (input) =>
     ipcRenderer.invoke("bandi:save-desktop-settings", input),
   getWindowState: () => ipcRenderer.invoke("bandi:get-window-state"),

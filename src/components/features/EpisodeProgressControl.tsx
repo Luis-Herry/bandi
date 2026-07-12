@@ -16,6 +16,8 @@ interface EpisodeProgressControlProps {
   minEpisode?: number;
   /** 当前是否在追番列表里；不在则不可编辑 */
   enabled: boolean;
+  /** 禁用时的解释文案；默认用于尚未加入追踪的条目。 */
+  disabledLabel?: string;
 }
 
 /**
@@ -34,6 +36,7 @@ export function EpisodeProgressControl({
   maxEpisode,
   minEpisode = 0,
   enabled,
+  disabledLabel = "追番后可记录",
 }: EpisodeProgressControlProps) {
   const [current, setCurrent] = useState(initialCurrent);
   const [draft, setDraft] = useState(String(initialCurrent));
@@ -235,7 +238,7 @@ export function EpisodeProgressControl({
 
       {!enabled && (
         <span className="text-[11px] text-[color:var(--text-muted)]">
-          追番后可记录
+          {disabledLabel}
         </span>
       )}
     </div>

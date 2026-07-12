@@ -149,6 +149,17 @@ function setupDb() {
       tags: JSON.stringify([]),
       isAdult: 1,
     },
+    {
+      id: 5,
+      title: "豆瓣待评分电影",
+      coverUrl:
+        "https://img3.doubanio.com/view/photo/s_ratio_poster/public/demo.jpg",
+      type: "Movie",
+      mediaType: "movie",
+      tmdbId: null,
+      tags: JSON.stringify([]),
+      isAdult: 0,
+    },
   ]) {
     insertAnime.run({ ...row, createdAt: now, updatedAt: now });
   }
@@ -190,6 +201,12 @@ test("cinema local-library hides non-local samples but keeps local and R-rated d
   assert.deepEqual(cinema.getAdultLibrary("user").jav.map((item) => item.title), [
     "TEST-307",
   ]);
+  assert.equal(
+    cinema
+      .getCinemaWatchlist("user")
+      .some((item) => item.title === "豆瓣待评分电影"),
+    true,
+  );
   assert.deepEqual(cinema.getCinemaTodayUpdates("user"), []);
   assert.deepEqual(cinema.getCinemaUpcomingEpisodes("user", 7), []);
   assert.deepEqual(cinema.getCinemaMissedUpdates("user", 4), []);

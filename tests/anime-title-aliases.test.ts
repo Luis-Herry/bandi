@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 test("selectTitleAliasesFromAniList exposes romaji and English fallback names", async () => {
-  const mod = await import("../src/lib/anime-title-aliases").catch(() => ({}));
+  const mod: Partial<typeof import("../src/lib/anime-title-aliases")> =
+    await import("../src/lib/anime-title-aliases").catch(() => ({}));
 
   assert.equal(typeof mod.selectTitleAliasesFromAniList, "function");
   if (typeof mod.selectTitleAliasesFromAniList !== "function") return;
@@ -22,7 +23,8 @@ test("selectTitleAliasesFromAniList exposes romaji and English fallback names", 
 });
 
 test("selectTitleAliasesFromAniList adds ASCII punctuation variants", async () => {
-  const mod = await import("../src/lib/anime-title-aliases").catch(() => ({}));
+  const mod: Partial<typeof import("../src/lib/anime-title-aliases")> =
+    await import("../src/lib/anime-title-aliases").catch(() => ({}));
 
   assert.equal(typeof mod.selectTitleAliasesFromAniList, "function");
   if (typeof mod.selectTitleAliasesFromAniList !== "function") return;
@@ -39,7 +41,8 @@ test("selectTitleAliasesFromAniList adds ASCII punctuation variants", async () =
 });
 
 test("selectTitleAliasesFromBangumi reads infobox title aliases", async () => {
-  const mod = await import("../src/lib/anime-title-aliases").catch(() => ({}));
+  const mod: Partial<typeof import("../src/lib/anime-title-aliases")> =
+    await import("../src/lib/anime-title-aliases").catch(() => ({}));
 
   assert.equal(typeof mod.selectTitleAliasesFromBangumi, "function");
   if (typeof mod.selectTitleAliasesFromBangumi !== "function") return;

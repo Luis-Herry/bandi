@@ -197,6 +197,89 @@ test("containsAnimeTitleAlias accepts translated season markers for the same bas
   );
 });
 
+test("containsAnimeTitleAlias keeps first-season episode searches inside the same season", () => {
+  const aliases = ["进击的巨人", "進撃の巨人", "Attack on Titan"];
+
+  assert.equal(
+    containsAnimeTitleAlias(
+      "[ANi] Attack on Titan - 01 [1080P][WEB-DL][CHT]",
+      aliases,
+    ),
+    true,
+  );
+  assert.equal(
+    containsAnimeTitleAlias(
+      "[ANi] Attack on Titan Season 2 - 01 [1080P][WEB-DL][CHT]",
+      aliases,
+    ),
+    false,
+  );
+  assert.equal(
+    containsAnimeTitleAlias(
+      "进击的巨人 - 38 (S03E01) [1080P][WEB-DL]",
+      aliases,
+    ),
+    false,
+  );
+  assert.equal(
+    containsAnimeTitleAlias(
+      "Attack on Titan The Final Season Part 3 [01] [1080P]",
+      aliases,
+    ),
+    false,
+  );
+});
+
+test("containsAnimeTitleAlias does not treat Final Season as an ordinary numbered sequel", () => {
+  assert.equal(
+    containsAnimeTitleAlias(
+      "Attack on Titan The Final Season Part 3 [01] [1080P]",
+      ["Attack on Titan", "Attack on Titan Season 2"],
+    ),
+    false,
+  );
+  assert.equal(
+    containsAnimeTitleAlias(
+      "Attack on Titan The Final Season Part 3 [01] [1080P]",
+      ["Attack on Titan", "Attack on Titan The Final Season"],
+    ),
+    true,
+  );
+});
+
+test("containsAnimeTitleAlias rejects unrequested OAD and live-action variants", () => {
+  const aliases = ["进击的巨人", "進撃の巨人", "Attack on Titan"];
+
+  assert.equal(
+    containsAnimeTitleAlias(
+      "進撃の巨人 OAD 悔いなき選択 [01] [BDRip 1080P]",
+      aliases,
+    ),
+    false,
+  );
+  assert.equal(
+    containsAnimeTitleAlias(
+      "Attack on Titan Live Action - 01 [1080P]",
+      aliases,
+    ),
+    false,
+  );
+  assert.equal(
+    containsAnimeTitleAlias(
+      "[Seed-Raws] 劇場版 進撃の巨人 The Movie Part 1 [BD 1080P]",
+      aliases,
+    ),
+    false,
+  );
+  assert.equal(
+    containsAnimeTitleAlias(
+      "Some Original OVA - 01 [1080P]",
+      ["Some Original OVA"],
+    ),
+    true,
+  );
+});
+
 test("isSeasonPackRelease accepts episode ranges that cover the season", () => {
   assert.equal(
     isSeasonPackRelease(

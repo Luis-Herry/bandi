@@ -52,3 +52,51 @@ test("anime detail credits tabs hide incidental scrollbars", () => {
   assert.match(tabsSource, /no-scrollbar/);
   assert.match(tabsSource, /overflow-x-auto/);
 });
+
+test("character artwork keeps faces visible without cropping full portraits", () => {
+  const coverSource = readFileSync(
+    "src/components/features/AnimeCover.tsx",
+    "utf8",
+  );
+  const characterCardSource = readFileSync(
+    "src/components/features/CharacterCard.tsx",
+    "utf8",
+  );
+  const characterPageSource = readFileSync(
+    "src/app/(main)/character/[bgmId]/page.tsx",
+    "utf8",
+  );
+
+  assert.match(coverSource, /fit\?: "cover" \| "contain"/);
+  assert.match(coverSource, /objectPosition\?: string/);
+  assert.match(coverSource, /fit === "contain" \? "object-contain" : "object-cover"/);
+  assert.match(characterCardSource, /objectPosition="center top"/);
+  assert.match(characterPageSource, /fit="contain"/);
+  assert.match(characterPageSource, /objectPosition="center top"/);
+});
+
+test("douban covers use the same-origin cached image proxy", () => {
+  const coverSource = readFileSync(
+    "src/components/features/AnimeCover.tsx",
+    "utf8",
+  );
+  const imageRouteSource = readFileSync("src/app/api/img/route.ts", "utf8");
+  const coverCacheSource = readFileSync("src/lib/cover-cache.ts", "utf8");
+  const cinemaDetailSource = readFileSync(
+    "src/app/(main)/anime/[id]/CinemaDetail.tsx",
+    "utf8",
+  );
+  const searchCommandSource = readFileSync(
+    "src/components/features/SearchCommand.tsx",
+    "utf8",
+  );
+
+  assert.match(coverSource, /img\\d\+\\\.doubanio\\\.com/);
+  assert.match(coverSource, /\/api\/img\?url=/);
+  assert.match(imageRouteSource, /img\\d\+\\\.doubanio\\\.com/);
+  assert.match(coverCacheSource, /Referer: "https:\/\/movie\.douban\.com\/"/);
+  assert.match(cinemaDetailSource, /<AnimeCover/);
+  assert.match(cinemaDetailSource, /className="!absolute inset-0 z-0 h-full w-full"/);
+  assert.match(cinemaDetailSource, /className="relative z-10 mx-auto/);
+  assert.match(searchCommandSource, /<AnimeCover/);
+});

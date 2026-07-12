@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import {
-  getCurrentEpisodeAfterWatchedThrough,
   getCompletionEpisodeNumber,
   getWatchedThroughEpisodeNumber,
   resolveCompletedPlaybackProgress,
@@ -20,7 +19,7 @@ test("completion uses the highest stored absolute episode number", () => {
   assert.equal(
     resolveProgressWatchStatus({
       currentStatus: "watching",
-      nextEpisode: 74,
+      currentEpisode: 74,
       completionEpisode,
     }),
     "watching",
@@ -28,7 +27,7 @@ test("completion uses the highest stored absolute episode number", () => {
   assert.equal(
     resolveProgressWatchStatus({
       currentStatus: "watching",
-      nextEpisode: 77,
+      currentEpisode: 77,
       completionEpisode,
     }),
     "completed",
@@ -39,7 +38,7 @@ test("progress edits below the season end do not keep completed implicitly", () 
   assert.equal(
     resolveProgressWatchStatus({
       currentStatus: "completed",
-      nextEpisode: 74,
+      currentEpisode: 74,
       completionEpisode: 77,
     }),
     "watching",
@@ -50,7 +49,7 @@ test("progress edits move planning items into watching", () => {
   assert.equal(
     resolveProgressWatchStatus({
       currentStatus: "planning",
-      nextEpisode: 1,
+      currentEpisode: 1,
       completionEpisode: 12,
     }),
     "watching",
@@ -58,7 +57,7 @@ test("progress edits move planning items into watching", () => {
   assert.equal(
     resolveProgressWatchStatus({
       currentStatus: "planning",
-      nextEpisode: 0,
+      currentEpisode: 0,
       completionEpisode: 12,
     }),
     "planning",
@@ -69,7 +68,7 @@ test("progress edits back to zero move active items into planning", () => {
   assert.equal(
     resolveProgressWatchStatus({
       currentStatus: "watching",
-      nextEpisode: 0,
+      currentEpisode: 0,
       completionEpisode: 12,
     }),
     "planning",
@@ -77,7 +76,7 @@ test("progress edits back to zero move active items into planning", () => {
   assert.equal(
     resolveProgressWatchStatus({
       currentStatus: "completed",
-      nextEpisode: 0,
+      currentEpisode: 0,
       completionEpisode: 12,
     }),
     "planning",
@@ -89,7 +88,7 @@ test("explicit watch status wins over progress inference", () => {
     resolveProgressWatchStatus({
       currentStatus: "watching",
       explicitStatus: "completed",
-      nextEpisode: 74,
+      currentEpisode: 74,
       completionEpisode: 77,
     }),
     "completed",
@@ -97,7 +96,7 @@ test("explicit watch status wins over progress inference", () => {
   assert.equal(
     resolveProgressWatchStatus({
       currentStatus: "dropped",
-      nextEpisode: 77,
+      currentEpisode: 77,
       completionEpisode: 77,
     }),
     "dropped",
@@ -114,7 +113,7 @@ test("completion falls back to total episodes when episode rows are unavailable"
   );
 });
 
-test("completed playback advances the current marker to the next episode", () => {
+test("currentEpisode is the current or last watched absolute episode", () => {
   const episodeNumbers = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
   const completionEpisode = getCompletionEpisodeNumber({
     totalEpisodes: 12,
@@ -122,16 +121,8 @@ test("completed playback advances the current marker to the next episode", () =>
   });
 
   assert.equal(
-    getCurrentEpisodeAfterWatchedThrough({
-      watchedThroughEpisode: 1,
-      episodeNumbers,
-      completionEpisode,
-    }),
-    2,
-  );
-  assert.equal(
     getWatchedThroughEpisodeNumber({
-      currentEpisode: 2,
+      currentEpisode: 1,
       watchStatus: "watching",
       completionEpisode,
     }),
@@ -149,41 +140,39 @@ test("completed playback advances the current marker to the next episode", () =>
     resolveCompletedPlaybackProgress({
       currentEpisode: 1,
       currentStatus: "watching",
-      completedEpisode: 1,
-      episodeNumbers,
+      completedEpisode: 2,
       completionEpisode,
     }),
     {
       advanced: true,
-      previousWatchedThrough: 0,
-      watchedThroughEpisode: 1,
+      previousWatchedThrough: 1,
+      watchedThroughEpisode: 2,
       currentEpisode: 2,
       watchStatus: "watching",
     },
   );
 });
 
-test("final episode completion keeps marker capped and completes the season", () => {
+test("final episode completion stores the final episode and completes the season", () => {
   const episodeNumbers = [1, 2, 3];
   const completionEpisode = getCompletionEpisodeNumber({
     totalEpisodes: 3,
     episodeNumbers,
   });
 
-  assert.equal(
-    getCurrentEpisodeAfterWatchedThrough({
-      watchedThroughEpisode: 3,
-      episodeNumbers,
-      completionEpisode,
-    }),
-    3,
-  );
-  assert.equal(
-    resolveWatchedThroughWatchStatus({
+  assert.deepEqual(
+    resolveCompletedPlaybackProgress({
+      currentEpisode: 2,
       currentStatus: "watching",
-      watchedThroughEpisode: 3,
+      completedEpisode: 3,
       completionEpisode,
     }),
-    "completed",
+    {
+      advanced: true,
+      previousWatchedThrough: 2,
+      watchedThroughEpisode: 3,
+      currentEpisode: 3,
+      watchStatus: "completed",
+    },
   );
 });

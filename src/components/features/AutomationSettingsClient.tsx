@@ -28,7 +28,9 @@ import { ConfirmDialog } from "@/components/features/ConfirmDialog";
 import { DesktopDownloadSettings } from "@/components/features/DesktopDownloadSettings";
 import { QbitSetupGuideDialog } from "@/components/features/QbitSetupGuideDialog";
 import { RssEditDialog, type RssSourceDraft } from "@/components/features/RssEditDialog";
+import { showToast } from "@/components/features/ToastHost";
 import { cn } from "@/lib/cn";
+import { formatDataSize, formatTransferSpeed } from "@/lib/transfer-format";
 
 interface DownloadPreferences {
   preferredGroups: string[];
@@ -57,11 +59,22 @@ interface QbitStatus {
   error?: string;
 }
 
+interface ExternalQbitStatus {
+  connected: boolean;
+  url?: string;
+  version?: string;
+  apiVersion?: string;
+  authRequired?: boolean;
+  error?: string;
+}
+
 const QUALITY_PRESETS = ["2160p", "1080p", "720p", "480p"];
 
 export function AutomationSettingsClient() {
   const [rssList, setRssList] = useState<RssSource[]>([]);
   const [qbit, setQbit] = useState<QbitStatus | null>(null);
+  const [externalQbit, setExternalQbit] = useState<ExternalQbitStatus | null>(null);
+  const [checkingExternalQbit, setCheckingExternalQbit] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -85,6 +98,26 @@ export function AutomationSettingsClient() {
   useEffect(() => {
     void refreshEnvironment();
   }, [refreshEnvironment]);
+
+  async function handleExternalQbitDiagnostic() {
+    setExternalQbit(null);
+    setCheckingExternalQbit(true);
+    try {
+      const response = await fetch("/api/downloads/qbit/external-status", {
+        cache: "no-store",
+      });
+      if (!response.ok) throw new Error(`external_qbit_http_${response.status}`);
+      const status = (await response.json()) as Partial<ExternalQbitStatus>;
+      if (typeof status.connected !== "boolean") {
+        throw new Error("external_qbit_invalid_response");
+      }
+      setExternalQbit({ ...status, connected: status.connected });
+    } catch {
+      setExternalQbit({ connected: false, error: "外部 qBittorrent 诊断失败。" });
+    } finally {
+      setCheckingExternalQbit(false);
+    }
+  }
 
   async function handleSaveRss(draft: RssSourceDraft) {
     const body = {
@@ -115,14 +148,35 @@ export function AutomationSettingsClient() {
   }
 
   async function handleTestRss(id: number) {
-    const res = await fetch(`/api/rss/${id}/test`, { method: "POST" }).then(
-      (r) => r.json(),
-    );
-    alert(
-      res.ok
-        ? `测试成功：拉取到 ${res.itemCount ?? 0} 条记录${res.matched != null ? `，匹配 ${res.matched} 条` : ""}`
-        : `测试失败：${res.error ?? "未知错误"}`,
-    );
+    try {
+      const response = await fetch(`/api/rss/${id}/test`, { method: "POST" });
+      const result = (await response.json().catch(() => ({}))) as {
+        ok?: boolean;
+        itemCount?: number;
+        matched?: number;
+        error?: string;
+      };
+      if (!response.ok || !result.ok) {
+        showToast({
+          title: "RSS 测试失败",
+          description: result.error ?? response.statusText ?? "未知错误",
+          tone: "error",
+        });
+        return;
+      }
+      showToast({
+        title: "RSS 测试成功",
+        description: `拉取到 ${result.itemCount ?? 0} 条记录${result.matched != null ? `，匹配 ${result.matched} 条` : ""}`,
+        tone: "success",
+      });
+    } catch (error) {
+      console.error("[automation-settings] RSS test failed", error);
+      showToast({
+        title: "RSS 测试失败",
+        description: "网络连接异常，请稍后重试",
+        tone: "error",
+      });
+    }
   }
 
   async function handleToggleActive(source: RssSource) {
@@ -243,7 +297,13 @@ export function AutomationSettingsClient() {
             </div>
           }
         >
-          <QbitStatusPanel qbit={qbit} loading={loading} />
+          <QbitStatusPanel
+            qbit={qbit}
+            loading={loading}
+            externalQbit={externalQbit}
+            checkingExternalQbit={checkingExternalQbit}
+            onDiagnoseExternalQbit={handleExternalQbitDiagnostic}
+          />
           {qbit?.managed && <DesktopDownloadSettings />}
         </SettingsSection>
       </section>
@@ -287,13 +347,21 @@ function PreferencesCard() {
       });
       if (!res.ok) {
         const error = await res.json().catch(() => ({}));
-        alert(`保存失败：${error.error ?? res.statusText}`);
+        showToast({
+          title: "下载偏好保存失败",
+          description: error.error ?? res.statusText,
+          tone: "error",
+        });
         return;
       }
       setSavedAt(Date.now());
     } catch (error) {
       console.error("[preferences] save failed", error);
-      alert("保存失败，看控制台");
+      showToast({
+        title: "下载偏好保存失败",
+        description: "网络连接异常，请稍后重试",
+        tone: "error",
+      });
     } finally {
       setSaving(false);
     }
@@ -487,9 +555,15 @@ function RssRow({
 function QbitStatusPanel({
   qbit,
   loading,
+  externalQbit,
+  checkingExternalQbit,
+  onDiagnoseExternalQbit,
 }: {
   qbit: QbitStatus | null;
   loading: boolean;
+  externalQbit: ExternalQbitStatus | null;
+  checkingExternalQbit: boolean;
+  onDiagnoseExternalQbit: () => void;
 }) {
   const connected = qbit?.connected ?? false;
 
@@ -529,9 +603,9 @@ function QbitStatusPanel({
             compact
           />
         )}
-        <SummaryTile label="当前下载" value={formatSpeed(qbit?.dlSpeed)} />
-        <SummaryTile label="当前上传" value={formatSpeed(qbit?.upSpeed)} />
-        <SummaryTile label="磁盘剩余" value={formatBytes(qbit?.freeSpaceOnDisk)} compact />
+        <SummaryTile label="当前下载" value={formatTransferSpeed(qbit?.dlSpeed)} />
+        <SummaryTile label="当前上传" value={formatTransferSpeed(qbit?.upSpeed)} />
+        <SummaryTile label="磁盘剩余" value={formatDataSize(qbit?.freeSpaceOnDisk)} compact />
       </div>
 
       <div className="rounded-[8px] border border-[color:var(--border-subtle)] bg-[color:var(--bg-surface)] p-3">
@@ -560,6 +634,43 @@ function QbitStatusPanel({
               如果正在使用 VPN / TUN / 代理，建议在代理软件里将 qbittorrent.exe
               设为直连，qBittorrent 自身代理保持“无”。
             </p>
+            {qbit?.managed && (
+              <div className="mt-3 rounded-[8px] border border-[color:var(--border-subtle)] bg-[color:var(--bg-elevated)] p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <p className="font-medium text-[color:var(--text-secondary)]">
+                      外部 qBittorrent 兼容诊断
+                    </p>
+                    <p className="mt-0.5 text-[11px] text-[color:var(--text-muted)]">
+                      只读检测本机 18080，不读取任务，也不接入桌面下载队列。
+                    </p>
+                  </div>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    leftIcon={<TestTube size={12} />}
+                    onClick={onDiagnoseExternalQbit}
+                    disabled={checkingExternalQbit}
+                  >
+                    {checkingExternalQbit ? "检测中…" : "立即诊断"}
+                  </Button>
+                </div>
+                {externalQbit && (
+                  <p
+                    className={cn(
+                      "mt-2 text-[11px]",
+                      externalQbit.connected
+                        ? "text-[color:var(--status-success)]"
+                        : "text-[color:var(--status-warning)]",
+                    )}
+                  >
+                    {externalQbit.connected
+                      ? `外部 qBittorrent ${externalQbit.version ?? ""} 可连接${externalQbit.apiVersion ? `，Web API ${externalQbit.apiVersion}` : ""}。`
+                      : externalQbit.error ?? "未检测到外部 qBittorrent。"}
+                  </p>
+                )}
+              </div>
+            )}
         </AccordionDisclosure>
         {qbit?.error && (
           <p className="mt-2 text-[12px] text-[color:var(--status-warning)]">
@@ -740,29 +851,6 @@ function EmptyText({ children }: { children: ReactNode }) {
   );
 }
 
-function formatSpeed(value?: number): string {
-  if (!value || value <= 0) return "—";
-  const units = ["B/s", "KB/s", "MB/s", "GB/s"];
-  let next = value;
-  let unit = 0;
-  while (next >= 1024 && unit < units.length - 1) {
-    next /= 1024;
-    unit++;
-  }
-  return `${next.toFixed(next >= 10 ? 0 : 1)} ${units[unit]}`;
-}
-
-function formatBytes(value?: number): string {
-  if (!value || value <= 0) return "—";
-  const units = ["B", "KB", "MB", "GB", "TB"];
-  let next = value;
-  let unit = 0;
-  while (next >= 1024 && unit < units.length - 1) {
-    next /= 1024;
-    unit++;
-  }
-  return `${next.toFixed(next >= 10 ? 0 : 1)} ${units[unit]}`;
-}
 
 function formatRelativeTime(date: Date): string {
   const diff = Date.now() - date.getTime();

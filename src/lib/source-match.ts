@@ -14,6 +14,11 @@ const EPISODE_RANGE_RE =
 const PRECISE_ALIAS_MIN_LENGTH = 4;
 const SEASON_MARKER_RE =
   /第[一二三四五六七八九十百\d]+季|\d+(?:st|nd|rd|th)season|season\d+|s\d{1,2}/i;
+const FINAL_SEASON_MARKER_RE = /(?:the\s*)?final\s*season|最终季|最終季/i;
+const SPECIAL_EDITION_MARKER_RE =
+  /(?:^|[^0-9A-Za-z])(?:SP|OVA|OAD|NCOP|NCED)(?=[^0-9A-Za-z]|$)/i;
+const LIVE_ACTION_MARKER_RE = /live\s*action|真人版|実写版/i;
+const THEATRICAL_MARKER_RE = /剧场版|劇場版|\bthe\s+movie\b|\bmovie\b/i;
 const VOLUME_TOKEN_RE =
   /(?:^|[^0-9A-Za-z])(?:vol(?:ume)?\.?|卷|巻)\s*0*\d{1,3}(?:v\d+)?(?=[^0-9A-Za-z]|$)/i;
 const EXPLICIT_EPISODE_TOKEN_RE =
@@ -50,6 +55,9 @@ export function containsAnimeTitleAlias(
   const seasonAliases = preciseAliases.filter((alias) =>
     hasSeasonMarker(alias),
   );
+  if (hasUnrequestedFranchiseVariant(title, normalizedAliases)) {
+    return false;
+  }
   if (seasonAliases.length > 0) {
     if (seasonAliases.some((alias) => lower.includes(alias.normalized))) {
       return true;
@@ -57,6 +65,12 @@ export function containsAnimeTitleAlias(
     if (SEASON_MARKER_RE.test(lower)) {
       return containsCompatibleSeasonBaseAlias(title, lower, preciseAliases, seasonAliases);
     }
+  } else {
+    // 没写季号的主体条目按第一季处理。带明确续季号的发布不能仅凭
+    // 基础剧名命中，否则“进击的巨人 EP.01”会混入第二/三/最终季。
+    const titleSeason = extractSeason(title);
+    if (titleSeason !== null && titleSeason > 1) return false;
+    if (FINAL_SEASON_MARKER_RE.test(title)) return false;
   }
   const candidates =
     preciseAliases.length > 0 ? preciseAliases : normalizedAliases;
@@ -122,7 +136,26 @@ function isMultiEpisodePackRelease(title: string): boolean {
 }
 
 function hasSeasonMarker(alias: { raw: string; normalized: string }): boolean {
-  return SEASON_MARKER_RE.test(alias.normalized) || extractSeason(alias.raw) !== null;
+  return (
+    SEASON_MARKER_RE.test(alias.normalized) ||
+    FINAL_SEASON_MARKER_RE.test(alias.raw) ||
+    extractSeason(alias.raw) !== null
+  );
+}
+
+function hasUnrequestedFranchiseVariant(
+  title: string,
+  aliases: Array<{ raw: string; normalized: string }>,
+): boolean {
+  const markerPairs: Array<[RegExp, RegExp]> = [
+    [FINAL_SEASON_MARKER_RE, FINAL_SEASON_MARKER_RE],
+    [SPECIAL_EDITION_MARKER_RE, SPECIAL_EDITION_MARKER_RE],
+    [LIVE_ACTION_MARKER_RE, LIVE_ACTION_MARKER_RE],
+    [THEATRICAL_MARKER_RE, THEATRICAL_MARKER_RE],
+  ];
+  return markerPairs.some(([titleMarker, aliasMarker]) =>
+    titleMarker.test(title) && !aliases.some((alias) => aliasMarker.test(alias.raw)),
+  );
 }
 
 function containsCompatibleSeasonBaseAlias(

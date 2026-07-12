@@ -5,7 +5,6 @@ import { and, eq } from "drizzle-orm";
 import { requireUser } from "@/lib/session";
 import { buildWatchEventDrafts } from "@/lib/watch-events";
 import {
-  getCurrentEpisodeAfterWatchedThrough,
   getCompletionEpisodeNumber,
   getWatchedThroughEpisodeNumber,
   resolveWatchedThroughWatchStatus,
@@ -20,7 +19,7 @@ export const dynamic = "force-dynamic";
  * body: { episode: number, watched: boolean }
  *
  * Semantics:
- *   - currentEpisode is the absolute current/next episode marker.
+ *   - currentEpisode is the absolute current/last watched episode number.
  *   - Diff writes watch/unwatch events for real watched episode rows.
  */
 export async function POST(
@@ -76,11 +75,7 @@ export async function POST(
   const nextWatchedThrough = watched
     ? Math.max(previousWatchedThrough, ep)
     : Math.max(0, Math.min(previousWatchedThrough, ep - 1));
-  const next = getCurrentEpisodeAfterWatchedThrough({
-    watchedThroughEpisode: nextWatchedThrough,
-    episodeNumbers: episodeRows.map((row) => row.number),
-    completionEpisode,
-  });
+  const next = nextWatchedThrough;
   const finalStatus = resolveWatchedThroughWatchStatus({
     currentStatus: existing.watchStatus as WatchStatus,
     watchedThroughEpisode: nextWatchedThrough,

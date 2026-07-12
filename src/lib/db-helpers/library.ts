@@ -170,9 +170,19 @@ export function getAnimeDetail(
   const eps = applyCompletedDownloadState(
     dedupeEpisodesByNumber(storedEpisodes),
   );
+  const highestEpisodeNumber = eps.reduce(
+    (highest, episode) => Math.max(highest, episode.number),
+    0,
+  );
+  const displayTotalEpisodes =
+    eps.length === 0
+      ? a.totalEpisodes
+      : a.mediaType === "anime"
+        ? eps.length
+        : Math.max(a.totalEpisodes ?? 0, highestEpisodeNumber);
   const displayAnime =
-    eps.length > 0 && a.totalEpisodes !== eps.length
-      ? { ...a, totalEpisodes: eps.length }
+    a.totalEpisodes !== displayTotalEpisodes
+      ? { ...a, totalEpisodes: displayTotalEpisodes }
       : a;
 
   const dlCounts = db

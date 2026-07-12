@@ -46,3 +46,11 @@ test("local search hits route cinema entries directly to cinema detail", () => {
   );
   assert.doesNotMatch(searchCommandSource, /router\.push\(`\/anime\/\$\{hit\.id\}`\)/);
 });
+
+test("remote search keeps loading feedback attached to the selected result", () => {
+  assert.match(searchCommandSource, /function searchHitKey\(hit: SearchHit\)/);
+  assert.match(searchCommandSource, /setOpeningKey\(searchHitKey\(hit\)\)/);
+  assert.match(searchCommandSource, /busy=\{openingKey === searchHitKey\(hit\)\}/);
+  assert.match(searchCommandSource, /locked=\{openingKey != null\}/);
+  assert.doesNotMatch(searchCommandSource, /adding && i === active/);
+});

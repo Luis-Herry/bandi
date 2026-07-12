@@ -22,10 +22,14 @@ import {
   type WatchProvidersCache,
 } from "@/db/schema";
 import { getLocalLibraryAnimeIds } from "@/lib/cinema-import";
+import { hasDoubanAnimationGenre } from "@/lib/douban";
 import { extractJavCode } from "@/lib/jav";
 
 type AnimeRow = typeof anime.$inferSelect;
 export type CinemaWatchStatus = UserAnime["watchStatus"];
+
+const SCRAPED_COVER_RE =
+  /(?:dmm\.co\.jp|image\.tmdb\.org|img\d+\.doubanio\.com)/i;
 
 // Temporary product gate: keep existing cinema rows intact, but hide the
 // default non-adult local-library feed until it is ready to resurface.
@@ -37,14 +41,14 @@ function isScraped(row: AnimeRow): boolean {
   return (
     row.tmdbId != null ||
     row.doubanRating != null ||
-    /dmm\.co\.jp|image\.tmdb\.org/.test(row.coverUrl ?? "")
+    SCRAPED_COVER_RE.test(row.coverUrl ?? "")
   );
 }
 
 // 信息完整度打分，去重时保留最全的一条
 function metaScore(row: AnimeRow): number {
   let s = 0;
-  if (/dmm\.co\.jp|image\.tmdb\.org/.test(row.coverUrl ?? "")) s += 4;
+  if (SCRAPED_COVER_RE.test(row.coverUrl ?? "")) s += 4;
   if (row.doubanRating != null || row.tmdbRating != null) s += 2;
   if (row.tmdbId != null) s += 1;
   if (row.titleJa) s += 1;
@@ -154,7 +158,7 @@ function buildCinemaItems(userId: string): CinemaItem[] {
   // 同一条保留信息最全的那行（避免脏标题前缀不同被拆成多张重复卡）。
   const best = new Map<string, AnimeRow>();
   for (const row of rows) {
-    if (!isScraped(row)) continue;
+    if (!isScraped(row) || hasDoubanAnimationGenre(row.tags)) continue;
     const key = dedupKey(row);
     const cur = best.get(key);
     if (!cur || metaScore(row) > metaScore(cur)) best.set(key, row);

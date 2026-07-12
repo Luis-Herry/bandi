@@ -1,8 +1,10 @@
 "use client";
 
-import { HardDrive } from "lucide-react";
+import Link from "next/link";
+import { ArrowRight, HardDrive } from "lucide-react";
 import { AnimeCard } from "@/components/features/AnimeCard";
-import { GlassPanel } from "@/components/ui";
+import { AnimeLocalScanButton } from "@/components/features/CinemaScanButton";
+import { Button, GlassPanel } from "@/components/ui";
 import { useCardGlow } from "@/hooks/useCardGlow";
 import type { LocalAnimeItem } from "@/lib/db-helpers/library";
 
@@ -15,16 +17,19 @@ export function LocalLibraryClient({ items }: { items: LocalAnimeItem[] }) {
 
   return (
     <div className="app-page-container py-6 space-y-6">
-      <header className="flex flex-col gap-1">
-        <div className="flex items-center gap-2">
-          <HardDrive size={20} className="text-[color:var(--accent)]" />
-          <h1 className="text-[22px] font-semibold tracking-tight text-[color:var(--text-primary)]">
-            本地库
-          </h1>
+      <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <HardDrive size={20} className="text-[color:var(--accent)]" />
+            <h1 className="text-[22px] font-semibold tracking-tight text-[color:var(--text-primary)]">
+              本地库
+            </h1>
+          </div>
+          <p className="text-[13px] text-[color:var(--text-secondary)]">
+            你保存在本地的动漫 · 可直接播放 · 共 {items.length} 部
+          </p>
         </div>
-        <p className="text-[13px] text-[color:var(--text-secondary)]">
-          你保存在本地的动漫 · 可直接播放 · 共 {items.length} 部
-        </p>
+        {items.length > 0 && <AnimeLocalScanButton />}
       </header>
 
       {items.length > 0 ? (
@@ -54,9 +59,20 @@ export function LocalLibraryClient({ items }: { items: LocalAnimeItem[] }) {
           <p className="text-[14px] font-medium text-[color:var(--text-primary)]">
             本地库还没有动漫
           </p>
-          <p className="max-w-[420px] text-[12px] leading-relaxed text-[color:var(--text-muted)]">
-            扫描你的自有动漫片并匹配 Bangumi 后，会出现在这里、可直接播放（独立于追番）。
+          <p className="max-w-[460px] text-[12px] leading-relaxed text-[color:var(--text-muted)]">
+            选择已有动漫目录，先预览识别结果，再确认导入。导入只新增本地播放记录，不会自动加入“我的追番”。
           </p>
+          <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+            <AnimeLocalScanButton />
+            <Button
+              asChild
+              size="sm"
+              variant="secondary"
+              rightIcon={<ArrowRight size={14} />}
+            >
+              <Link href="/admin/downloads">前往下载管理</Link>
+            </Button>
+          </div>
         </GlassPanel>
       )}
     </div>

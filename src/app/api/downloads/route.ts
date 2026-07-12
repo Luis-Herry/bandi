@@ -15,6 +15,7 @@ import {
 } from "@/lib/download-reconcile";
 import { findDownloadDuplicate } from "@/lib/download-dedupe";
 import { resetDownloadedFlagsWithoutCompletedRows } from "@/lib/download-cleanup";
+import { resolveDownloadRoot } from "@/lib/download-root";
 import {
   buildSafeTorrentOptions,
   shouldPauseAfterCompletion,
@@ -35,6 +36,11 @@ export const dynamic = "force-dynamic";
 type DbStatus = "pending" | "downloading" | "completed" | "failed";
 
 export async function GET() {
+  const downloadRoot = resolveDownloadRoot();
+  if (!downloadRoot.ok) {
+    return downloadDirectoryUnavailable(downloadRoot.message);
+  }
+
   const qbitStatus = await getStatus().catch(() => ({
     connected: false,
     url: "",
@@ -46,7 +52,7 @@ export async function GET() {
     live,
     qbitConnected: qbitStatus.connected,
   });
-  syncExternalDownloads(live);
+  syncExternalDownloads(live, downloadRoot.path);
   backfillMissingDownloadEpisodeRefs();
 
   const rows = await db
@@ -260,8 +266,7 @@ function backfillMissingDownloadEpisodeRefs() {
   }
 }
 
-function syncExternalDownloads(live: QbitTorrent[]) {
-  const downloadRoot = path.resolve(process.cwd(), "download");
+function syncExternalDownloads(live: QbitTorrent[], downloadRoot: string) {
   const existingDownloads = db
     .select({
       title: downloadQueue.title,
@@ -363,6 +368,11 @@ function promoteStartedByDownloadedEpisode(episodeId: number) {
 }
 
 export async function POST(req: Request) {
+  const downloadRoot = resolveDownloadRoot();
+  if (!downloadRoot.ok) {
+    return downloadDirectoryUnavailable(downloadRoot.message);
+  }
+
   const body = (await req.json().catch(() => ({}))) as {
     title?: string;
     magnetUrl?: string;
@@ -428,4 +438,12 @@ export async function POST(req: Request) {
     qbit: result.ok,
     error: result.ok ? undefined : result.error,
   });
+}
+
+function downloadDirectoryUnavailable(message: string): NextResponse {
+  console.error("[downloads] 下载目录不可用:", message);
+  return NextResponse.json(
+    { error: "download_directory_unavailable", message },
+    { status: 503 },
+  );
 }

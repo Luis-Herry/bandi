@@ -61,7 +61,12 @@ export async function syncFromBangumi(
     }
   }
 
-  const subject = await getSubject(bangumiId);
+  // 两个 Bangumi 请求彼此独立。并发获取可把首次从搜索打开详情时的
+  // 网络等待从两段串行延迟收敛为一段。
+  const [subject, rawEpisodes] = await Promise.all([
+    getSubject(bangumiId),
+    getEpisodes(bangumiId, 200),
+  ]);
   if (!subject) {
     // Bangumi miss: keep the local row as-is if it exists.
     return existing ? { animeId: existing.id, created: false } : null;
@@ -108,7 +113,7 @@ export async function syncFromBangumi(
   }
 
   // Episodes sync
-  const eps = selectMainBangumiEpisodes(await getEpisodes(bangumiId, 200));
+  const eps = selectMainBangumiEpisodes(rawEpisodes);
   if (eps.length > 0) {
     db.delete(episodes).where(eq(episodes.animeId, animeId)).run();
     for (const e of eps) {

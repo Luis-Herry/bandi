@@ -1,10 +1,12 @@
 import { redirect } from "next/navigation";
+import { Suspense } from "react";
 import { ArrowRight, Play, Clock, AlertCircle } from "lucide-react";
 import { getCurrentUser } from "@/lib/session";
 import {
   getHeroCandidates,
   getTodayUpdates,
   getContinueWatching,
+  getLibraryStats,
   getMissedUpdates,
   getUpcomingEpisodes,
 } from "@/lib/db-helpers/library";
@@ -44,21 +46,10 @@ export default async function HomePage() {
   const heroItems = getHeroCandidates(user.id);
   const todayUpdatesRaw = getTodayUpdates(user.id);
   const continueItems = getContinueWatching(user.id, 4);
+  const watchingCount = getLibraryStats(user.id).watching;
   const missedItems = getMissedUpdates(user.id, 4);
   // 始终拿两份：客户端用来切换视图，不再以"今日为空"作分支
   const upcomingItemsRaw = getUpcomingEpisodes(user.id, 7);
-
-  // 本季全集（与番剧库同源）
-  const season = currentSeason();
-  let seasonalAll: SeasonalBrowseItem[] = [];
-  try {
-    seasonalAll = await attachSeasonalUpdateStates(
-      await getSeasonalBrowse(user.id, season.season, season.year),
-    );
-  } catch (err) {
-    // Bangumi API 失败时降级为空数组，主页不该被外部依赖打挂
-    console.error("[home] getSeasonalBrowse failed:", err);
-  }
 
   // 空库状态
   if (heroItems.length === 0 && continueItems.length === 0) {
@@ -113,10 +104,6 @@ export default async function HomePage() {
     airedAt: u.episode.airedAt ? u.episode.airedAt.toISOString() : null,
   }));
 
-  // 本季按更新日分组
-  const seasonalGroups = groupSeasonalByWeekday(seasonalAll);
-  const seasonalTotal = seasonalAll.filter((it) => it.date).length;
-
   return (
     <HomeShell>
       {/* Hero 区 */}
@@ -135,8 +122,8 @@ export default async function HomePage() {
           <div className="min-w-0">
             <Section
               icon={<Play size={16} />}
-              title="继续观看"
-              subtitle="上次中断的进度，从这里接着看"
+              title="可继续播放"
+              subtitle="有播放记录或已下载的在看条目"
               className="flex h-full flex-col"
               right={
                 <a
@@ -150,7 +137,9 @@ export default async function HomePage() {
               {continueItems.length === 0 ? (
                 <GlassPanel className="p-6 text-center">
                   <p className="text-[13px] text-[color:var(--text-secondary)]">
-                    暂无在看的番剧
+                    {watchingCount > 0
+                      ? `暂无可直接播放的内容；仍有 ${watchingCount} 部正在观看，可前往追番列表找资源`
+                      : "还没有正在观看的番剧"}
                   </p>
                 </GlassPanel>
               ) : (
@@ -262,23 +251,100 @@ export default async function HomePage() {
         </div>
 
         {/* ── 本季新番（按星期，来自 Bangumi 全集） ── */}
-        <Section
-          icon={<Clock size={16} />}
-          title="本季新番"
-          subtitle={`${season.year} ${SEASON_CN[season.season]}季 · 共 ${seasonalTotal} 部在播`}
-          right={
-            <a
-              href="/browse"
-              className="text-[12px] text-[color:var(--text-muted)] hover:text-[color:var(--accent)] inline-flex items-center gap-1 transition-colors"
-            >
-              查看全部 <ArrowRight size={12} />
-            </a>
-          }
-        >
-          <SeasonalBrowseWeekday groups={seasonalGroups} />
-        </Section>
+        <Suspense fallback={<SeasonalBrowseSkeleton />}>
+          <SeasonalBrowseSection userId={user.id} />
+        </Suspense>
       </section>
     </HomeShell>
+  );
+}
+
+async function SeasonalBrowseSection({ userId }: { userId: string }) {
+  const season = currentSeason();
+
+  try {
+    const seasonalAll = await attachSeasonalUpdateStates(
+      await getSeasonalBrowse(userId, season.season, season.year),
+    );
+    const seasonalGroups = groupSeasonalByWeekday(seasonalAll);
+    const seasonalTotal = seasonalAll.filter((item) => item.date).length;
+
+    return (
+      <Section
+        icon={<Clock size={16} />}
+        title="本季新番"
+        subtitle={`${season.year} ${SEASON_CN[season.season]}季 · 共 ${seasonalTotal} 部在播`}
+        right={<SeasonalBrowseLink />}
+      >
+        <SeasonalBrowseWeekday groups={seasonalGroups} />
+      </Section>
+    );
+  } catch (error) {
+    console.error("[home] getSeasonalBrowse failed:", error);
+    return (
+      <Section
+        icon={<Clock size={16} />}
+        title="本季新番"
+        subtitle={`${season.year} ${SEASON_CN[season.season]}季`}
+        right={<SeasonalBrowseLink />}
+      >
+        <GlassPanel className="p-8 text-center">
+          <p className="text-[13px] text-[color:var(--text-secondary)]">
+            本季新番暂时加载失败
+          </p>
+          <p className="mt-1 text-[11px] text-[color:var(--text-muted)]">
+            其他追番内容仍可正常使用，稍后可再试
+          </p>
+        </GlassPanel>
+      </Section>
+    );
+  }
+}
+
+function SeasonalBrowseSkeleton() {
+  return (
+    <Section
+      icon={<Clock size={16} />}
+      title="本季新番"
+      subtitle="正在载入季度数据"
+      right={<SeasonalBrowseLink />}
+    >
+      <div aria-label="本季新番加载中" aria-busy="true">
+        <div className="mb-3 flex gap-2">
+          {[0, 1, 2, 3, 4, 5, 6].map((item) => (
+            <HomeSkeletonBlock key={item} className="h-8 w-12" />
+          ))}
+        </div>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+          {[0, 1, 2, 3, 4, 5].map((item) => (
+            <HomeSkeletonBlock key={item} className="h-[190px] w-full" />
+          ))}
+        </div>
+      </div>
+    </Section>
+  );
+}
+
+function SeasonalBrowseLink() {
+  return (
+    <a
+      href="/browse"
+      className="inline-flex items-center gap-1 text-[12px] text-[color:var(--text-muted)] transition-colors hover:text-[color:var(--accent)]"
+    >
+      查看全部 <ArrowRight size={12} />
+    </a>
+  );
+}
+
+function HomeSkeletonBlock({ className }: { className: string }) {
+  return (
+    <div
+      className={`relative overflow-hidden rounded-[8px] bg-[color:var(--bg-elevated)] ${className}`}
+    >
+      <div className="t-skel-skeleton is-pulsing">
+        <div className="t-skel-block" />
+      </div>
+    </div>
   );
 }
 
@@ -386,7 +452,7 @@ function EmptyHome({ username }: { username: string }) {
         </div>
 
         <p className="mt-5 text-[11px] text-[color:var(--text-muted)]">
-          提示：任何页面按 <kbd className="px-1.5 py-0.5 mx-0.5 rounded-[4px] bg-[color:var(--bg-surface)] border border-[color:var(--border-subtle)] text-[10px]">⌘K</kbd> 快速搜索
+          提示：任何页面按 <kbd className="px-1.5 py-0.5 mx-0.5 rounded-[4px] bg-[color:var(--bg-surface)] border border-[color:var(--border-subtle)] text-[10px]">Ctrl K</kbd> 快速搜索
         </p>
 
         <div className="mt-16">
