@@ -13,6 +13,7 @@ import { showToast } from "@/components/features/ToastHost";
 import { useCardGlow } from "@/hooks/useCardGlow";
 import { useSlidingTabs } from "@/hooks/useSlidingTabs";
 import type { SeasonalBrowseItem } from "@/lib/db-helpers/browse";
+import { getBrowseAddIdentity } from "@/lib/browse-add";
 import { cn } from "@/lib/cn";
 
 const WEEKDAY_CN = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
@@ -63,25 +64,27 @@ export function SeasonalBrowseWeekday({ groups, perDay = 6 }: Props) {
     Record<number, { atStart: boolean; atEnd: boolean; hasOverflow: boolean }>
   >({});
 
-  // adding：正在跑加入请求的 bangumiId
+  // adding：正在跑加入请求的稳定 itemKey
   // patches：本次会话里"想看"按下后的乐观状态，覆盖到 item 上
-  const [adding, setAdding] = useState<Set<number>>(new Set());
-  const [patches, setPatches] = useState<Map<number, AddPatch>>(new Map());
+  const [adding, setAdding] = useState<Set<string>>(new Set());
+  const [patches, setPatches] = useState<Map<string, AddPatch>>(new Map());
 
   async function addToPlanning(it: SeasonalBrowseItem) {
-    if (adding.has(it.bangumiId)) return;
-    setAdding((s) => new Set(s).add(it.bangumiId));
+    if (adding.has(it.itemKey)) return;
+    setAdding((s) => new Set(s).add(it.itemKey));
     try {
+      const identity = getBrowseAddIdentity(it);
+      if (!identity) throw new Error("missing browse identity");
       const res = await fetch("/api/browse/add", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ bangumiId: it.bangumiId }),
+        body: JSON.stringify(identity),
       });
       if (!res.ok) throw new Error(`add failed ${res.status}`);
       const j = (await res.json()) as { animeId?: number };
       setPatches((curr) => {
         const next = new Map(curr);
-        next.set(it.bangumiId, {
+        next.set(it.itemKey, {
           inLibrary: true,
           localAnimeId: j.animeId ?? it.localAnimeId ?? null,
         });
@@ -102,7 +105,7 @@ export function SeasonalBrowseWeekday({ groups, perDay = 6 }: Props) {
     } finally {
       setAdding((s) => {
         const next = new Set(s);
-        next.delete(it.bangumiId);
+        next.delete(it.itemKey);
         return next;
       });
     }
@@ -277,7 +280,7 @@ export function SeasonalBrowseWeekday({ groups, perDay = 6 }: Props) {
         style={{ gridAutoColumns: cardWidth }}
       >
         {activeGroup.items.map((it) => {
-          const patch = patches.get(it.bangumiId);
+          const patch = patches.get(it.itemKey);
           const merged: SeasonalBrowseItem = patch
             ? {
                 ...it,
@@ -286,11 +289,11 @@ export function SeasonalBrowseWeekday({ groups, perDay = 6 }: Props) {
               }
             : it;
           return (
-            <div key={it.bangumiId} className="snap-start">
+            <div key={it.itemKey} className="snap-start">
               <BrowseCard
                 item={merged}
                 updateState={it.updateState}
-                busy={adding.has(it.bangumiId)}
+                busy={adding.has(it.itemKey)}
                 onAdd={() => addToPlanning(it)}
               />
             </div>

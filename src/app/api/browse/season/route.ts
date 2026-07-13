@@ -7,8 +7,7 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/session";
 import {
-  getSeasonalBrowse,
-  type SeasonalBrowseItem,
+  getSeasonalBrowseResult,
 } from "@/lib/db-helpers/browse";
 import type { BgmSeason } from "@/lib/bangumi";
 
@@ -31,10 +30,10 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "invalid year" }, { status: 400 });
   }
 
-  const items: SeasonalBrowseItem[] = await getSeasonalBrowse(
+  const result = await getSeasonalBrowseResult(
     user.id,
     seasonRaw as BgmSeason,
     yearRaw,
   );
-  return NextResponse.json({ items });
+  return NextResponse.json(result);
 }

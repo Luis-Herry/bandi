@@ -742,7 +742,7 @@ export function PlayerClient({
   ]);
 
   return (
-    <section className="relative min-h-[calc(100vh-64px)] overflow-hidden bg-black px-4 py-5 sm:px-6 lg:px-8">
+    <section className="desktop-player-shell relative min-h-[calc(100vh-64px)] overflow-hidden bg-black px-4 py-5 sm:px-6 lg:px-8">
       {coverUrl && (
         <div
           className="absolute inset-0 scale-105 bg-cover bg-center opacity-18 blur-2xl"
@@ -754,7 +754,7 @@ export function PlayerClient({
         <BackButton fallbackHref={detailHref} />
       </div>
 
-      <div className="relative mx-auto flex min-h-[calc(100vh-104px)] max-w-[1180px] items-center">
+      <div className="desktop-player-stage relative mx-auto flex min-h-[calc(100vh-104px)] max-w-[1180px] items-center">
         <div className="w-full overflow-hidden rounded-[12px] border border-[rgb(var(--accent-rgb)/0.24)] bg-[color:var(--bg-elevated)] shadow-[0_24px_72px_rgba(0,0,0,0.52)]">
           <header className="flex items-center justify-between gap-4 border-b border-white/5 bg-[rgba(18,19,22,0.94)] px-5 py-4">
             <div className="flex min-w-0 items-center gap-3">

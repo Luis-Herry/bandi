@@ -32,7 +32,7 @@ const STEPS = [
   },
   {
     title: "填连接地址",
-    text: "IP 地址填 127.0.0.1，端口填 8080，HTTPS 保持关闭。",
+    text: "IP 地址填 127.0.0.1，端口填 18080，HTTPS 保持关闭。",
     icon: <MousePointerClick size={15} />,
   },
   {
@@ -55,7 +55,7 @@ const SCREENSHOTS = [
   },
   {
     title: "2. 再按 Web UI 页面填写",
-    text: "确认 Web UI 已启用，IP 为 127.0.0.1，端口为 8080。",
+    text: "勾选 Web UI，IP 填 127.0.0.1，端口填 18080。",
     src: "/qbit-guide/webui-options.png",
   },
 ];
@@ -105,7 +105,7 @@ export function QbitSetupGuideDialog({ trigger }: QbitSetupGuideDialogProps) {
 
           <div className="mt-4 grid grid-cols-3 gap-2">
             <GuideValue label="IP 地址" value="127.0.0.1" />
-            <GuideValue label="端口" value="8080" />
+            <GuideValue label="端口" value="18080" />
             <GuideValue label="用户名" value="admin" />
           </div>
 

@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import bcrypt from "bcryptjs";
 import type Database from "better-sqlite3";
 
@@ -194,13 +194,13 @@ export function ensureDesktopDefaults(sqlite: SqliteDatabase) {
     .get() as { count: number };
 
   if (userCount.count === 0) {
-    const username = process.env.DESKTOP_BOOTSTRAP_USER ?? "admin";
-    const password = process.env.DESKTOP_BOOTSTRAP_PASSWORD ?? "PUBLIC_HISTORY_REDACTED";
+    const username = process.env.DESKTOP_BOOTSTRAP_USER?.trim() || "admin";
+    const unreachablePassword = randomBytes(32).toString("base64url");
     sqlite
       .prepare(
         "INSERT INTO users (id, username, password_hash) VALUES (?, ?, ?)",
       )
-      .run(randomUUID(), username, bcrypt.hashSync(password, 10));
+      .run(randomUUID(), username, bcrypt.hashSync(unreachablePassword, 10));
   }
 
   const rssCount = sqlite

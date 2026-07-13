@@ -10,7 +10,10 @@ import {
   getMissedUpdates,
   getUpcomingEpisodes,
 } from "@/lib/db-helpers/library";
-import { getSeasonalBrowse } from "@/lib/db-helpers/browse";
+import {
+  getSeasonalBrowse,
+  groupSeasonalBrowseByWeekday,
+} from "@/lib/db-helpers/browse";
 import { currentSeason } from "@/lib/bangumi";
 import { attachSeasonalUpdateStates } from "@/lib/seasonal-update-state";
 import { Button, GlassPanel, Tag } from "@/components/ui";
@@ -266,8 +269,10 @@ async function SeasonalBrowseSection({ userId }: { userId: string }) {
     const seasonalAll = await attachSeasonalUpdateStates(
       await getSeasonalBrowse(userId, season.season, season.year),
     );
-    const seasonalGroups = groupSeasonalByWeekday(seasonalAll);
-    const seasonalTotal = seasonalAll.filter((item) => item.date).length;
+    const seasonalGroups = groupSeasonalBrowseByWeekday(seasonalAll);
+    const seasonalTotal = seasonalAll.filter(
+      (item) => item.airingDay != null,
+    ).length;
 
     return (
       <Section
@@ -357,30 +362,6 @@ function HomeShell({ children }: { children: React.ReactNode }) {
       </div>
     </div>
   );
-}
-
-/**
- * 把 SeasonalBrowseItem 按 date 字段派生的 weekday 分组。
- * - date 为 null 跳过
- * - date 已经是 YYYY-MM-DD（首播日），weekday 即为每周更新日
- * - 服务端 list 已按 heat / score 排序，分组时保留顺序即可
- */
-function groupSeasonalByWeekday(
-  items: SeasonalBrowseItem[],
-): { day: number; items: SeasonalBrowseItem[] }[] {
-  const groups: SeasonalBrowseItem[][] = Array.from({ length: 7 }, () => []);
-  for (const it of items) {
-    if (!it.date) continue;
-    // 直接 parse YYYY-MM-DD；Date 构造 ISO 字符串走 UTC，
-    // 但只取 weekday 不取小时，UTC vs 本地差异不会跨日（首播日不会带时区）
-    const d = new Date(it.date);
-    if (Number.isNaN(d.getTime())) continue;
-    const day = d.getDay();
-    groups[day].push(it);
-  }
-  // 周一 ~ 周日 顺序更直观；周日(0) 放最后
-  const order = [1, 2, 3, 4, 5, 6, 0];
-  return order.map((day) => ({ day, items: groups[day] }));
 }
 
 /* ─── Sub-components ────────────────────────────────────────── */

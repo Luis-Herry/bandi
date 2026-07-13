@@ -1,12 +1,31 @@
 {
   "name": "anime-tracker",
   "version": "0.1.3",
+  "description": "Windows local-first anime tracker, downloader, and personal media center.",
+  "author": "Luis-Herry",
+  "license": "GPL-3.0-only",
   "private": true,
   "main": "desktop/main.cjs",
+  "homepage": "https://github.com/Luis-Herry/anime-tracker-desktop#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Luis-Herry/anime-tracker-desktop.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Luis-Herry/anime-tracker-desktop/issues"
+  },
+  "keywords": [
+    "anime",
+    "electron",
+    "local-first",
+    "media-center",
+    "rss",
+    "qbittorrent"
+  ],
   "scripts": {
     "dev": "node --use-env-proxy node_modules/next/dist/bin/next dev",
     "build": "next build",
-    "desktop:prepare": "node scripts/prepare-standalone.mjs",
+    "desktop:prepare": "node scripts/prepare-standalone.mjs && node scripts/generate-third-party-licenses.mjs",
     "desktop:start": "node scripts/desktop-dev-start.mjs",
     "desktop:check-build": "node scripts/desktop-dev-start.mjs --check",
     "desktop:pack": "npm run build && npm run desktop:prepare && electron-builder --dir",
@@ -33,6 +52,7 @@
     "@tailwindcss/postcss": "^4.3.0",
     "bcryptjs": "^3.0.3",
     "better-sqlite3": "^12.10.0",
+    "cheerio": "^1.2.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "colorthief": "^3.3.1",
@@ -65,6 +85,9 @@
     "tsx": "^4.22.3",
     "typescript": "^5.9.3"
   },
+  "overrides": {
+    "postcss": "$postcss"
+  },
   "build": {
     "appId": "cn.luis.anime-tracker.desktop",
     "productName": "追番中心",
@@ -76,6 +99,10 @@
     "files": [
       "desktop/**/*",
       ".next/standalone/**/*",
+      "LICENSE",
+      "THIRD_PARTY_NOTICES.md",
+      "THIRD_PARTY_LICENSES.txt",
+      "ASSETS.md",
       "package.json"
     ],
     "extraResources": [

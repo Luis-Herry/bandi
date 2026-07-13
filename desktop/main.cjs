@@ -32,10 +32,10 @@ const CONFIG_NAME = "config.json";
 const ONBOARDING_VERSION = 1;
 const DESKTOP_AUTH_HEADER = "X-Bandi-Desktop-Token";
 const DEFAULT_APP_USER = "admin";
-const DEFAULT_APP_PASSWORD = "PUBLIC_HISTORY_REDACTED";
 const DEFAULT_QBIT_USER = "admin";
 const NEXT_RUNTIME_DIRECTORIES = Object.freeze({
   COVER_CACHE_DIR: "H:\\BandiData\\cache\\covers",
+  YUC_CACHE_DIR: "H:\\BandiData\\cache\\yuc",
   SCREENSHOT_DIR: "H:\\BandiData\\screenshots",
 });
 const ELECTRON_SESSION_DATA_DIR = "H:\\BandiData\\cache\\electron";
@@ -163,9 +163,6 @@ function loadDesktopConfig(userDataDir) {
   const config = {
     authSecret: existing.authSecret || randomSecret(48),
     appUser: existing.appUser || DEFAULT_APP_USER,
-    appPassword:
-      existing.appPassword ||
-      (hasExistingConfig ? DEFAULT_APP_PASSWORD : randomSecret(18)),
     qbitUser,
     qbitPassword: existing.qbitPassword || randomSecret(18),
     qbitPort,
@@ -636,7 +633,6 @@ async function startNextServer(runtimePathEnv) {
       DESKTOP_CONFIG_PATH: configFile(userData),
       ANIME_DESKTOP_APP: "1",
       DESKTOP_BOOTSTRAP_USER: desktopConfig.appUser,
-      DESKTOP_BOOTSTRAP_PASSWORD: desktopConfig.appPassword,
       DESKTOP_SESSION_TOKEN: desktopSessionToken,
     },
     stdio: ["ignore", "pipe", "pipe"],
@@ -952,7 +948,7 @@ function createTray() {
     Menu.buildFromTemplate([
       { label: "打开追番中心", click: revealWindow },
       { type: "separator" },
-      { label: "退出并停止下载", click: () => app.quit() },
+      { label: "退出", click: () => app.quit() },
     ]),
   );
   tray.on("double-click", revealWindow);

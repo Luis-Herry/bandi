@@ -1,5 +1,5 @@
 /**
- * 番号片元数据源 —— 给本地自有番号片（如 TEST-390）刮封面/标题/演员/片商/系列。
+ * 番号片元数据源 —— 给用户本地条目刮封面、标题、演员、片商和系列。
  *
  * 实测（2026-06-26）：JavBus 跳 driver-verify、JavDB 403、avmoo 已死；可用的是
  * **r18.dev JSON**（`/videos/vod/movies/detail/-/dvd_id={番号}/json`，MDC 也用），
@@ -33,7 +33,7 @@ export interface JavInfo {
   descriptionJa: string | null;
 }
 
-/** 从文件名 / 标题里抽取番号（大写字母 + 连字符 + 数字，如 TEST-390）。 */
+/** 从文件名 / 标题里抽取番号（大写字母 + 连字符 + 数字；测试样例使用 TEST-390）。 */
 export function extractJavCode(title: string): string | null {
   const m = title.toUpperCase().match(/\b([A-Z]{2,6})-(\d{2,5})\b/);
   return m ? `${m[1]}-${m[2]}` : null;

@@ -198,7 +198,7 @@ function parentLooksLikeShowTitle(title: string): boolean {
   );
 }
 
-// 剥离开头的站点水印 / 碎号噪音：sample com@ / site.com / 225544 xyz / 纯长数字 / 前导 @
+// 剥离开头的发布组水印 / 碎号噪音：sample com@ / site.com / 225544 xyz / 纯长数字 / 前导 @
 function stripSiteNoise(s: string): string {
   let out = s;
   for (let i = 0; i < 4; i++) {

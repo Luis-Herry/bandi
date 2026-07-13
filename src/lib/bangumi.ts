@@ -517,10 +517,20 @@ export function subjectToAnimeRow(s: BgmSubject) {
     titleJa: s.name,
     coverUrl: cover,
     synopsis: s.summary,
-    type: "TV" as const,
+    type: bangumiPlatformToAnimeType(s.platform),
     status: "airing" as const,
     totalEpisodes: s.eps ?? s.total_episodes ?? null,
     year: year ?? null,
     tags,
   };
+}
+
+export function bangumiPlatformToAnimeType(
+  platform: string | null | undefined,
+): "TV" | "Movie" | "OVA" | "Web" {
+  const normalized = platform?.trim().toLocaleLowerCase("zh-CN") ?? "";
+  if (/movie|剧场|劇場|電影|电影/u.test(normalized)) return "Movie";
+  if (/ova|oad|special|特别|特別/u.test(normalized)) return "OVA";
+  if (/web|网络|網絡/u.test(normalized)) return "Web";
+  return "TV";
 }

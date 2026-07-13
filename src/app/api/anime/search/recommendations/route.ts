@@ -93,7 +93,10 @@ export async function GET() {
     const recommendation: RecommendationItem = {
       source: item.localAnimeId ? "local" : "bangumi",
       id: item.localAnimeId,
-      bangumiId: item.bangumiId > 0 ? item.bangumiId : null,
+      bangumiId:
+        item.bangumiId != null && item.bangumiId > 0
+          ? item.bangumiId
+          : null,
       mediaType: "anime",
       title: item.title,
       titleJa: item.titleJa,

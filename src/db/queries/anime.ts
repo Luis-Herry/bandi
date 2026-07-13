@@ -19,6 +19,11 @@ import {
   selectMainBangumiEpisodes,
 } from "@/lib/bangumi";
 import { dedupeEpisodesByNumber } from "@/lib/episode-normalize";
+import { selectTitleAliasesFromBangumi } from "@/lib/anime-title-aliases";
+import {
+  findUniqueBoundAnimeForYucTarget,
+  YucIdentityConflictError,
+} from "@/lib/yuc/identity";
 
 export function getAnimeById(id: number): Anime | undefined {
   return db.select().from(anime).where(eq(anime.id, id)).get();
@@ -47,8 +52,14 @@ export function getUserAnime(userId: string, animeId: number) {
 }
 
 /** Sync from Bangumi: upsert anime + episodes. Cache: skip if updatedAt < 2h. */
+export interface BangumiSyncDependencies {
+  getSubject: typeof getSubject;
+  getEpisodes: typeof getEpisodes;
+}
+
 export async function syncFromBangumi(
   bangumiId: number,
+  dependencies: BangumiSyncDependencies = { getSubject, getEpisodes },
 ): Promise<{ animeId: number; created: boolean } | null> {
   const existing = getAnimeByBangumiId(bangumiId);
   if (existing) {
@@ -64,32 +75,52 @@ export async function syncFromBangumi(
   // 两个 Bangumi 请求彼此独立。并发获取可把首次从搜索打开详情时的
   // 网络等待从两段串行延迟收敛为一段。
   const [subject, rawEpisodes] = await Promise.all([
-    getSubject(bangumiId),
-    getEpisodes(bangumiId, 200),
+    dependencies.getSubject(bangumiId),
+    dependencies.getEpisodes(bangumiId, 200),
   ]);
   if (!subject) {
     // Bangumi miss: keep the local row as-is if it exists.
     return existing ? { animeId: existing.id, created: false } : null;
   }
   const row = subjectToAnimeRow(subject);
+  const yucBound = findUniqueBoundAnimeForYucTarget({
+    title: row.title,
+    titleJa: row.titleJa,
+    aliases: selectTitleAliasesFromBangumi(subject),
+    year: row.year,
+    format: row.type,
+  });
+  if (existing && yucBound && existing.id !== yucBound.id) {
+    throw new YucIdentityConflictError(
+      `Bangumi ${bangumiId} and its YUC identity point to different anime rows`,
+    );
+  }
+  if (yucBound?.bangumiId != null && yucBound.bangumiId !== bangumiId) {
+    throw new YucIdentityConflictError(
+      `YUC-bound anime ${yucBound.id} already has another Bangumi id`,
+    );
+  }
+  const target = existing ?? yucBound;
 
   let animeId: number;
   let created: boolean;
-  if (existing) {
+  if (target) {
     db.update(anime)
       .set({
+        bangumiId: row.bangumiId,
         title: row.title,
         titleJa: row.titleJa,
-        coverUrl: row.coverUrl,
-        synopsis: row.synopsis,
-        totalEpisodes: row.totalEpisodes,
-        year: row.year,
-        tags: row.tags,
+        coverUrl: row.coverUrl ?? target.coverUrl,
+        synopsis: row.synopsis ?? target.synopsis,
+        type: row.type,
+        totalEpisodes: row.totalEpisodes ?? target.totalEpisodes,
+        year: row.year ?? target.year,
+        tags: [...new Set([...(target.tags ?? []), ...(row.tags ?? [])])],
         updatedAt: new Date(),
       })
-      .where(eq(anime.id, existing.id))
+      .where(eq(anime.id, target.id))
       .run();
-    animeId = existing.id;
+    animeId = target.id;
     created = false;
   } else {
     const inserted = db

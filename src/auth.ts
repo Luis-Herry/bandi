@@ -1,14 +1,15 @@
 /**
  * NextAuth v5 configuration.
  *
- * - Credentials provider (username + password against `users` table).
+ * - Web mode: Credentials provider (username + password against `users` table).
+ * - Desktop mode: one-time local session token only; password login is omitted.
  * - JWT session strategy (keeps everything in a signed cookie, no extra table).
  * - `signIn('credentials', ...)` returns `{ error, ok }`; the form catches that.
  */
 
 /**
  * Full NextAuth setup, server-only. Imports `auth.config.ts` (edge-safe)
- * and adds the DB-backed Credentials provider.
+ * and adds the DB-backed providers for the active runtime.
  *
  * The middleware imports `auth.config.ts` directly so it doesn't drag
  * better-sqlite3 / bcryptjs into the Edge bundle.
@@ -51,8 +52,10 @@ function findUser(username: string) {
     .get();
 }
 
+const isDesktopApp = process.env.ANIME_DESKTOP_APP === "1";
+
 function hasValidDesktopToken(request: Request) {
-  if (process.env.ANIME_DESKTOP_APP !== "1") return false;
+  if (!isDesktopApp) return false;
   const expected = process.env.DESKTOP_SESSION_TOKEN ?? "";
   const received = request.headers.get("x-bandi-desktop-token") ?? "";
   if (!expected || expected.length !== received.length) return false;
@@ -67,32 +70,36 @@ export const {
 } = NextAuth({
   ...authConfig,
   providers: [
-    Credentials({
-      name: "credentials",
-      credentials: {
-        username: { label: "用户名", type: "text" },
-        password: { label: "密码", type: "password" },
-      },
-      async authorize(raw) {
-        const username =
-          typeof raw?.username === "string" ? raw.username.trim() : "";
-        const password =
-          typeof raw?.password === "string" ? raw.password : "";
-        if (!username || !password) return null;
+    ...(!isDesktopApp
+      ? [
+          Credentials({
+            name: "credentials",
+            credentials: {
+              username: { label: "用户名", type: "text" },
+              password: { label: "密码", type: "password" },
+            },
+            async authorize(raw) {
+              const username =
+                typeof raw?.username === "string" ? raw.username.trim() : "";
+              const password =
+                typeof raw?.password === "string" ? raw.password : "";
+              if (!username || !password) return null;
 
-        const row = findUser(username);
-        if (!row) return null;
+              const row = findUser(username);
+              if (!row) return null;
 
-        const ok = await bcrypt.compare(password, row.passwordHash);
-        if (!ok) return null;
+              const ok = await bcrypt.compare(password, row.passwordHash);
+              if (!ok) return null;
 
-        return {
-          id: row.id,
-          name: row.username,
-        };
-      },
-    }),
-    ...(process.env.ANIME_DESKTOP_APP === "1"
+              return {
+                id: row.id,
+                name: row.username,
+              };
+            },
+          }),
+        ]
+      : []),
+    ...(isDesktopApp
       ? [
           Credentials({
             id: "desktop-session",

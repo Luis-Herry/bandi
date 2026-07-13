@@ -11,7 +11,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import Database from "better-sqlite3";
-import { ensureDatabaseSchema } from "../src/db/bootstrap";
+import {
+  ensureDatabaseSchema,
+  ensureDesktopDefaults,
+} from "../src/db/bootstrap";
 import {
   isSafeAbsoluteWindowsPath as isSafeTypeScriptWindowsPath,
   resolveDownloadRoot,
@@ -243,6 +246,10 @@ test("desktop packaging boundary survives web sync", () => {
 
   assert.equal(pkg.main, "desktop/main.cjs");
   assert.match(pkg.scripts?.["desktop:prepare"] ?? "", /prepare-standalone\.mjs/);
+  assert.match(
+    pkg.scripts?.["desktop:prepare"] ?? "",
+    /generate-third-party-licenses\.mjs/,
+  );
   assert.match(pkg.scripts?.["desktop:dist"] ?? "", /electron-builder --win/);
   assert.equal(pkg.build?.directories?.output, "release");
   assert.equal(pkg.build?.asar, false);
@@ -254,6 +261,7 @@ test("desktop packaging boundary survives web sync", () => {
   assert.equal(pkg.build?.nsis?.uninstallerIcon, "desktop/assets/app-icon.ico");
   assert.equal(pkg.build?.nsis?.installerHeaderIcon, "desktop/assets/app-icon.ico");
   assert.ok(pkg.build?.files?.includes(".next/standalone/**/*"));
+  assert.ok(pkg.build?.files?.includes("THIRD_PARTY_LICENSES.txt"));
   assert.ok(
     pkg.build?.extraResources?.some(
       (resource) =>
@@ -272,6 +280,10 @@ test("desktop packaging boundary survives web sync", () => {
   assert.match(
     prepareScript,
     /mirrorDir\(staticDir, path\.join\(standaloneDir, "\.next", "static"\)\)/,
+  );
+  assert.match(
+    prepareScript,
+    /removeStandaloneDir\(path\.join\(standaloneDir, "\.next", "cache"\)\)/,
   );
   assert.match(
     prepareScript,
@@ -310,6 +322,7 @@ test("bundled qBittorrent keeps the pinned runtime and matching source notices",
 
 test("desktop main keeps local qBit and userData runtime paths", () => {
   const mainSource = readFileSync("desktop/main.cjs", "utf8");
+  const bootstrapSource = readFileSync("src/db/bootstrap.ts", "utf8");
 
   assert.match(mainSource, /QBIT_PORT_START = 18180/);
   assert.match(mainSource, /findOpenPort\(QBIT_PORT_START\)/);
@@ -321,6 +334,11 @@ test("desktop main keeps local qBit and userData runtime paths", () => {
   assert.ok(
     mainSource.includes(
       'COVER_CACHE_DIR: "H:\\\\BandiData\\\\cache\\\\covers"',
+    ),
+  );
+  assert.ok(
+    mainSource.includes(
+      'YUC_CACHE_DIR: "H:\\\\BandiData\\\\cache\\\\yuc"',
     ),
   );
   assert.ok(
@@ -340,8 +358,37 @@ test("desktop main keeps local qBit and userData runtime paths", () => {
   assert.match(mainSource, /QBIT_CONFIG_PATH: configFile\(userData\)/);
   assert.match(mainSource, /DESKTOP_CONFIG_PATH: configFile\(userData\)/);
   assert.match(mainSource, /ANIME_DESKTOP_APP: "1"/);
+  assert.doesNotMatch(mainSource, /DEFAULT_APP_PASSWORD/);
+  assert.doesNotMatch(mainSource, /DESKTOP_BOOTSTRAP_PASSWORD/);
+  assert.doesNotMatch(mainSource, /appPassword/);
+  assert.doesNotMatch(bootstrapSource, /DESKTOP_BOOTSTRAP_PASSWORD/);
+  assert.match(bootstrapSource, /randomBytes\(32\)\.toString\("base64url"\)/);
   assert.match(mainSource, /getAppIconPath\(\)/);
   assert.match(mainSource, /icon: getAppIconPath\(\)/);
+});
+
+test("desktop bootstrap creates an unreachable random password", () => {
+  const dir = mkdtempSync(join(tmpdir(), "anime-desktop-credentials-"));
+  const sqlite = new Database(join(dir, "anime.db"));
+  const previousUser = process.env.DESKTOP_BOOTSTRAP_USER;
+
+  try {
+    ensureDatabaseSchema(sqlite);
+    process.env.DESKTOP_BOOTSTRAP_USER = "desktop-user";
+    ensureDesktopDefaults(sqlite);
+
+    const user = sqlite
+      .prepare(
+        "SELECT id, password_hash AS passwordHash FROM users WHERE username = ?",
+      )
+      .get("desktop-user") as { id: string; passwordHash: string };
+    assert.ok(user.id);
+    assert.match(user.passwordHash, /^\$2[aby]\$/);
+  } finally {
+    sqlite.close();
+    if (previousUser === undefined) delete process.env.DESKTOP_BOOTSTRAP_USER;
+    else process.env.DESKTOP_BOOTSTRAP_USER = previousUser;
+  }
 });
 
 test("runtime storage APIs require injected absolute directories", () => {
@@ -414,7 +461,8 @@ test("desktop owns qBit readiness, recovery, tray, and graceful shutdown", () =>
   assert.match(mainSource, /void initialQbitStart\.finally/);
   assert.match(mainSource, /app\.requestSingleInstanceLock\(\)/);
   assert.match(mainSource, /new Tray\(getAppIconPath\(\)\)/);
-  assert.match(mainSource, /退出并停止下载/);
+  assert.match(mainSource, /\{ label: "退出", click: \(\) => app\.quit\(\) \}/);
+  assert.doesNotMatch(mainSource, /退出并停止下载/);
   assert.match(mainSource, /\/api\/v2\/app\/shutdown/);
   assert.match(mainSource, /mainWindow\.hide\(\)/);
 });
@@ -578,6 +626,9 @@ test("desktop login establishes a local session without showing credentials", ()
   assert.match(loginShellSource, /BrandLogo/);
   assert.match(sessionGateSource, /signIn\("desktop-session"/);
   assert.match(sessionGateSource, /正在打开你的私人放映厅/);
+  assert.match(authSource, /const isDesktopApp = process\.env\.ANIME_DESKTOP_APP === "1"/);
+  assert.match(authSource, /\.\.\.\(!isDesktopApp/);
+  assert.match(authSource, /\.\.\.\(isDesktopApp/);
   assert.match(authSource, /id: "desktop-session"/);
   assert.match(authSource, /x-bandi-desktop-token/);
   assert.match(authSource, /timingSafeEqual/);
@@ -695,6 +746,7 @@ test("desktop replaces native Windows chrome with a themed custom titlebar", () 
   const mainSource = readFileSync("desktop/main.cjs", "utf8");
   const preloadSource = readFileSync("desktop/preload.cjs", "utf8");
   const rootLayoutSource = readFileSync("src/app/layout.tsx", "utf8");
+  const mainLayoutSource = readFileSync("src/app/(main)/layout.tsx", "utf8");
   const titlebarSource = readFileSync(
     "src/components/features/DesktopTitlebar.tsx",
     "utf8",
@@ -704,6 +756,10 @@ test("desktop replaces native Windows chrome with a themed custom titlebar", () 
     "utf8",
   );
   const navSource = readFileSync("src/components/features/Nav.tsx", "utf8");
+  const settingsSource = readFileSync(
+    "src/app/(main)/settings/page.tsx",
+    "utf8",
+  );
   const spaceSwitcherSource = readFileSync(
     "src/components/features/SpaceSwitcher.tsx",
     "utf8",
@@ -738,6 +794,8 @@ test("desktop replaces native Windows chrome with a themed custom titlebar", () 
   );
   assert.match(rootLayoutSource, /data-desktop-app=/);
   assert.match(rootLayoutSource, /isDesktop && <DesktopTitlebar/);
+  assert.match(mainLayoutSource, /desktop-nav-spacer/);
+  assert.match(mainLayoutSource, /desktop-page-scroll/);
   assert.match(titlebarSource, /desktop-titlebar-controls/);
   assert.match(titlebarSource, /aria-label="窗口控制"/);
   assert.match(backButtonSource, /"back-button"/);
@@ -759,13 +817,67 @@ test("desktop replaces native Windows chrome with a themed custom titlebar", () 
   assert.match(titlebarRule, /right: 0;/);
   assert.match(titlebarRule, /left: 0;/);
   assert.match(titlebarRule, /height: 44px;/);
+  assert.match(titlebarRule, /background: var\(--bg-elevated\);/);
   assert.doesNotMatch(titlebarRule, /border(?:-radius)?:/);
-  assert.doesNotMatch(titlebarRule, /background:/);
   assert.doesNotMatch(titlebarRule, /box-shadow:/);
   assert.doesNotMatch(titlebarRule, /backdrop-filter:/);
+  assert.match(
+    globalsSource,
+    /html\[data-desktop-app="true"\]\s*\{[^}]*overflow: hidden;[^}]*scrollbar-gutter: auto;/s,
+  );
+  assert.match(
+    globalsSource,
+    /html\[data-desktop-app="true"\] body\s*\{[^}]*overflow: hidden;/s,
+  );
+  assert.match(
+    globalsSource,
+    /\.desktop-page-scroll\s*\{[^}]*overflow-y: auto;[^}]*scrollbar-gutter: auto;/s,
+  );
+  assert.match(settingsSource, /desktop-page-sticky/);
+  assert.match(
+    globalsSource,
+    /html\[data-desktop-app="true"\] \.desktop-page-sticky\s*\{[^}]*top: 1rem;/s,
+  );
   assert.match(globalsSource, /\.desktop-titlebar-window-button\s*\{[^}]*corner-shape: squircle/s);
   assert.match(
     globalsSource,
     /\.desktop-titlebar-window-button\s*\{[^}]*transition:[^}]*var\(--duration-quick\)[^}]*var\(--duration-micro\)/s,
+  );
+});
+
+test("desktop page viewports stay inside the titlebar and navigation shell", () => {
+  const globalsSource = readFileSync("src/app/globals.css", "utf8");
+  const homeHeroSource = readFileSync(
+    "src/components/features/HomeHero.tsx",
+    "utf8",
+  );
+  const onboardingSource = readFileSync(
+    "src/components/features/DesktopOnboarding.tsx",
+    "utf8",
+  );
+  const playerSource = readFileSync(
+    "src/app/(main)/player/[animeId]/[episode]/PlayerClient.tsx",
+    "utf8",
+  );
+
+  assert.match(homeHeroSource, /home-hero/);
+  assert.match(
+    globalsSource,
+    /html\[data-desktop-app="true"\] \.home-hero\s*\{[^}]*margin-top: 0;/s,
+  );
+  assert.match(onboardingSource, /desktop-onboarding-viewport/);
+  assert.match(
+    globalsSource,
+    /html\[data-desktop-app="true"\] \.desktop-onboarding-viewport\s*\{[^}]*height: calc\(100vh - var\(--desktop-titlebar-shell-height\)\);[^}]*overflow-y: auto;/s,
+  );
+  assert.match(playerSource, /desktop-player-shell/);
+  assert.match(playerSource, /desktop-player-stage/);
+  assert.match(
+    globalsSource,
+    /html\[data-desktop-app="true"\] \.desktop-player-shell\s*\{[^}]*min-height: calc\(100vh - var\(--desktop-titlebar-shell-height\) - 64px\);/s,
+  );
+  assert.match(
+    globalsSource,
+    /html\[data-desktop-app="true"\] \.desktop-player-stage\s*\{[^}]*min-height: calc\(100vh - var\(--desktop-titlebar-shell-height\) - 104px\);/s,
   );
 });

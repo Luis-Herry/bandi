@@ -60,13 +60,15 @@ test("browse quarter tabs use a full-width divider and fit four quarters on phon
 });
 
 test("browse distinguishes Bangumi outage from an empty season", () => {
-  assert.match(browsePageSource, /isBangumiUnavailableError/);
-  assert.match(browsePageSource, /getLocalSeasonalBrowseFallback/);
+  assert.match(browsePageSource, /getSeasonalBrowseResult/);
+  assert.match(browseHelperSource, /isBangumiUnavailableError/);
+  assert.match(browseHelperSource, /getLocalSeasonalBrowseFallback/);
+  assert.match(browseHelperSource, /getYucEntriesForQuarter/);
   assert.match(browsePageSource, /dataStatus=\{dataStatus\}/);
   assert.match(browseSource, /dataStatus: "fresh" \| "fallback" \| "unavailable"/);
   assert.match(browseSource, /Bangumi 暂时连接失败/);
-  assert.match(browseSource, /显示本地已有数据/);
-  assert.match(browseSource, /本地也没有这个季度的数据/);
+  assert.match(browseSource, /显示长门番堂或本地已有数据/);
+  assert.match(browseSource, /长门番堂和本地也没有这个季度的数据/);
 });
 
 test("browse local fallback infers season from year-month tags", () => {
@@ -79,7 +81,7 @@ test("browse local fallback infers season from year-month tags", () => {
 test("browse cards use card-sized Bangumi covers from seasonal data", () => {
   assert.match(
     browseHelperSource,
-    /selectBangumiImageByRole\(s\.images, "card"\)/,
+    /selectBangumiImageByRole\(subject\.images, "card"\)/,
   );
   assert.doesNotMatch(
     browseHelperSource,

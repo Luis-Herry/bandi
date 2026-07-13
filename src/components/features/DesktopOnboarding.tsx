@@ -152,7 +152,7 @@ export function DesktopOnboarding() {
   const isUpgrade = settings?.onboardingMode === "upgrade";
 
   return (
-    <main className="desktop-viewport relative min-h-screen overflow-hidden bg-[color:var(--bg-base)] px-6 py-10">
+    <main className="desktop-viewport desktop-onboarding-viewport relative min-h-screen overflow-hidden bg-[color:var(--bg-base)] px-6 py-10">
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0"

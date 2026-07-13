@@ -298,7 +298,7 @@ async function main() {
       passwordHash,
     })
     .run();
-  console.log(`[seed] user "demo" / "demo2026" created (${userId})`);
+  console.log(`[seed] demo user "demo" / "demo2026" created (${userId})`);
 
   // ── anime + episodes + userAnime ───────────────────────────
   for (const s of ANIME_SEEDS) {

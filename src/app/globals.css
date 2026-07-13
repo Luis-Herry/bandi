@@ -320,17 +320,69 @@
 
 html[data-desktop-app="true"] {
   --desktop-titlebar-shell-height: 44px;
+  height: 100%;
+  overflow: hidden;
+  scrollbar-gutter: auto;
+}
+
+html[data-desktop-app="true"] body {
+  height: 100%;
+  overflow: hidden;
 }
 
 .desktop-app-content {
   box-sizing: border-box;
+  height: 100vh;
   min-height: 100vh;
+  overflow: hidden;
   padding-top: var(--desktop-titlebar-shell-height);
 }
 
 html[data-desktop-app="true"] .desktop-main-shell,
 html[data-desktop-app="true"] .desktop-viewport {
   min-height: calc(100vh - var(--desktop-titlebar-shell-height));
+}
+
+html[data-desktop-app="true"] .desktop-onboarding-viewport {
+  box-sizing: border-box;
+  height: calc(100vh - var(--desktop-titlebar-shell-height));
+  min-height: 0;
+  overflow-y: auto;
+}
+
+html[data-desktop-app="true"] .desktop-main-shell {
+  height: calc(100vh - var(--desktop-titlebar-shell-height));
+  min-height: 0;
+  overflow: hidden;
+}
+
+.desktop-nav-spacer {
+  flex: 0 0 64px;
+}
+
+.desktop-page-scroll {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  scrollbar-gutter: auto;
+}
+
+html[data-desktop-app="true"] .home-hero {
+  margin-top: 0;
+}
+
+html[data-desktop-app="true"] .desktop-player-shell {
+  min-height: calc(100vh - var(--desktop-titlebar-shell-height) - 64px);
+}
+
+html[data-desktop-app="true"] .desktop-player-stage {
+  min-height: calc(100vh - var(--desktop-titlebar-shell-height) - 104px);
+}
+
+@media (min-width: 1024px) {
+  html[data-desktop-app="true"] .desktop-page-sticky {
+    top: 1rem;
+  }
 }
 
 .desktop-titlebar {
@@ -344,6 +396,7 @@ html[data-desktop-app="true"] .desktop-viewport {
   align-items: center;
   height: 44px;
   padding: 0 8px 0 12px;
+  background: var(--bg-elevated);
   -webkit-app-region: drag;
 }
 

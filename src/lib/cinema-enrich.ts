@@ -252,7 +252,7 @@ export async function enrichCinemaItem(animeId: number): Promise<EnrichResult> {
 
   const type: TmdbMediaType = row.mediaType === "movie" ? "movie" : "tv";
 
-  // 番号片（如 TEST-390）走专用源 r18.dev —— TMDB/豆瓣 对它无效，直接跳过省去两次空查
+  // 番号片（测试样例使用 TEST-390）走专用源 r18.dev —— TMDB/豆瓣 对它无效，直接跳过省去两次空查
   const javCode = extractJavCode(row.title);
   if (javCode) {
     const jav = await getJavInfo(javCode);

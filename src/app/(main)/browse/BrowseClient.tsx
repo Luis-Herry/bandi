@@ -14,6 +14,7 @@ import { BrowseCard } from "@/components/features/BrowseCard";
 import { showToast } from "@/components/features/ToastHost";
 import type { BgmSeason } from "@/lib/bangumi";
 import type { SeasonalBrowseItem } from "@/lib/db-helpers/browse";
+import { getBrowseAddIdentity } from "@/lib/browse-add";
 import { useCardGlow } from "@/hooks/useCardGlow";
 import { useSlidingTabs } from "@/hooks/useSlidingTabs";
 import { cn } from "@/lib/cn";
@@ -105,9 +106,9 @@ export function BrowseClient({
   // 用户看到的还是切换前的列表（曾经的 "三季数据一样" bug）。
   // 现在的列表直接从 props 派生，本地乐观补丁单独存在 Map 里覆盖 server 数据。
   const [patches, setPatches] = useState<
-    Map<number, { inLibrary: boolean; localAnimeId: number | null }>
+    Map<string, { inLibrary: boolean; localAnimeId: number | null }>
   >(new Map());
-  const [adding, setAdding] = useState<Set<number>>(new Set());
+  const [adding, setAdding] = useState<Set<string>>(new Set());
 
   // 筛选状态：每类一个选中值（null = 全部）
   // 默认：分类=TV、地区=日本（如果该季实际命中不到这两个值，下面会自动 fallback 到全部）
@@ -134,7 +135,7 @@ export function BrowseClient({
   const items = useMemo<SeasonalBrowseItem[]>(() => {
     if (patches.size === 0) return initialItems;
     return initialItems.map((it) => {
-      const p = patches.get(it.bangumiId);
+      const p = patches.get(it.itemKey);
       if (!p) return it;
       return {
         ...it,
@@ -262,19 +263,21 @@ export function BrowseClient({
   }
 
   async function addToPlanning(it: SeasonalBrowseItem) {
-    if (adding.has(it.bangumiId)) return;
-    setAdding((s) => new Set(s).add(it.bangumiId));
+    if (adding.has(it.itemKey)) return;
+    setAdding((s) => new Set(s).add(it.itemKey));
     try {
+      const identity = getBrowseAddIdentity(it);
+      if (!identity) throw new Error("missing browse identity");
       const res = await fetch("/api/browse/add", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ bangumiId: it.bangumiId }),
+        body: JSON.stringify(identity),
       });
       if (!res.ok) throw new Error(`add failed ${res.status}`);
       const j = (await res.json()) as { animeId?: number };
       setPatches((curr) => {
         const next = new Map(curr);
-        next.set(it.bangumiId, {
+        next.set(it.itemKey, {
           inLibrary: true,
           localAnimeId: j.animeId ?? it.localAnimeId ?? null,
         });
@@ -295,7 +298,7 @@ export function BrowseClient({
     } finally {
       setAdding((s) => {
         const next = new Set(s);
-        next.delete(it.bangumiId);
+        next.delete(it.itemKey);
         return next;
       });
     }
@@ -314,12 +317,17 @@ export function BrowseClient({
   const totalCount = items.length;
   const filteredCount = filteredItems.length;
   const isFiltered = filteredCount !== totalCount;
+  const hasYuc = items.some((item) => item.sources.includes("yuc"));
   const sourceLabel =
     dataStatus === "fresh"
-      ? "数据来源 Bangumi"
+      ? hasYuc
+        ? "数据来源 Bangumi、长门番堂"
+        : "数据来源 Bangumi"
       : dataStatus === "fallback"
-        ? "Bangumi 暂时不可用，显示本地已有数据"
-        : "Bangumi 暂时不可用";
+        ? hasYuc
+          ? "Bangumi 暂时不可用，显示长门番堂与本地数据"
+          : "Bangumi 暂时不可用，显示本地已有数据"
+        : "Bangumi 与长门番堂暂时不可用";
   const summary = isFiltered
     ? `共 ${filteredCount} 部（已筛选自 ${totalCount} 部）`
     : `共 ${totalCount} 部 · ${sourceLabel}`;
@@ -381,7 +389,7 @@ export function BrowseClient({
               番剧库
             </h1>
             <p className="t-stagger-line t-stagger-line--2 mt-3 max-w-[28rem] text-[13px] leading-relaxed text-[color:var(--text-secondary)]">
-              按季度浏览 Bangumi 番剧，一键加入想看
+              汇总 Bangumi 与长门番堂季度情报，一键加入想看
             </p>
           </div>
         </div>
@@ -434,7 +442,7 @@ export function BrowseClient({
           <div className="mb-6 flex items-center gap-2 rounded-[8px] border border-[color:var(--accent-muted)] bg-[color:var(--accent-subtle)] px-4 py-3 text-[12px] text-[color:var(--accent)]">
             <AlertCircle size={14} />
             <span>
-              Bangumi 暂时连接失败，已显示本地已有数据。稍后刷新可同步完整季度列表。
+              Bangumi 暂时连接失败，已显示长门番堂或本地已有数据。稍后刷新可同步完整季度列表。
             </span>
           </div>
         )}
@@ -561,10 +569,10 @@ export function BrowseClient({
         {!pending && items.length === 0 && dataStatus === "unavailable" && (
           <GlassPanel className="t-stagger is-shown p-10 text-center">
             <p className="t-stagger-line t-stagger-line--1 text-[14px] text-[color:var(--text-secondary)]">
-              Bangumi 暂时连接失败
+              Bangumi 与长门番堂暂时连接失败
             </p>
             <p className="t-stagger-line t-stagger-line--2 mt-1 text-[12px] text-[color:var(--text-muted)]">
-              本地也没有这个季度的数据。稍后刷新，或先切换到其他季度。
+              长门番堂和本地也没有这个季度的数据。稍后刷新，或先切换到其他季度。
             </p>
           </GlassPanel>
         )}
@@ -598,9 +606,9 @@ export function BrowseClient({
           >
             {filteredItems.map((it, idx) => (
               <BrowseCard
-                key={it.bangumiId}
+                key={it.itemKey}
                 item={it}
-                busy={adding.has(it.bangumiId)}
+                busy={adding.has(it.itemKey)}
                 onAdd={() => addToPlanning(it)}
                 // 首屏 4 张 priority，避免 next/image lazy 让首屏空一秒
                 priority={idx < 4}

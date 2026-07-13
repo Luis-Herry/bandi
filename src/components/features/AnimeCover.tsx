@@ -72,7 +72,7 @@ export function AnimeCover({
   // bgm 直连图 + 同源 /api/img 走原生 <img>；其余走 next/image 优化。
   const bypassOptimization =
     resolvedSrc != null &&
-    (/^https:\/\/(?:lain\.bgm\.tv|bangumi\.tv)\//.test(resolvedSrc) ||
+    (/^https:\/\/(?:lain\.bgm\.tv|bangumi\.tv|i0\.hdslb\.com)\//.test(resolvedSrc) ||
       resolvedSrc.startsWith("/api/img"));
 
   // src 变化时重置状态（卡片复用 / 列表过滤会切 src）

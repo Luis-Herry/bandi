@@ -31,8 +31,17 @@ export default async function MainLayout({
           isDesktop={isDesktop}
         />
         <ToastHost />
-        {/* Nav 全断点 h=64；首页 Hero 用匹配的负 margin 自抵消，让背景透到顶栏后面。 */}
-        <main className="flex-1 pt-16">{children}</main>
+        {isDesktop && <div className="desktop-nav-spacer" aria-hidden />}
+        {/* Web 继续由页面内容延伸到透明导航后方；桌面端把滚动区限定在导航下方。 */}
+        <main
+          className={
+            isDesktop
+              ? "desktop-page-scroll min-h-0 flex-1"
+              : "flex-1 pt-16"
+          }
+        >
+          {children}
+        </main>
       </div>
     </AccentProvider>
   );

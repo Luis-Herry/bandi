@@ -29,7 +29,7 @@ export default async function SettingsPage() {
       </div>
 
       <div className="app-page-container grid grid-cols-1 gap-6 py-6 sm:py-8 lg:grid-cols-[240px_1fr]">
-      <aside className="space-y-2 lg:sticky lg:top-20 lg:h-fit">
+      <aside className="desktop-page-sticky space-y-2 lg:sticky lg:top-20 lg:h-fit">
         <p className="px-2 text-[12px] text-[color:var(--text-muted)]">
           设置中心
         </p>

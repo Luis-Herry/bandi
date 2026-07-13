@@ -142,7 +142,7 @@ function setupDb() {
     {
       id: 4,
       title: "TEST-307",
-      coverUrl: "https://pics.dmm.co.jp/digital/video/test307/test307pl.jpg",
+      coverUrl: "https://example.com/synthetic-adult-cover.jpg",
       type: "Movie",
       mediaType: "movie",
       tmdbId: null,
@@ -186,7 +186,7 @@ function setupDb() {
   `);
   insertDownload.run(2, 201, "Local Drama", "local-file:///D:/Drama/EP01.mkv", now, now);
   insertDownload.run(3, 301, "Local Movie", "local-file:///D:/Movie/Movie.mkv", now, now);
-  insertDownload.run(4, 401, "Adult Local", "local-file:///D:/Adult/TEST-307.mp4", now, now);
+  insertDownload.run(4, 401, "Adult Local", "local-file:///D:/TestMedia/TEST-307.mp4", now, now);
   sqlite.close();
 }
 

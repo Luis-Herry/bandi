@@ -75,6 +75,20 @@ function mirrorDir(src, dest) {
   if (existsSync(src)) copyDir(src, dest);
 }
 
+function removeStandaloneDir(target) {
+  const relativeTarget = path.relative(standaloneDir, target);
+  if (
+    !relativeTarget ||
+    relativeTarget.startsWith("..") ||
+    path.isAbsolute(relativeTarget)
+  ) {
+    throw new Error(`Unsafe standalone cleanup target: ${target}`);
+  }
+  assertNoLinkPath(root, target);
+  rmSync(target, { recursive: true, force: true });
+}
+
+removeStandaloneDir(path.join(standaloneDir, ".next", "cache"));
 mirrorDir(staticDir, path.join(standaloneDir, ".next", "static"));
 mirrorDir(publicDir, path.join(standaloneDir, "public"));
 

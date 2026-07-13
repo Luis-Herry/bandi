@@ -12,6 +12,7 @@ import { PlayButton } from "@/components/features/PlayButton";
 import { RatingNotes } from "@/components/features/RatingNotes";
 import { RelatedResourcesPanel } from "@/components/features/RelatedResourcesPanel";
 import { WatchStatusMenu } from "@/components/features/WatchStatusMenu";
+import { YucAnimeInfo } from "@/components/features/YucAnimeInfo";
 import { deriveAnimeVisualVars } from "@/lib/anime-visuals";
 import { getSubjectRelations } from "@/lib/bangumi";
 import { selectRelatedResourceViews } from "@/lib/bangumi-relations";
@@ -22,6 +23,11 @@ import {
   getWatchedThroughEpisodeNumber,
   type WatchStatus,
 } from "@/lib/watch-progress";
+import {
+  getYucDetailMatch,
+  getYucSourceHref,
+  type YucDetailMatch,
+} from "@/lib/yuc/detail";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -59,6 +65,7 @@ export default async function AnimeDetailPage({ params }: PageProps) {
 
   const { anime, userAnime, episodes, completedDownloads, totalDownloads } =
     detail;
+  const yucMatchPromise = getYucDetailMatch(anime);
   const visualVars = deriveAnimeVisualVars(anime.accentColor);
 
   const watchedCount = userAnime?.currentEpisode ?? 0;
@@ -239,6 +246,9 @@ export default async function AnimeDetailPage({ params }: PageProps) {
                 Bangumi
               </a>
             )}
+            <Suspense fallback={null}>
+              <AsyncYucHeroLink matchPromise={yucMatchPromise} />
+            </Suspense>
           </div>
         </div>
       </section>
@@ -358,6 +368,10 @@ export default async function AnimeDetailPage({ params }: PageProps) {
             </dl>
           </GlassPanel>
 
+          <Suspense fallback={<YucInfoSkeleton />}>
+            <AsyncYucInfo matchPromise={yucMatchPromise} />
+          </Suspense>
+
           <Suspense fallback={<RelatedResourcesSkeleton />}>
             <AsyncRelatedResourcesPanel
               bangumiId={anime.bangumiId}
@@ -367,6 +381,51 @@ export default async function AnimeDetailPage({ params }: PageProps) {
         </aside>
       </section>
     </div>
+  );
+}
+
+async function AsyncYucHeroLink({
+  matchPromise,
+}: {
+  matchPromise: Promise<YucDetailMatch | null>;
+}) {
+  const href = getYucSourceHref(await matchPromise);
+  if (!href) return null;
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="inline-flex h-10 items-center justify-center gap-2 rounded-[6px] border border-[color:var(--border-default)] bg-[color:var(--bg-surface)] px-4 text-[13px] text-[color:var(--text-primary)] backdrop-blur-[12px] transition-colors hover:bg-[color:var(--bg-surface-hover)] max-sm:flex-[1_1_calc(50%-5px)]"
+    >
+      <ExternalLink size={15} />
+      长门番堂
+    </a>
+  );
+}
+
+async function AsyncYucInfo({
+  matchPromise,
+}: {
+  matchPromise: Promise<YucDetailMatch | null>;
+}) {
+  const match = await matchPromise;
+  return match ? <YucAnimeInfo match={match} /> : null;
+}
+
+function YucInfoSkeleton() {
+  return (
+    <GlassPanel className="p-5" aria-label="长门番堂情报加载中" aria-busy="true">
+      <div className="space-y-2">
+        <SkeletonBlock className="h-4 w-24" />
+        <SkeletonBlock className="h-3 w-48 max-w-full" />
+      </div>
+      <div className="mt-4 space-y-2">
+        {[0, 1, 2].map((item) => (
+          <SkeletonBlock key={item} className="h-3 w-full" />
+        ))}
+      </div>
+    </GlassPanel>
   );
 }
 

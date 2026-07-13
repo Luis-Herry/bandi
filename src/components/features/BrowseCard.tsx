@@ -74,7 +74,11 @@ export function BrowseCard({
   const href =
     item.localAnimeId != null
       ? `/anime/${item.localAnimeId}`
-      : `/anime/bgm/${item.bangumiId}`;
+      : item.bangumiId != null
+        ? `/anime/bgm/${item.bangumiId}`
+        : item.yucKey
+          ? `/anime/yuc/${encodeURIComponent(item.yucKey)}`
+          : "/browse";
   const exposeActionOnTouch = showAddButton && !item.inLibrary && Boolean(onAdd);
 
   const cardBody: ReactNode = (
