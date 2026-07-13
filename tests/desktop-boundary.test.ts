@@ -31,12 +31,15 @@ const { buildNextProxyEnv, mergeNoProxy } = nodeRequire(
   mergeNoProxy: (value?: string) => string;
 };
 const {
-  DEFAULT_DOWNLOAD_DIR,
+  defaultDownloadDir,
   isSafeAbsoluteWindowsPath: isSafeDesktopWindowsPath,
   normalizeManagedQbitPort,
   resolveConfiguredDownloadDir,
 } = nodeRequire("../desktop/runtime-paths.cjs") as {
-  DEFAULT_DOWNLOAD_DIR: string;
+  defaultDownloadDir: (input: {
+    userDataDir: string;
+    videosDir: string;
+  }) => string;
   isSafeAbsoluteWindowsPath: (value: unknown) => boolean;
   normalizeManagedQbitPort: (value: unknown) => number;
   resolveConfiguredDownloadDir: (input: {
@@ -88,7 +91,7 @@ test("desktop proxy environment always bypasses its local services", () => {
   assert.equal(fallback.HTTPS_PROXY, "http://127.0.0.1:10808");
 });
 
-test("desktop download policy migrates legacy defaults and preserves custom paths", () => {
+test("desktop download policy uses the Windows video folder and preserves custom paths", () => {
   const userDataDir =
     "C:\\Users\\ExampleUser\\AppData\\Roaming\\anime-tracker";
   const videosDir = "C:\\Users\\ExampleUser\\Videos";
@@ -98,20 +101,24 @@ test("desktop download policy migrates legacy defaults and preserves custom path
       userDataDir,
       videosDir,
     });
+  const expectedDefault = `${videosDir}\\Bandi\\Downloads`;
 
-  assert.equal(DEFAULT_DOWNLOAD_DIR, "K:\\BandiData\\downloads");
-  assert.equal(resolve(undefined), DEFAULT_DOWNLOAD_DIR);
-  assert.equal(resolve("relative/downloads"), DEFAULT_DOWNLOAD_DIR);
-  assert.equal(resolve("C:downloads"), DEFAULT_DOWNLOAD_DIR);
-  assert.equal(resolve("\\downloads"), DEFAULT_DOWNLOAD_DIR);
-  assert.equal(resolve("C:\\"), DEFAULT_DOWNLOAD_DIR);
+  assert.equal(
+    defaultDownloadDir({ userDataDir, videosDir }),
+    expectedDefault,
+  );
+  assert.equal(resolve(undefined), expectedDefault);
+  assert.equal(resolve("relative/downloads"), expectedDefault);
+  assert.equal(resolve("C:downloads"), expectedDefault);
+  assert.equal(resolve("\\downloads"), expectedDefault);
+  assert.equal(resolve("C:\\"), expectedDefault);
   assert.equal(
     resolve(`${userDataDir}\\download`),
-    DEFAULT_DOWNLOAD_DIR,
+    `${userDataDir}\\download`,
   );
   assert.equal(
     resolve(`${videosDir}\\Bandi\\Downloads`),
-    DEFAULT_DOWNLOAD_DIR,
+    expectedDefault,
   );
   assert.equal(
     resolve("D:\\Media\\Bandi Downloads"),
@@ -136,7 +143,7 @@ test("runtime paths require a complete Windows drive or UNC subpath", () => {
     "/root-relative",
     "C:\\",
     "\\\\media-server\\anime\\",
-    "\\\\?\\C:\\BandiData",
+    "\\\\?\\C:\\AppData\\Bandi",
   ];
 
   for (const value of accepted) {
@@ -331,19 +338,9 @@ test("desktop main keeps local qBit and userData runtime paths", () => {
   assert.match(mainSource, /downloadDir = desktopConfig\.downloadDir/);
   assert.match(mainSource, /path\.join\(userData, "data"\)/);
   assert.match(mainSource, /DATABASE_URL: dbPath/);
-  assert.ok(
-    mainSource.includes(
-      'COVER_CACHE_DIR: "H:\\\\BandiData\\\\cache\\\\covers"',
-    ),
-  );
-  assert.ok(
-    mainSource.includes(
-      'YUC_CACHE_DIR: "H:\\\\BandiData\\\\cache\\\\yuc"',
-    ),
-  );
-  assert.ok(
-    mainSource.includes('SCREENSHOT_DIR: "H:\\\\BandiData\\\\screenshots"'),
-  );
+  assert.match(mainSource, /COVER_CACHE_DIR: path\.join\(userDataDir, "cache", "covers"\)/);
+  assert.match(mainSource, /YUC_CACHE_DIR: path\.join\(userDataDir, "cache", "yuc"\)/);
+  assert.match(mainSource, /SCREENSHOT_DIR: path\.join\(picturesDir, "Bandi"\)/);
   assert.match(
     mainSource,
     /resolveConfiguredDownloadDir\(\{[\s\S]*existingDownloadDir: existing\.downloadDir/,
@@ -435,13 +432,9 @@ test("runtime storage APIs require injected absolute directories", () => {
   );
 });
 
-test("Electron session data moves to H before app readiness", () => {
+test("Electron session data moves under app userData before app readiness", () => {
   const mainSource = readFileSync("desktop/main.cjs", "utf8");
-  assert.ok(
-    mainSource.includes(
-      'ELECTRON_SESSION_DATA_DIR = "H:\\\\BandiData\\\\cache\\\\electron"',
-    ),
-  );
+  assert.match(mainSource, /path\.join\(userDataDir, "cache", "electron"\)/);
   assert.match(mainSource, /app\.setPath\("sessionData", inspection\.downloadDir\)/);
   const setupIndex = mainSource.lastIndexOf("configureElectronSessionData();");
   const lockIndex = mainSource.indexOf("app.requestSingleInstanceLock()");
@@ -717,7 +710,13 @@ test("desktop first-run onboarding owns download location and tray behavior", ()
   const navSource = readFileSync("src/components/features/Nav.tsx", "utf8");
 
   assert.match(mainSource, /ONBOARDING_VERSION = 1/);
-  assert.equal(DEFAULT_DOWNLOAD_DIR, "K:\\BandiData\\downloads");
+  assert.equal(
+    defaultDownloadDir({
+      userDataDir: "C:\\Users\\ExampleUser\\AppData\\Roaming\\anime-tracker",
+      videosDir: "C:\\Users\\ExampleUser\\Videos",
+    }),
+    "C:\\Users\\ExampleUser\\Videos\\Bandi\\Downloads",
+  );
   assert.match(mainSource, /const videosDir = app\.getPath\("videos"\)/);
   assert.match(mainSource, /resolveConfiguredDownloadDir/);
   assert.match(mainSource, /inspectDownloadDirectory/);

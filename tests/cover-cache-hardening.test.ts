@@ -74,7 +74,7 @@ test("cover cache requires an injected absolute directory", () => {
       });
     }
 
-    process.env.COVER_CACHE_DIR = "H:\\BandiData\\cache\\covers";
+    process.env.COVER_CACHE_DIR = "D:\\AppData\\Bandi\\cache\\covers";
     assert.equal(
       path.dirname(coverCachePath("https://example.com/a.jpg")),
       path.normalize(process.env.COVER_CACHE_DIR),
@@ -85,7 +85,7 @@ test("cover cache requires an injected absolute directory", () => {
   }
 });
 
-test("validated covers still respond when the H cache write fails", async () => {
+test("validated covers still respond when the configured cache write fails", async () => {
   const previousDirectory = process.env.COVER_CACHE_DIR;
   const previousFetch = globalThis.fetch;
   const previousWarn = console.warn;

@@ -26,7 +26,7 @@ Avoid looking like a generic resource index, noisy torrent site, blue-purple neo
 - Let anime artwork carry identity: product chrome stays restrained and uses cover-derived accent color only where it clarifies state or action.
 - Keep operational flows direct: tracking, finding sources, download state, and playback should avoid extra choices when the system can infer the next step.
 - Preserve local reliability: external API, RSS, and qBittorrent failures should degrade to cached or explanatory states without blocking normal browsing.
-- Keep runtime storage predictable: videos and caches live on the configured H/K data drives, while the small database, config, logs, and managed qBit profile remain in AppData.
+- Keep runtime storage predictable: videos use the directory selected during onboarding, while the database, config, logs, caches, and managed qBit profile remain in the Windows user profile.
 - Design dense screens for scanning: controls, episode states, metadata, and notes must stay readable across breakpoints without hiding core functionality.
 
 ## Accessibility & Inclusion

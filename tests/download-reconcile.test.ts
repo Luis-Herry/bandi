@@ -8,7 +8,7 @@ import {
   planExternalDownloadImports,
 } from "../src/lib/download-reconcile";
 
-const downloadRoot = "H:\\追番网站\\download";
+const downloadRoot = "D:\\Media\\Bandi Downloads";
 
 test("plans missing qBit torrents from the project download folder", () => {
   const imports = planExternalDownloadImports({
@@ -68,7 +68,7 @@ test("plans missing qBit torrents from the project download folder", () => {
 
 test("plans local video files and maps season episode numbers to absolute rows", () => {
   const localPath =
-    "H:\\追番网站\\download\\[ANi] 出租女友 第五季 - 08 [1080P][Baha][WEB-DL][AAC AVC][CHT].mp4";
+    "D:\\Media\\Bandi Downloads\\[ANi] 出租女友 第五季 - 08 [1080P][Baha][WEB-DL][AAC AVC][CHT].mp4";
   const imports = planExternalDownloadImports({
     downloadRoot,
     existingDownloads: [],
@@ -105,7 +105,7 @@ test("plans local video files and maps season episode numbers to absolute rows",
 
 test("plans local SxxEyy files and maps them to existing episode rows", () => {
   const localPath =
-    "H:\\追番网站\\download\\New Panty & Stocking with Garterbelt 2025 S01E01-[1080p][BDRIP][x265.OPUS].mkv";
+    "D:\\Media\\Bandi Downloads\\New Panty & Stocking with Garterbelt 2025 S01E01-[1080p][BDRIP][x265.OPUS].mkv";
   const imports = planExternalDownloadImports({
     downloadRoot,
     existingDownloads: [],

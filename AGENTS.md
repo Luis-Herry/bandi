@@ -9,7 +9,7 @@
 - GitHub 仓库：`https://github.com/Luis-Herry/anime-tracker-desktop`
 - 当前本地分发版本为 `0.1.3`；发布与打包状态以 `docs/desktop/packaging.md` 为准
 - 桌面版通过 Electron 打包，内置 `vendor/node/node.exe` 和 `vendor/qbittorrent/qbittorrent.exe`
-- 桌面数据库、配置、受管 qBit profile 与日志写入 `%APPDATA%\anime-tracker\`；下载固定到 `K:\BandiData\downloads`，封面缓存、Electron 会话缓存与截图分别写入 `H:\BandiData\cache\covers`、`H:\BandiData\cache\electron`、`H:\BandiData\screenshots`。H/K 目标不可用时应明确报错并停止对应写入，禁止静默回退到 C 盘
+- 桌面数据库、配置、受管 qBit profile、日志和服务缓存写入 `%APPDATA%\anime-tracker\`；播放器截图写入 Windows“图片”目录下的 `Bandi` 文件夹。视频下载目录由首次引导或设置中心选择，默认建议为 Windows“视频”目录下的 `Bandi\Downloads`，支持任意可写本地子目录或 UNC 网络共享
 - 桌面版把内置 qBittorrent 作为零配置后台下载服务：主进程自动选择回环端口、生成凭据、做 API 健康检查并在异常退出后恢复；正常界面隐藏 Web UI 地址、端口和账号。`public/qbit-guide/` 只供外部 qBittorrent 兼容模式使用。
 - 桌面版不显示账号密码登录框：Electron 用每次启动生成的一次性令牌静默建立本机会话，只允许当前 Next 端口的 `127.0.0.1` 与 `localhost` 请求携带令牌。首次启动或从旧版升级时进入 `/onboarding`，确认下载目录后才进入首页。
 - 桌面打包和分发细节以 `docs/desktop/packaging.md` 为准

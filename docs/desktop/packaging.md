@@ -19,13 +19,13 @@ This is the canonical Windows Electron product repository as of 2026-07-12. The 
 - Desktop config: `%APPDATA%\anime-tracker\config.json`
 - qBittorrent profile: `%APPDATA%\anime-tracker\qbit-profile\`
 - Logs: `%APPDATA%\anime-tracker\logs\`
-- Downloads: `K:\BandiData\downloads`
-- Cover cache: `H:\BandiData\cache\covers`
-- YUC metadata cache: `H:\BandiData\cache\yuc`
-- Electron session data: `H:\BandiData\cache\electron`
-- Player screenshots: `H:\BandiData\screenshots`
+- Downloads: user-selected writable local directory or UNC share; initial suggestion is `<Windows Videos>\Bandi\Downloads`
+- Cover cache: `%APPDATA%\anime-tracker\cache\covers`
+- YUC metadata cache: `%APPDATA%\anime-tracker\cache\yuc`
+- Electron session data: `%APPDATA%\anime-tracker\cache\electron`
+- Player screenshots: `<Windows Pictures>\Bandi`
 
-Media and cache paths fail closed when their target drive or safe child directory is unavailable. Do not add a silent fallback to C:.
+Runtime paths are resolved through Electron's Windows known-folder APIs. The selected download directory is validated as a writable drive-qualified or UNC child directory before use.
 
 The YUC cache stores normalized 长门番堂 facts and HTTP validators only. It keeps the last valid snapshot for temporary upstream failures and never persists raw page HTML.
 
@@ -41,7 +41,7 @@ The YUC cache stores normalized 长门番堂 facts and HTTP validators only. It 
 ## First Run
 
 - `onboardingVersion < 1` 时，主进程打开 `/onboarding`；完成后才进入首页。
-- 新安装和升级后的现行下载根目录为 `K:\BandiData\downloads`；引导页显示配置值并保持资源偏好。
+- 新安装默认建议 Windows“视频”目录下的 `Bandi\Downloads`；已有有效下载目录保持原值，引导页和设置中心允许选择任意可写本地子目录或 UNC 网络共享。
 - 引导页自动检查目录写入、剩余空间、内置 qBit 和默认 RSS；端口、账号和网络恢复无需用户设置。
 - 下载目录可通过 Electron 原生文件夹选择器确认，保存时同步更新 qBittorrent `save_path`。已有 torrent 和文件保持原位置，修改只影响新下载。
 - 影视本地库扫描复用独立的原生媒体目录 IPC；取消选择不会修改路径或导入数据。

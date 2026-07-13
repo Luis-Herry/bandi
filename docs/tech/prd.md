@@ -119,7 +119,7 @@ qBit 自动下载到指定目录
   ↓
 内置播放器读取本地文件流并保存 playbackProgress
   ↓
-可按需读取外挂字幕或保存截图到 `H:\BandiData\screenshots`
+可按需读取外挂字幕或保存截图到 Windows“图片”目录下的 `Bandi` 文件夹
   ↓
 达到完成阈值后同步 currentEpisode 和 watchEvents
   ↓
@@ -131,7 +131,7 @@ qBit 自动下载到指定目录
 - **性能**：首页加载 < 2s，动效 60fps
 - **数据持久化**：SQLite 单文件，无需额外数据库服务
 - **安全**：桌面一次性会话令牌只注入当前 Next 端口的 `127.0.0.1` / `localhost` 请求；令牌不落盘、不写日志；内部用户 ID 保持数据关联
-- **存储**：数据库、配置、日志和受管 qBit profile 留在 `%APPDATA%\anime-tracker`；视频下载到 `K:\BandiData\downloads`，封面缓存、Electron 会话缓存与截图写入 H 盘；目标路径不可用时停止对应写入，不回退到 C 盘
+- **存储**：数据库、配置、日志、受管 qBit profile 和服务缓存留在 `%APPDATA%\anime-tracker`；截图写入 Windows“图片”目录下的 `Bandi` 文件夹；视频下载目录由用户在首次引导或设置中心选择，默认建议 Windows“视频”目录下的 `Bandi\Downloads`
 - **容错**：Bangumi API 不可用时显示本地 fallback 数据 + 提示条；应用启动需通过 `node --use-env-proxy` 继承本机代理；受管 qBit 回环流量强制绕过代理；BT 下载默认限制上传、设置分享限制并在完成后暂停；浏览器无法解码当前视频封装、编码、复杂字幕或多音轨时保留外部播放器入口
 - **可用性**：Windows 安装版与 portable 可启动；开发链路通过 `npm run desktop:start` / `npm run desktop:dist` 验证
 

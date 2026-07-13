@@ -33,12 +33,6 @@ const ONBOARDING_VERSION = 1;
 const DESKTOP_AUTH_HEADER = "X-Bandi-Desktop-Token";
 const DEFAULT_APP_USER = "admin";
 const DEFAULT_QBIT_USER = "admin";
-const NEXT_RUNTIME_DIRECTORIES = Object.freeze({
-  COVER_CACHE_DIR: "H:\\BandiData\\cache\\covers",
-  YUC_CACHE_DIR: "H:\\BandiData\\cache\\yuc",
-  SCREENSHOT_DIR: "H:\\BandiData\\screenshots",
-});
-const ELECTRON_SESSION_DATA_DIR = "H:\\BandiData\\cache\\electron";
 
 let mainWindow = null;
 let tray = null;
@@ -99,10 +93,21 @@ function inspectDownloadDirectory(value, { create = false } = {}) {
   }
 }
 
+function nextRuntimeDirectories({
+  userDataDir = app.getPath("userData"),
+  picturesDir = app.getPath("pictures"),
+} = {}) {
+  return {
+    COVER_CACHE_DIR: path.join(userDataDir, "cache", "covers"),
+    YUC_CACHE_DIR: path.join(userDataDir, "cache", "yuc"),
+    SCREENSHOT_DIR: path.join(picturesDir, "Bandi"),
+  };
+}
+
 function prepareNextRuntimeDirectories(downloadDir) {
   const runtimeEnv = {};
   for (const [envName, configuredPath] of Object.entries(
-    { ...NEXT_RUNTIME_DIRECTORIES, DOWNLOAD_ROOT: downloadDir },
+    { ...nextRuntimeDirectories(), DOWNLOAD_ROOT: downloadDir },
   )) {
     const inspection = inspectDownloadDirectory(configuredPath, {
       create: true,
@@ -117,13 +122,16 @@ function prepareNextRuntimeDirectories(downloadDir) {
   return runtimeEnv;
 }
 
-function configureElectronSessionData() {
-  const inspection = inspectDownloadDirectory(ELECTRON_SESSION_DATA_DIR, {
+function configureElectronSessionData(
+  userDataDir = app.getPath("userData"),
+) {
+  const sessionDataDir = path.join(userDataDir, "cache", "electron");
+  const inspection = inspectDownloadDirectory(sessionDataDir, {
     create: true,
   });
   if (!inspection.ok) {
     throw new Error(
-      `Electron 缓存路径不可用：${ELECTRON_SESSION_DATA_DIR}。${inspection.error}`,
+      `Electron 缓存路径不可用：${sessionDataDir}。${inspection.error}`,
     );
   }
   app.setPath("sessionData", inspection.downloadDir);
@@ -963,8 +971,7 @@ async function boot() {
   createWindow();
   createTray();
 
-  // Validate every non-default runtime directory before starting qBit or Next.
-  // Missing H:/K: drives must stop startup instead of creating fallback data on C:.
+  // Validate app-owned storage and the user-selected media directory before startup.
   const runtimePathEnv = prepareNextRuntimeDirectories(
     desktopConfig.downloadDir,
   );

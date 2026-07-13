@@ -25,7 +25,7 @@ test("anime scanner parses fansub and anime-scoped episode filenames", () => {
     "D:/Anime Movies/Spirited Away (2001)/Spirited Away (2001).mkv",
   );
   const cjkSeason = parseAnimeMediaFileName(
-    "K:/BandiData/downloads/關於我轉生變成史萊姆這檔事 第四季 - 86 [1080p].mp4",
+    "D:/Media/Bandi Downloads/關於我轉生變成史萊姆這檔事 第四季 - 86 [1080p].mp4",
   );
 
   assert.deepEqual(

@@ -120,7 +120,8 @@
 
 - Windows 10 / 11 x64。
 - 建议预留足够的视频下载空间。
-- **当前版本首次启动要求同时存在可写的 `H:` 与 `K:` 盘**。`H:\BandiData\` 承载封面、长门番堂、Electron 会话缓存与播放器截图；`K:\BandiData\downloads` 是启动预检使用的默认视频目录。进入首次引导后可以把视频目录改到其他可写磁盘，`H:` 缓存路径仍保持固定。缺少任一磁盘时应用会明确报错并停止启动，请在下载前确认。这是当前版本的已知路径限制。
+- 应用会把数据库、配置与缓存放进当前 Windows 用户的应用数据目录，无需准备特定盘符。
+- 首次启动会显示系统“视频”目录下的推荐位置，你可以改选任意可写的本地文件夹或 UNC 网络共享。安装位置与视频保存位置互不绑定。
 
 ### 选择分发包
 
@@ -138,7 +139,7 @@
 首次安装或从旧版升级时会进入一页式引导：
 
 1. 应用自动建立一次性本机会话，无需创建账号或输入密码。
-2. 确认视频下载目录；初始目录为 `K:\BandiData\downloads`，可以改到其他可写磁盘。当前版本仍要求首次进入引导前 `K:` 盘可用。
+2. 确认视频下载目录；推荐位置为 `<Windows 视频目录>\Bandi\Downloads`，可以改到其他可写磁盘或 UNC 网络共享。
 3. 选择 `1080p`、`4K` 或 `720p` 画质偏好。
 4. 选择简体中文字幕或不限字幕。
 5. 决定关闭窗口后是否继续在托盘下载。
@@ -210,11 +211,11 @@
 | 桌面配置 | `%APPDATA%\anime-tracker\config.json` |
 | qBittorrent profile | `%APPDATA%\anime-tracker\qbit-profile\` |
 | 运行日志 | `%APPDATA%\anime-tracker\logs\` |
-| 视频下载 | `K:\BandiData\downloads`，首次引导可修改 |
-| 封面缓存 | `H:\BandiData\cache\covers` |
-| 长门番堂缓存 | `H:\BandiData\cache\yuc` |
-| Electron 会话缓存 | `H:\BandiData\cache\electron` |
-| 播放器截图 | `H:\BandiData\screenshots` |
+| 视频下载 | `<你选择的视频目录>`；默认建议为 `<Windows 视频目录>\Bandi\Downloads` |
+| 封面缓存 | `%APPDATA%\anime-tracker\cache\covers` |
+| 长门番堂缓存 | `%APPDATA%\anime-tracker\cache\yuc` |
+| Electron 会话缓存 | `%APPDATA%\anime-tracker\cache\electron` |
+| 播放器截图 | `<Windows 图片目录>\Bandi` |
 
 准备备份时，先完整退出托盘应用，再复制 `%APPDATA%\anime-tracker\`。数据库运行中可能同时存在 `anime.db-wal` 与 `anime.db-shm`，只复制主文件可能得到不完整快照。
 

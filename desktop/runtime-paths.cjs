@@ -1,6 +1,5 @@
 const path = require("node:path");
 
-const DEFAULT_DOWNLOAD_DIR = "K:\\BandiData\\downloads";
 const MIN_MANAGED_QBIT_PORT = 18180;
 
 function normalizeWindowsPath(value) {
@@ -30,11 +29,16 @@ function isSafeAbsoluteDirectory(value) {
   return isSafeAbsoluteWindowsPath(value);
 }
 
-function sameWindowsPath(left, right) {
-  return (
-    normalizeWindowsPath(left).toLocaleLowerCase("en-US") ===
-    normalizeWindowsPath(right).toLocaleLowerCase("en-US")
-  );
+function defaultDownloadDir({ userDataDir, videosDir }) {
+  const baseDir = isSafeAbsoluteDirectory(videosDir)
+    ? normalizeWindowsPath(videosDir)
+    : isSafeAbsoluteDirectory(userDataDir)
+      ? normalizeWindowsPath(userDataDir)
+      : null;
+  if (!baseDir) {
+    throw new Error("无法解析 Windows 用户视频目录或应用数据目录");
+  }
+  return path.win32.join(baseDir, "Bandi", "Downloads");
 }
 
 function resolveConfiguredDownloadDir({
@@ -42,19 +46,11 @@ function resolveConfiguredDownloadDir({
   userDataDir,
   videosDir,
 }) {
+  const fallback = defaultDownloadDir({ userDataDir, videosDir });
   if (!isSafeAbsoluteDirectory(existingDownloadDir)) {
-    return DEFAULT_DOWNLOAD_DIR;
+    return fallback;
   }
-
-  const normalized = normalizeWindowsPath(existingDownloadDir);
-  const legacyDefaults = [
-    path.win32.join(userDataDir, "download"),
-    path.win32.join(videosDir, "Bandi", "Downloads"),
-  ];
-  if (legacyDefaults.some((candidate) => sameWindowsPath(normalized, candidate))) {
-    return DEFAULT_DOWNLOAD_DIR;
-  }
-  return normalized;
+  return normalizeWindowsPath(existingDownloadDir);
 }
 
 function normalizeManagedQbitPort(value) {
@@ -65,8 +61,8 @@ function normalizeManagedQbitPort(value) {
 }
 
 module.exports = {
-  DEFAULT_DOWNLOAD_DIR,
   MIN_MANAGED_QBIT_PORT,
+  defaultDownloadDir,
   isFullyQualifiedWindowsPath,
   isSafeAbsoluteDirectory,
   isSafeAbsoluteWindowsPath,
