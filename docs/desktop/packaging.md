@@ -8,8 +8,10 @@ This is the canonical Windows Electron product repository as of 2026-07-12. The 
 - Visibility: public
 - Latest GitHub release: https://github.com/Luis-Herry/anime-tracker-desktop/releases/tag/v0.1.3
 - Current build: `0.1.3`
-- Installer asset: `追番中心-Setup-0.1.3-x64.exe`
-- Portable asset: `追番中心-0.1.3-x64-portable.exe`
+- Installer asset: `Bandi-Setup-0.1.3-x64.exe`
+- Portable asset: `Bandi-0.1.3-x64-portable.exe`
+
+`electron-builder` 在本地 `release/` 目录生成带中文产品名的文件；发布到 GitHub Release 时使用上面的 ASCII 附件名，避免托管平台净化文件名后与校验清单不一致。
 
 ## Runtime Layout
 
