@@ -64,7 +64,7 @@ function getConfiguredCacheDirectory(): string | null {
     if (!warnedMissingDirectory) {
       warnedMissingDirectory = true;
       console.warn(
-        "[yuc] YUC_CACHE_DIR 未配置；本次仅使用进程内缓存，不会回退写入 C 盘",
+        "[yuc] YUC_CACHE_DIR 未配置；本次仅使用进程内缓存，不会写入未配置的磁盘位置",
       );
     }
     return null;
