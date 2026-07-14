@@ -13,7 +13,8 @@ const searchCommandSource = readFileSync(
 
 test("search recommendations use current-season Japanese top-rated Bangumi picks", () => {
   assert.match(routeSource, /const season = currentSeason\(\)/);
-  assert.match(routeSource, /getSeasonalBrowse\(user\.id, season\.season, season\.year\)/);
+  assert.match(routeSource, /getSubjectsBySeason\(season\.season, season\.year\)/);
+  assert.match(routeSource, /buildSeasonalBrowseItems\(/);
   assert.match(routeSource, /const POPULAR_LIMIT = 4/);
   assert.match(routeSource, /selectJapaneseSeasonalTopRated\(seasonal\)/);
   assert.match(routeSource, /item\.score != null/);

@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
-import { currentSeason } from "@/lib/bangumi";
+import { currentSeason, getSubjectsBySeason } from "@/lib/bangumi";
 import {
   getContinueWatching,
   getTodayUpdates,
 } from "@/lib/db-helpers/library";
 import {
   getLocalSeasonalBrowseFallback,
-  getSeasonalBrowse,
+  buildSeasonalBrowseItems,
   type SeasonalBrowseItem,
 } from "@/lib/db-helpers/browse";
 import { getCurrentUser } from "@/lib/session";
@@ -78,7 +78,12 @@ export async function GET() {
   const season = currentSeason();
   let seasonal: SeasonalBrowseItem[] = [];
   try {
-    seasonal = await getSeasonalBrowse(user.id, season.season, season.year);
+    seasonal = buildSeasonalBrowseItems(
+      user.id,
+      await getSubjectsBySeason(season.season, season.year),
+      [],
+      season.year,
+    );
   } catch (error) {
     console.error("[search-recommendations] seasonal fallback:", error);
     seasonal = getLocalSeasonalBrowseFallback(

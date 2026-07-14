@@ -152,6 +152,16 @@ export function parseYucSourceKey(value: string): YucSourceKeyParts | null {
   };
 }
 
+/** Normalize one encoded dynamic-route segment before validating its identity. */
+export function decodeYucSourceKeyParam(value: string): string | null {
+  try {
+    const decoded = decodeURIComponent(value);
+    return parseYucSourceKey(decoded) ? decoded : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Resolve an opaque source key without guessing. Duplicate matches (including a
  * theoretical hash collision) fail closed so an add route cannot select the

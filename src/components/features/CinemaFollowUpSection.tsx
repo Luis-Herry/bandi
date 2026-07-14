@@ -212,7 +212,7 @@ export function CinemaFollowUpSection({
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         {/* 继续观看：在看的剧，有本地文件直接播，没有就进详情页查看平台信息 */}
-        <section className="min-w-0">
+        <section className="flex h-full min-w-0 flex-col">
           <header className="mb-4">
             <h2 className="flex items-center gap-2 text-[18px] font-bold tracking-[-0.02em] text-[color:var(--text-primary)]">
               <span className="text-[color:var(--accent)]">
@@ -228,7 +228,7 @@ export function CinemaFollowUpSection({
           </header>
 
           {continueItems.length > 0 ? (
-            <GlassPanel className="p-2 space-y-1">
+            <GlassPanel className="flex-1 p-2 space-y-1">
               {continueItems.map((item) => (
                 <AnimeRowItem
                   key={item.animeId}
@@ -259,7 +259,7 @@ export function CinemaFollowUpSection({
               ))}
             </GlassPanel>
           ) : (
-            <GlassPanel className="p-6 text-center">
+            <GlassPanel className="flex flex-1 items-center justify-center p-6 text-center">
               <p className="text-[13px] text-[color:var(--text-secondary)]">
                 暂无在看的剧集
               </p>
@@ -268,7 +268,7 @@ export function CinemaFollowUpSection({
         </section>
 
         {/* 漏看提醒 */}
-        <section className="min-w-0">
+        <section className="flex h-full min-w-0 flex-col">
           <header className="mb-4">
             <h2 className="flex items-center gap-2 text-[18px] font-bold tracking-[-0.02em] text-[color:var(--text-primary)]">
               <span className="text-[color:var(--accent)]">
@@ -284,7 +284,7 @@ export function CinemaFollowUpSection({
           </header>
 
           {missedItems.length > 0 ? (
-            <GlassPanel className="p-2 space-y-1">
+            <GlassPanel className="flex-1 p-2 space-y-1">
               {missedItems.map((item) => (
                 <AnimeRowItem
                   key={item.animeId}
@@ -314,7 +314,7 @@ export function CinemaFollowUpSection({
               ))}
             </GlassPanel>
           ) : (
-            <GlassPanel className="p-6 text-center">
+            <GlassPanel className="flex flex-1 items-center justify-center p-6 text-center">
               <p className="text-[13px] text-[color:var(--text-secondary)]">
                 你已经追上了所有在看的剧
               </p>

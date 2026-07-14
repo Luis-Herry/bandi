@@ -123,7 +123,7 @@ export default async function ProfilePage() {
             {continueWatching.length === 0 ? (
               <EmptyText>
                 {libraryStats.watching > 0
-                  ? `暂无可直接播放的内容；仍有 ${libraryStats.watching} 部正在观看，可前往追番列表找资源`
+                  ? `暂无可播放内容，${libraryStats.watching} 部在看可去追番列表找资源`
                   : "还没有正在观看的番剧"}
               </EmptyText>
             ) : (

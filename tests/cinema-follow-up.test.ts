@@ -274,3 +274,25 @@ test("cinema follow-up UI never exposes anime RSS/source-search actions", () => 
   assert.doesNotMatch(source, /EpisodeSourceDialog|找资源|RSS|qBit|torrent/i);
   assert.match(detailSource, /id="where-to-watch"/);
 });
+
+test("cinema follow-up columns stretch panels to the same row height", () => {
+  const source = readFileSync(
+    "src/components/features/CinemaFollowUpSection.tsx",
+    "utf8",
+  );
+
+  assert.equal(
+    source.match(/className="flex h-full min-w-0 flex-col"/g)?.length,
+    2,
+  );
+  assert.equal(
+    source.match(/className="flex-1 p-2 space-y-1"/g)?.length,
+    2,
+  );
+  assert.equal(
+    source.match(
+      /className="flex flex-1 items-center justify-center p-6 text-center"/g,
+    )?.length,
+    2,
+  );
+});

@@ -450,7 +450,8 @@ test("desktop owns qBit readiness, recovery, tray, and graceful shutdown", () =>
   assert.match(mainSource, /async function probeQbit\(\)/);
   assert.match(mainSource, /waitForQbit\(\)/);
   assert.match(mainSource, /Scheduling qBit recovery/);
-  assert.match(mainSource, /const initialQbitStart = startQbit\(qbitSelection\)/);
+  assert.match(mainSource, /const initialQbitStart = \(async \(\) =>/);
+  assert.match(mainSource, /await startQbit\(qbitSelection\)/);
   assert.match(mainSource, /void initialQbitStart\.finally/);
   assert.match(mainSource, /app\.requestSingleInstanceLock\(\)/);
   assert.match(mainSource, /new Tray\(getAppIconPath\(\)\)/);
@@ -618,7 +619,24 @@ test("desktop login establishes a local session without showing credentials", ()
   assert.doesNotMatch(loginShellSource, /desktopLoginHint/);
   assert.match(loginShellSource, /BrandLogo/);
   assert.match(sessionGateSource, /signIn\("desktop-session"/);
-  assert.match(sessionGateSource, /正在打开你的私人放映厅/);
+  assert.match(sessionGateSource, /正在打开 Bandi/);
+  assert.match(sessionGateSource, /正在载入本地资料/);
+  assert.match(sessionGateSource, /本机会话连接失败/);
+  assert.match(sessionGateSource, /重试进入 Bandi/);
+  assert.doesNotMatch(sessionGateSource, /ShimmerText/);
+  assert.doesNotMatch(sessionGateSource, /t-stagger/);
+  assert.match(mainSource, /message = "正在打开 Bandi"/);
+  assert.match(mainSource, /detail = "正在载入本地资料。"/);
+  assert.doesNotMatch(mainSource, /正在启动下载服务/);
+  for (const className of [
+    "desktop-boot-screen",
+    "desktop-boot-card",
+    "desktop-boot-heading",
+    "desktop-boot-indicator",
+  ]) {
+    assert.match(mainSource, new RegExp(className));
+    assert.match(sessionGateSource, new RegExp(className));
+  }
   assert.match(authSource, /const isDesktopApp = process\.env\.ANIME_DESKTOP_APP === "1"/);
   assert.match(authSource, /\.\.\.\(!isDesktopApp/);
   assert.match(authSource, /\.\.\.\(isDesktopApp/);
@@ -633,6 +651,43 @@ test("desktop login establishes a local session without showing credentials", ()
     /urls: \[\.\.\.allowedOrigins\]\.map\(\(origin\) => `\$\{origin\}\/\*`\)/,
   );
   assert.match(mainSource, /withDesktopSessionHeader\(\{/);
+});
+
+test("desktop keeps download startup in the background and exposes recovery after entry", () => {
+  const mainSource = readFileSync("desktop/main.cjs", "utf8");
+  const preloadSource = readFileSync("desktop/preload.cjs", "utf8");
+  const typesSource = readFileSync("src/types/desktop.d.ts", "utf8");
+  const layoutSource = readFileSync("src/app/(main)/layout.tsx", "utf8");
+  const noticeSource = readFileSync(
+    "src/components/features/DesktopDownloadServiceNotice.tsx",
+    "utf8",
+  );
+
+  assert.match(mainSource, /const initialQbitStart = \(async \(\) =>/);
+  assert.match(mainSource, /const qbitSelection = await selectQbitPort/);
+  assert.match(mainSource, /const appUrl = await startNextServer/);
+  assert.doesNotMatch(mainSource, /await initialQbitStart/);
+  assert.match(mainSource, /bandi:get-download-service-state/);
+  assert.match(mainSource, /bandi:retry-download-service/);
+  assert.match(mainSource, /bandi:download-service-state-changed/);
+  assert.match(mainSource, /下载服务启动超时/);
+  assert.match(mainSource, /浏览和本地播放仍可使用/);
+  assert.match(mainSource, /describeBootFailure/);
+  assert.match(mainSource, /Bandi 核心服务启动失败/);
+
+  assert.match(preloadSource, /getDownloadServiceState/);
+  assert.match(preloadSource, /retryDownloadService/);
+  assert.match(preloadSource, /onDownloadServiceStateChange/);
+  assert.match(typesSource, /DesktopDownloadServiceStatus/);
+  assert.match(typesSource, /DesktopDownloadServiceRetryResult/);
+  assert.match(layoutSource, /DesktopDownloadServiceNotice/);
+  assert.match(layoutSource, /isDesktop && <DesktopDownloadServiceNotice/);
+
+  assert.match(noticeSource, /下载服务暂时不可用/);
+  assert.match(noticeSource, /立即重试/);
+  assert.match(noticeSource, /service\.status === "starting"/);
+  assert.match(noticeSource, /service\.status === "ready"/);
+  assert.match(noticeSource, /role="alert"/);
 });
 
 test("desktop session header stays on the two local app origins", () => {
@@ -778,9 +833,15 @@ test("desktop replaces native Windows chrome with a themed custom titlebar", () 
   assert.match(mainSource, /bandi:close-window/);
   assert.match(mainSource, /mainWindow\.on\("maximize"/);
   assert.match(mainSource, /mainWindow\.on\("unmaximize"/);
-  assert.match(mainSource, /<div class="boot-heading"><i aria-hidden="true"><\/i><h1>/);
-  assert.match(mainSource, /\.boot-heading\{display:flex;align-items:center;gap:10px\}/);
-  assert.match(mainSource, /h1\{margin:0;/);
+  assert.match(
+    mainSource,
+    /<div class="desktop-boot-heading"><span class="desktop-boot-indicator"/,
+  );
+  assert.match(
+    mainSource,
+    /\.desktop-boot-heading\{display:flex;align-items:center;gap:10px\}/,
+  );
+  assert.match(mainSource, /\.desktop-boot-heading h1\{margin:0;/);
   assert.match(preloadSource, /bandi:window-state-changed/);
   assert.match(preloadSource, /bandi:choose-media-directory/);
   assert.match(mainSource, /ipcMain\.handle\("bandi:choose-media-directory"/);

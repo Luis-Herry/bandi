@@ -7,6 +7,7 @@ import { cn } from "@/lib/cn";
 import { getDesktopBridge } from "@/lib/desktop-bridge";
 
 const ROUTE_TITLES: Array<[RegExp, string]> = [
+  [/^\/login/, "启动中"],
   [/^\/$/, "首页"],
   [/^\/onboarding/, "首次设置"],
   [/^\/library\/local/, "本地库"],

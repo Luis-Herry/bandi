@@ -8,6 +8,10 @@ contextBridge.exposeInMainWorld("bandiDesktop", {
     ipcRenderer.invoke("bandi:choose-media-directory", input),
   saveSettings: (input) =>
     ipcRenderer.invoke("bandi:save-desktop-settings", input),
+  getDownloadServiceState: () =>
+    ipcRenderer.invoke("bandi:get-download-service-state"),
+  retryDownloadService: () =>
+    ipcRenderer.invoke("bandi:retry-download-service"),
   getWindowState: () => ipcRenderer.invoke("bandi:get-window-state"),
   minimizeWindow: () => ipcRenderer.invoke("bandi:minimize-window"),
   toggleMaximizeWindow: () =>
@@ -17,5 +21,14 @@ contextBridge.exposeInMainWorld("bandiDesktop", {
     const listener = (_event, state) => callback(state);
     ipcRenderer.on("bandi:window-state-changed", listener);
     return () => ipcRenderer.removeListener("bandi:window-state-changed", listener);
+  },
+  onDownloadServiceStateChange: (callback) => {
+    const listener = (_event, state) => callback(state);
+    ipcRenderer.on("bandi:download-service-state-changed", listener);
+    return () =>
+      ipcRenderer.removeListener(
+        "bandi:download-service-state-changed",
+        listener,
+      );
   },
 });

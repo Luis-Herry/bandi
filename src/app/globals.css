@@ -379,6 +379,76 @@ html[data-desktop-app="true"] .desktop-player-stage {
   min-height: calc(100vh - var(--desktop-titlebar-shell-height) - 104px);
 }
 
+/* Electron 原生启动页与本机会话页共用同一视觉状态，避免页面交接时闪变。 */
+.desktop-boot-screen {
+  position: relative;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  padding: 24px;
+  background: #0f0d0a;
+  color: #f6f1e8;
+}
+
+.desktop-boot-card {
+  position: relative;
+  width: min(420px, 100%);
+  padding: 28px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.035);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.35);
+}
+
+.desktop-boot-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.desktop-boot-heading h1 {
+  margin: 0;
+  color: #f6f1e8;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.desktop-boot-card p {
+  margin: 8px 0 0;
+  color: #a9a198;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.desktop-boot-card p[role="alert"] {
+  color: var(--status-error);
+}
+
+.desktop-boot-indicator {
+  display: block;
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: #d69a4c;
+  box-shadow: 0 0 16px rgba(214, 154, 76, 0.55);
+  animation: desktop-boot-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes desktop-boot-pulse {
+  50% {
+    opacity: 0.35;
+    transform: scale(0.78);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .desktop-boot-indicator {
+    animation: none;
+  }
+}
+
 @media (min-width: 1024px) {
   html[data-desktop-app="true"] .desktop-page-sticky {
     top: 1rem;

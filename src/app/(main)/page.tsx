@@ -138,10 +138,10 @@ export default async function HomePage() {
               }
             >
               {continueItems.length === 0 ? (
-                <GlassPanel className="p-6 text-center">
+                <GlassPanel className="flex flex-1 items-center justify-center p-6 text-center">
                   <p className="text-[13px] text-[color:var(--text-secondary)]">
                     {watchingCount > 0
-                      ? `暂无可直接播放的内容；仍有 ${watchingCount} 部正在观看，可前往追番列表找资源`
+                      ? `暂无可播放内容，${watchingCount} 部在看可去追番列表找资源`
                       : "还没有正在观看的番剧"}
                   </p>
                 </GlassPanel>
@@ -221,7 +221,7 @@ export default async function HomePage() {
               }
             >
               {missedItems.length === 0 ? (
-                <GlassPanel className="p-6 text-center">
+                <GlassPanel className="flex flex-1 items-center justify-center p-6 text-center">
                   <p className="text-[13px] text-[color:var(--text-secondary)]">
                     你已经追上了所有进度
                   </p>

@@ -5,17 +5,10 @@ export type BrowseAddIdentity =
   | { source: "local"; animeId: number; yucKey?: string }
   | { source: "yuc"; yucKey: string };
 
-/** Prefer an authoritative catalog id, then an already known local row. */
+/** Keep browse adds local-first, then use the domestic-accessible YUC source. */
 export function getBrowseAddIdentity(
   item: Pick<SeasonalBrowseItem, "bangumiId" | "localAnimeId" | "yucKey">,
 ): BrowseAddIdentity | null {
-  if (item.bangumiId != null && item.bangumiId > 0) {
-    return {
-      source: "bangumi",
-      bangumiId: item.bangumiId,
-      ...(item.yucKey ? { yucKey: item.yucKey } : {}),
-    };
-  }
   if (item.localAnimeId != null && item.localAnimeId > 0) {
     return {
       source: "local",
@@ -23,5 +16,8 @@ export function getBrowseAddIdentity(
       ...(item.yucKey ? { yucKey: item.yucKey } : {}),
     };
   }
-  return item.yucKey ? { source: "yuc", yucKey: item.yucKey } : null;
+  if (item.yucKey) return { source: "yuc", yucKey: item.yucKey };
+  return item.bangumiId != null && item.bangumiId > 0
+    ? { source: "bangumi", bangumiId: item.bangumiId }
+    : null;
 }

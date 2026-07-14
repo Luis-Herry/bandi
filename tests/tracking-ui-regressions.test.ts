@@ -34,13 +34,32 @@ test("home hero renders the saved star rating on the shared 10-point scale", () 
 test("continue section distinguishes playable items from all watching titles", () => {
   assert.match(homeSource, /title="可继续播放"/);
   assert.match(homeSource, /watchingCount > 0/);
-  assert.match(homeSource, /仍有 \$\{watchingCount\} 部正在观看/);
+  assert.match(homeSource, /暂无可播放内容，\$\{watchingCount\} 部在看可去追番列表找资源/);
+  assert.doesNotMatch(homeSource, /暂无可直接播放的内容/);
   assert.doesNotMatch(homeSource, /暂无在看的番剧/);
 
   assert.match(profileSource, /title="可继续播放"/);
   assert.match(profileSource, /libraryStats\.watching > 0/);
-  assert.match(profileSource, /仍有 \$\{libraryStats\.watching\} 部正在观看/);
+  assert.match(profileSource, /暂无可播放内容，\$\{libraryStats\.watching\} 部在看可去追番列表找资源/);
+  assert.doesNotMatch(profileSource, /暂无可直接播放的内容/);
   assert.doesNotMatch(profileSource, /暂无正在观看的番剧/);
+});
+
+test("home follow-up columns keep empty panels aligned with populated panels", () => {
+  assert.equal(
+    homeSource.match(/className="flex h-full flex-col"/g)?.length,
+    2,
+  );
+  assert.equal(
+    homeSource.match(/className="flex-1 p-2 space-y-1"/g)?.length,
+    2,
+  );
+  assert.equal(
+    homeSource.match(
+      /className="flex flex-1 items-center justify-center p-6 text-center"/g,
+    )?.length,
+    2,
+  );
 });
 
 test("unwatched count chip is its own keyboard-focusable episode link", () => {

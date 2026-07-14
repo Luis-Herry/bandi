@@ -114,7 +114,7 @@ anime-tracker-desktop/
 - `/api/anime/[id]/episodes/[ep]/sources` — 单集即时找资源（并发拉 RSS，按绝对/季内集号 + 番名季别匹配）
 - `/api/anime/[id]/rss-aliases` — 单番 RSS 搜索别名管理
 - `/api/anime/sync` — 从 Bangumi/AniList 同步数据
-- `/api/browse/season` — 番剧库按季度读取 Bangumi 数据
+- `/api/browse/season` — 番剧库按季度读取长门番堂数据，缓存与本地资料兜底
 - `/api/browse/add` — 番剧库条目加入想看
 - `/api/library` — 追番列表 CRUD
 - `/api/library/local/scan` — 动漫本地目录只读预览与确认导入；桌面端通过原生目录选择 IPC 传入路径
@@ -138,7 +138,7 @@ anime-tracker-desktop/
 
 - 桌面版默认启动内置 qBittorrent；`desktop/main.cjs` 从 `18180` 起自动选择可用回环端口，验证带认证的 `/api/v2/app/version` 后才判定就绪，并把运行配置路径通过 `QBIT_CONFIG_PATH` 交给 Next 服务。
 - 桌面模式 `ANIME_DESKTOP_APP=1` 下，qBit 客户端从 `QBIT_CONFIG_PATH` 动态读取当前端口和凭据，支持主进程恢复时换端口；读取失败时才回退到启动时注入的 `QBIT_URL`，不尝试网页版的外部 qBit 候选。
-- Bangumi API 有频率限制，需本地缓存 + 增量同步
+- 番剧库季度目录以国内可直连的长门番堂为主；Bangumi 继续提供详情、人物、制作、关联、评分与评论等专属信息，并使用本地缓存 + 增量同步
 - AniList 数据中文化方案：用日文名去 Bangumi 交叉匹配
 
 ## 设计红线
@@ -255,6 +255,6 @@ npm run db:seed  # 填充测试数据
 - 桌面版设置中心和下载管理页显示“下载服务”，隐藏 Web UI 地址、端口和账号；外部 qBittorrent 兼容模式仍可使用 `QbitSetupGuideDialog` 与 `public/qbit-guide/` 截图。
 - 桌面受管 qBit 从 `127.0.0.1:18180` 起动态选端口；系统外部 qBit 诊断固定检查 `127.0.0.1:18080`。两套 profile、端口和任务不得混用。
 - 旧配置里的 `8080`、`18080` 或其他低于 `18180` 的受管端口会自动归零并重新分配；外部诊断只发两个无凭据 GET，拒绝重定向，不读取任务和设置。
-- Bangumi API 有频率限制，也可能因本机直连链路超时失败；番剧库会对临时失败重试，然后显示本地 fallback。fallback 会从 `anime.year` 和 `tags` 里的 `2026年4月` 这类年月标签推断季度。
+- 番剧库季度目录只等待国内可直连的长门番堂；长门更新失败时显示缓存或本地 fallback，fallback 会从 `anime.year` 和 `tags` 里的 `2026年4月` 这类年月标签推断季度。Bangumi 继续用于详情、人物、制作、关联、评分与评论等专属信息，不阻塞季度目录。
 - AniList 数据中文化方案：用日文名去 Bangumi 交叉匹配
 - RSS 源建议：保留 `https://api.animes.garden/feed.xml`，避免 `dmhy.org/topics/rss/rss.xml`（上游 `<enclosure length="1">` 字段错填，size 显示成 1.0 B；两个源内容大量重叠）

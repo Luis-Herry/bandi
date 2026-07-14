@@ -1,21 +1,17 @@
 /**
  * Helpers for the seasonal anime catalog.
  *
- * Bangumi remains the primary catalog. Yuc (长门番堂) supplies exact-match
- * schedule/details and also contributes works that Bangumi has not listed yet.
- * Local rows are only joined through a direct Bangumi id or a unique,
+ * Yuc (长门番堂) is the primary quarterly catalog so domestic users can browse
+ * without a proxy. Bangumi stays available to detail and explicit sync flows
+ * for ratings, comments, credits, and relationships that only it provides.
+ * Local rows are joined through a trusted identity or a unique,
  * high-confidence title/year/format match.
  */
 
 import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { anime, userAnime } from "@/db/schema";
-import {
-  getSubjectsBySeason,
-  isBangumiUnavailableError,
-  type BgmSeason,
-  type BgmSubject,
-} from "@/lib/bangumi";
+import { type BgmSeason, type BgmSubject } from "@/lib/bangumi";
 import { selectBangumiImageByRole } from "@/lib/bangumi-image";
 import { getYucEntriesForQuarter, type YucSourceStatus } from "@/lib/yuc/client";
 import {
@@ -62,7 +58,6 @@ export interface SeasonalBrowseItem {
 export interface SeasonalBrowseResult {
   items: SeasonalBrowseItem[];
   dataStatus: SeasonalBrowseDataStatus;
-  bangumiAvailable: boolean;
   yucStatus: YucSourceStatus;
 }
 
@@ -152,37 +147,25 @@ function tagsMatchSeason(
 }
 
 /**
- * Full result for pages that need to explain a degraded source. A Yuc/local
- * fallback stays usable when Bangumi is temporarily unavailable.
+ * Full result for pages that need to explain a degraded source. The quarterly
+ * route never waits on Bangumi; stale Yuc data and local rows keep it usable.
  */
 export async function getSeasonalBrowseResult(
   userId: string,
   season: BgmSeason,
   year: number,
 ): Promise<SeasonalBrowseResult> {
-  const [bangumiResult, yucResult] = await Promise.all([
-    getSubjectsBySeason(season, year)
-      .then((items) => ({ items, error: null as unknown }))
-      .catch((error: unknown) => ({ items: [] as BgmSubject[], error })),
-    getYucEntriesForQuarter(year, season),
-  ]);
-
-  if (bangumiResult.error && !isBangumiUnavailableError(bangumiResult.error)) {
-    throw bangumiResult.error;
-  }
-
-  const bangumiAvailable = bangumiResult.error == null;
+  const yucResult = await getYucEntriesForQuarter(year, season);
   let items = buildSeasonalBrowseItems(
     userId,
-    bangumiResult.items,
+    [],
     dedupeYucEntries(yucResult.entries),
     year,
   );
 
-  if (!bangumiAvailable) {
-    console.error(
-      "[browse] Bangumi seasonal browse unavailable; using Yuc/local fallback:",
-      bangumiResult.error,
+  if (yucResult.status !== "fresh") {
+    console.warn(
+      `[browse] Yuc seasonal browse is ${yucResult.status}; using cached/local fallback`,
     );
     items = mergeFallbackItems(
       items,
@@ -192,17 +175,16 @@ export async function getSeasonalBrowseResult(
 
   return {
     items,
-    dataStatus: bangumiAvailable
+    dataStatus: yucResult.status === "fresh"
       ? "fresh"
       : items.length > 0
         ? "fallback"
         : "unavailable",
-    bangumiAvailable,
     yucStatus: yucResult.status,
   };
 }
 
-/** Backward-compatible item-only helper used by the home and search routes. */
+/** Item-only helper used by the YUC-primary home seasonal rail. */
 export async function getSeasonalBrowse(
   userId: string,
   season: BgmSeason,

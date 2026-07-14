@@ -51,6 +51,23 @@ declare global {
     ok: boolean;
   }
 
+  type DesktopDownloadServiceStatus =
+    | "starting"
+    | "ready"
+    | "recovering"
+    | "failed";
+
+  interface DesktopDownloadServiceState {
+    status: DesktopDownloadServiceStatus;
+    message: string | null;
+    retrying: boolean;
+  }
+
+  interface DesktopDownloadServiceRetryResult {
+    ok: boolean;
+    state: DesktopDownloadServiceState;
+  }
+
   interface Window {
     bandiDesktop?: {
       getSettings(): Promise<DesktopSettingsState>;
@@ -61,12 +78,17 @@ declare global {
       saveSettings(
         input: DesktopSettingsSaveInput,
       ): Promise<DesktopSettingsSaveResult>;
+      getDownloadServiceState(): Promise<DesktopDownloadServiceState>;
+      retryDownloadService(): Promise<DesktopDownloadServiceRetryResult>;
       getWindowState(): Promise<DesktopWindowState>;
       minimizeWindow(): Promise<DesktopWindowActionResult>;
       toggleMaximizeWindow(): Promise<DesktopWindowState>;
       closeWindow(): Promise<DesktopWindowActionResult>;
       onWindowStateChange(
         callback: (state: DesktopWindowState) => void,
+      ): () => void;
+      onDownloadServiceStateChange(
+        callback: (state: DesktopDownloadServiceState) => void,
       ): () => void;
     };
   }

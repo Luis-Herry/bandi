@@ -44,11 +44,74 @@ let qbitAutoRestartEnabled = false;
 let qbitRestartAttempt = 0;
 let qbitRestartTimer = null;
 let qbitRestarting = false;
+let qbitServiceStatus = "starting";
+let qbitServiceMessage = null;
 let pendingQbitDownloadDir = null;
 let isQuitting = false;
 let shutdownComplete = false;
 let shutdownPromise = null;
 let desktopSessionToken = null;
+let bootStage = "storage";
+
+function getDownloadServiceState() {
+  return {
+    status: qbitReady ? "ready" : qbitServiceStatus,
+    message: qbitReady ? null : qbitServiceMessage,
+    retrying: qbitRestarting,
+  };
+}
+
+function publishDownloadServiceState() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  mainWindow.webContents.send(
+    "bandi:download-service-state-changed",
+    getDownloadServiceState(),
+  );
+}
+
+function setDownloadServiceState(status, message = null) {
+  qbitServiceStatus = status;
+  qbitServiceMessage = message;
+  publishDownloadServiceState();
+}
+
+function describeQbitFailure(error) {
+  const reason = error?.message || String(error || "unknown");
+  if (reason.includes("qBittorrent not found")) {
+    return {
+      status: "failed",
+      message: "内置下载组件缺失，请重新安装 Bandi 后再试。",
+    };
+  }
+  if (reason.includes("save path update failed")) {
+    return {
+      status: "failed",
+      message: "下载目录暂时无法连接，请在设置中心检查目录后重试。",
+    };
+  }
+  if (reason.includes("qbit_process_exited")) {
+    return {
+      status: "recovering",
+      message: "下载服务意外退出，Bandi 正在后台恢复；浏览和本地播放仍可使用。",
+    };
+  }
+  if (reason.includes("health check failed")) {
+    return {
+      status: "recovering",
+      message: "下载服务启动超时，Bandi 正在后台恢复；浏览和本地播放仍可使用。",
+    };
+  }
+  return {
+    status: "recovering",
+    message: "下载服务未能启动，Bandi 正在后台恢复；浏览和本地播放仍可使用。",
+  };
+}
+
+function markQbitUnavailable(error) {
+  qbitReady = false;
+  const feedback = describeQbitFailure(error);
+  setDownloadServiceState(feedback.status, feedback.message);
+}
 
 function randomSecret(bytes = 32) {
   return crypto.randomBytes(bytes).toString("base64url");
@@ -508,12 +571,15 @@ async function selectQbitPort() {
 function attachQbitProcess(child) {
   child.on("error", (err) => {
     appendLog("qbit.log", `[desktop] qBit start error: ${err.stack || err}\n`);
+    if (!isQuitting) markQbitUnavailable(err);
   });
   child.on("exit", (code, signal) => {
     if (qbitProcess === child) qbitProcess = null;
-    qbitReady = false;
     appendLog("qbit.log", `[desktop] qBit exited: ${code ?? signal}\n`);
-    if (qbitAutoRestartEnabled && !isQuitting) scheduleQbitRestart();
+    if (!isQuitting) {
+      markQbitUnavailable(new Error("qbit_process_exited"));
+      if (qbitAutoRestartEnabled) scheduleQbitRestart();
+    }
   });
 }
 
@@ -535,6 +601,7 @@ async function startQbit(preselected = null) {
       throw new Error(`qBittorrent save path update failed: ${pending.error}`);
     }
     qbitRestartAttempt = 0;
+    setDownloadServiceState("ready");
     appendLog(
       "qbit.log",
       `[desktop] Reused managed qBittorrent on 127.0.0.1:${selection.port}\n`,
@@ -574,6 +641,7 @@ async function startQbit(preselected = null) {
     throw new Error(`qBittorrent save path update failed: ${pending.error}`);
   }
   qbitRestartAttempt = 0;
+  setDownloadServiceState("ready");
   appendLog(
     "qbit.log",
     `[desktop] Managed qBittorrent ready on 127.0.0.1:${desktopConfig.qbitPort} (${status.data.trim()})\n`,
@@ -591,18 +659,56 @@ function scheduleQbitRestart() {
   qbitRestartTimer = setTimeout(async () => {
     qbitRestartTimer = null;
     qbitRestarting = true;
+    publishDownloadServiceState();
     try {
       await startQbit();
     } catch (err) {
+      markQbitUnavailable(err);
       appendLog(
         "qbit.log",
         `[desktop] qBit recovery failed: ${err.stack || err}\n`,
       );
     } finally {
       qbitRestarting = false;
+      publishDownloadServiceState();
       if (!qbitReady && !isQuitting) scheduleQbitRestart();
     }
   }, waitMs);
+}
+
+async function retryDownloadService() {
+  if (qbitReady) {
+    return { ok: true, state: getDownloadServiceState() };
+  }
+  if (qbitRestarting) {
+    return { ok: false, state: getDownloadServiceState() };
+  }
+  if (qbitRestartTimer) {
+    clearTimeout(qbitRestartTimer);
+    qbitRestartTimer = null;
+  }
+
+  qbitRestarting = true;
+  setDownloadServiceState(
+    "recovering",
+    "正在重新连接下载服务；浏览和本地播放仍可使用。",
+  );
+  let ok = false;
+  try {
+    await startQbit();
+    ok = true;
+  } catch (err) {
+    markQbitUnavailable(err);
+    appendLog(
+      "qbit.log",
+      `[desktop] Manual qBit retry failed: ${err.stack || err}\n`,
+    );
+  } finally {
+    qbitRestarting = false;
+    publishDownloadServiceState();
+    if (!qbitReady && !isQuitting) scheduleQbitRestart();
+  }
+  return { ok, state: getDownloadServiceState() };
 }
 
 async function startNextServer(runtimePathEnv) {
@@ -759,6 +865,12 @@ function registerDesktopIpc() {
   ipcMain.handle("bandi:save-desktop-settings", (_event, input) =>
     saveDesktopSettings(input),
   );
+  ipcMain.handle("bandi:get-download-service-state", () =>
+    getDownloadServiceState(),
+  );
+  ipcMain.handle("bandi:retry-download-service", () =>
+    retryDownloadService(),
+  );
   ipcMain.handle("bandi:get-window-state", (event) =>
     getDesktopWindowState(BrowserWindow.fromWebContents(event.sender)),
   );
@@ -824,9 +936,14 @@ function escapeHtml(value) {
     .replaceAll("'", "&#39;");
 }
 
-function bootPage(message, detail = "请稍候，追番中心会自动完成剩余步骤。") {
+function bootPage(
+  message = "正在打开 Bandi",
+  detail = "正在载入本地资料。",
+  section = "启动中",
+) {
   const safeMessage = escapeHtml(message);
   const safeDetail = escapeHtml(detail);
+  const safeSection = escapeHtml(section);
   return `<!doctype html>
 <html lang="zh-CN">
   <head>
@@ -836,7 +953,7 @@ function bootPage(message, detail = "请稍候，追番中心会自动完成剩�
       :root{--titlebar-space:44px}
       *{box-sizing:border-box}
       html,body{height:100%;margin:0;background:#0f0d0a;color:#f6f1e8;font-family:Inter,"Microsoft YaHei",sans-serif}
-      body{display:grid;place-items:center;padding-top:var(--titlebar-space)}
+      body{padding-top:var(--titlebar-space)}
       .titlebar{position:fixed;z-index:10;top:0;right:0;left:0;height:44px;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;padding:0 8px 0 12px;-webkit-app-region:drag}
       .brand{display:flex;min-width:0;align-items:center;gap:8px;color:#f6f1e8;font-size:12px;font-weight:650;letter-spacing:-.01em}
       .mark{display:grid;width:22px;height:22px;place-items:center;color:#d69a4c;font-size:11px;font-weight:750}
@@ -854,26 +971,27 @@ function bootPage(message, detail = "请稍候，追番中心会自动完成剩�
       .maximize-glyph:before{content:"";width:9px;height:9px;border:1px solid currentColor;border-radius:2px}
       .maximize-glyph.restore:before,.maximize-glyph.restore:after{content:"";position:absolute;width:8px;height:8px;border:1px solid currentColor;border-radius:2px;background:#181613}
       .maximize-glyph.restore:before{transform:translate(2px,-2px)}.maximize-glyph.restore:after{transform:translate(-2px,2px)}
-      main{width:min(420px,calc(100vw - 48px));padding:28px;border:1px solid rgba(255,255,255,.1);border-radius:12px;background:rgba(255,255,255,.035);box-shadow:0 24px 80px rgba(0,0,0,.35)}
-      .boot-heading{display:flex;align-items:center;gap:10px}
-      i{display:block;width:8px;height:8px;flex:0 0 auto;border-radius:50%;background:#d69a4c;box-shadow:0 0 16px rgba(214,154,76,.55);animation:pulse 1.4s ease-in-out infinite}
-      h1{margin:0;font-size:20px;letter-spacing:-.02em}
-      p{margin:8px 0 0;color:#a9a198;font-size:13px;line-height:1.7}
-      @keyframes pulse{50%{opacity:.35;transform:scale(.78)}}
-      @media(prefers-reduced-motion:reduce){i{animation:none}.window-button{transition:none}}
+      .desktop-boot-screen{display:grid;min-height:calc(100vh - var(--titlebar-space));place-items:center;overflow:hidden;padding:24px;background:#0f0d0a;color:#f6f1e8}
+      .desktop-boot-card{width:min(420px,100%);padding:28px;border:1px solid rgba(255,255,255,.1);border-radius:12px;background:rgba(255,255,255,.035);box-shadow:0 24px 80px rgba(0,0,0,.35)}
+      .desktop-boot-heading{display:flex;align-items:center;gap:10px}
+      .desktop-boot-indicator{display:block;width:8px;height:8px;flex:0 0 auto;border-radius:50%;background:#d69a4c;box-shadow:0 0 16px rgba(214,154,76,.55);animation:desktop-boot-pulse 1.4s ease-in-out infinite}
+      .desktop-boot-heading h1{margin:0;color:#f6f1e8;font-size:20px;font-weight:700;letter-spacing:-.02em}
+      .desktop-boot-card p{margin:8px 0 0;color:#a9a198;font-size:13px;line-height:1.7}
+      @keyframes desktop-boot-pulse{50%{opacity:.35;transform:scale(.78)}}
+      @media(prefers-reduced-motion:reduce){.desktop-boot-indicator{animation:none}.window-button{transition:none}}
     </style>
   </head>
   <body>
     <div class="titlebar" role="toolbar" aria-label="Bandi 窗口栏">
       <div class="brand"><span class="mark">B</span><span>Bandi</span></div>
-      <span class="section">启动中</span>
+      <span class="section">${safeSection}</span>
       <div class="controls" role="group" aria-label="窗口控制">
         <button class="window-button" id="minimize" type="button" aria-label="最小化" title="最小化"><span class="minus" aria-hidden="true"></span></button>
         <button class="window-button" id="maximize" type="button" aria-label="最大化" title="最大化"><span class="maximize-glyph" aria-hidden="true"></span></button>
         <button class="window-button close" id="close" type="button" aria-label="关闭" title="关闭"><span class="close-glyph" aria-hidden="true"></span></button>
       </div>
     </div>
-    <main><div class="boot-heading"><i aria-hidden="true"></i><h1>${safeMessage}</h1></div><p>${safeDetail}</p></main>
+    <main class="desktop-boot-screen"><section class="desktop-boot-card"><div class="desktop-boot-heading"><span class="desktop-boot-indicator" aria-hidden="true"></span><h1>${safeMessage}</h1></div><p>${safeDetail}</p></section></main>
     <script>
       const bridge = window.bandiDesktop;
       const maximizeButton = document.getElementById("maximize");
@@ -937,7 +1055,7 @@ function createWindow() {
   mainWindow.once("ready-to-show", () => mainWindow.show());
   void mainWindow.loadURL(
     `data:text/html;charset=utf-8,${encodeURIComponent(
-      bootPage("正在启动下载服务"),
+      bootPage(),
     )}`,
   );
 }
@@ -963,27 +1081,41 @@ function createTray() {
 }
 
 async function boot() {
+  bootStage = "storage";
   const userData = app.getPath("userData");
   ensureDir(userData);
   desktopSessionToken = randomSecret(32);
   desktopConfig = loadDesktopConfig(userData);
+
+  bootStage = "window";
   registerDesktopIpc();
   createWindow();
   createTray();
 
   // Validate app-owned storage and the user-selected media directory before startup.
+  bootStage = "runtime-paths";
   const runtimePathEnv = prepareNextRuntimeDirectories(
     desktopConfig.downloadDir,
   );
   pendingQbitDownloadDir = desktopConfig.downloadDir;
 
-  const qbitSelection = await selectQbitPort();
-  desktopConfig.qbitPort = qbitSelection.port;
-  saveDesktopConfig();
-  const initialQbitStart = startQbit(qbitSelection).catch((err) => {
-    appendLog("qbit.log", `[desktop] Initial qBit start failed: ${err.stack || err}\n`);
+  bootStage = "download-service";
+  if (!desktopConfig.qbitPort) {
+    desktopConfig.qbitPort = QBIT_PORT_START;
+    saveDesktopConfig();
+  }
+  const initialQbitStart = (async () => {
+    const qbitSelection = await selectQbitPort();
+    await startQbit(qbitSelection);
+  })().catch((err) => {
+    markQbitUnavailable(err);
+    appendLog(
+      "qbit.log",
+      `[desktop] Initial qBit start failed: ${err.stack || err}\n`,
+    );
   });
 
+  bootStage = "app-service";
   const appUrl = await startNextServer(runtimePathEnv);
   attachDesktopSessionHeader(appUrl);
   qbitAutoRestartEnabled = true;
@@ -994,7 +1126,43 @@ async function boot() {
     desktopConfig.onboardingVersion >= ONBOARDING_VERSION
       ? "/"
       : "/onboarding";
+  bootStage = "interface";
   await mainWindow.loadURL(new URL(initialPath, appUrl).toString());
+  bootStage = "ready";
+}
+
+function describeBootFailure(stage, error) {
+  const reason = error?.message || String(error || "unknown");
+  const feedback = {
+    storage: {
+      label: "本地存储初始化失败",
+      action: "请确认 Bandi 数据目录所在磁盘已连接且可写，然后重新打开应用。",
+    },
+    window: {
+      label: "应用窗口初始化失败",
+      action: "请关闭 Bandi 后重新打开；若仍失败，请查看错误日志。",
+    },
+    "runtime-paths": {
+      label: "运行目录不可用",
+      action: "请确认提示中的目录存在且可写，然后重新打开应用。",
+    },
+    "download-service": {
+      label: "下载服务初始化失败",
+      action: "请重新打开 Bandi；若仍失败，请查看下载服务日志。",
+    },
+    "app-service": {
+      label: "Bandi 核心服务启动失败",
+      action: "请关闭 Bandi 后重新打开；若仍失败，请查看错误日志。",
+    },
+    interface: {
+      label: "Bandi 界面加载失败",
+      action: "请重新打开 Bandi；下载记录和设置不会受影响。",
+    },
+  }[stage] || {
+    label: "Bandi 启动失败",
+    action: "请关闭 Bandi 后重新打开；若仍失败，请查看错误日志。",
+  };
+  return `${feedback.label}：${reason}。${feedback.action}详细记录位于 logs/desktop.err.log。`;
 }
 
 async function waitForQbitExit(timeoutMs = 5000) {
@@ -1027,7 +1195,7 @@ try {
   const reason = error?.message || String(error);
   console.error("[desktop] Electron sessionData setup failed:", error);
   dialog.showErrorBox(
-    "追番中心启动失败",
+    "Bandi 启动失败",
     `Electron 缓存目录初始化失败：${reason}\n\n请确认失败路径所在磁盘已连接且可写。`,
   );
   app.exit(1);
@@ -1043,12 +1211,12 @@ if (!hasSingleInstanceLock) {
     boot().catch((err) => {
       appendLog("desktop.err.log", `${err.stack || err}\n`);
       if (mainWindow) {
-        const reason = err?.message || String(err);
         void mainWindow.loadURL(
           `data:text/html;charset=utf-8,${encodeURIComponent(
             bootPage(
-              "追番中心启动失败",
-              `运行路径初始化失败：${reason}。数据库内容未改动；下载目录运行路径尚未初始化完成，请检查上方实际失败路径；详细记录位于 logs/desktop.err.log。`,
+              "Bandi 启动失败",
+              describeBootFailure(bootStage, err),
+              "启动失败",
             ),
           )}`,
         );

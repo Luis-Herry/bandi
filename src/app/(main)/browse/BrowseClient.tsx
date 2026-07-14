@@ -317,17 +317,16 @@ export function BrowseClient({
   const totalCount = items.length;
   const filteredCount = filteredItems.length;
   const isFiltered = filteredCount !== totalCount;
-  const hasYuc = items.some((item) => item.sources.includes("yuc"));
+  const hasLocal = items.some((item) => item.sources.includes("local"));
+  const hasScores = items.some((item) => item.score != null && item.score > 0);
   const sourceLabel =
     dataStatus === "fresh"
-      ? hasYuc
-        ? "数据来源 Bangumi、长门番堂"
-        : "数据来源 Bangumi"
+      ? hasLocal
+        ? "数据来源 长门番堂，本地资料补充"
+        : "数据来源 长门番堂"
       : dataStatus === "fallback"
-        ? hasYuc
-          ? "Bangumi 暂时不可用，显示长门番堂与本地数据"
-          : "Bangumi 暂时不可用，显示本地已有数据"
-        : "Bangumi 与长门番堂暂时不可用";
+        ? "长门番堂更新暂时不可用，显示缓存或本地数据"
+        : "长门番堂暂时不可用";
   const summary = isFiltered
     ? `共 ${filteredCount} 部（已筛选自 ${totalCount} 部）`
     : `共 ${totalCount} 部 · ${sourceLabel}`;
@@ -389,7 +388,7 @@ export function BrowseClient({
               番剧库
             </h1>
             <p className="t-stagger-line t-stagger-line--2 mt-3 max-w-[28rem] text-[13px] leading-relaxed text-[color:var(--text-secondary)]">
-              汇总 Bangumi 与长门番堂季度情报，一键加入想看
+              来自长门番堂的季度情报，一键加入想看
             </p>
           </div>
         </div>
@@ -442,7 +441,7 @@ export function BrowseClient({
           <div className="mb-6 flex items-center gap-2 rounded-[8px] border border-[color:var(--accent-muted)] bg-[color:var(--accent-subtle)] px-4 py-3 text-[12px] text-[color:var(--accent)]">
             <AlertCircle size={14} />
             <span>
-              Bangumi 暂时连接失败，已显示长门番堂或本地已有数据。稍后刷新可同步完整季度列表。
+              长门番堂暂时无法更新，已显示缓存或本地数据。稍后刷新可更新季度列表。
             </span>
           </div>
         )}
@@ -533,25 +532,27 @@ export function BrowseClient({
                     />
                   </div>
                 </div>
-                <div className="flex min-w-0 flex-wrap items-center gap-2 md:ml-auto">
-                  <span className="shrink-0 text-[12px] text-[color:var(--text-muted)]">
-                    评分
-                  </span>
-                  <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-                    <FilterChip
-                      active={scoreOrder === "desc"}
-                      onClick={() => setScoreOrder("desc")}
-                    >
-                      高在前
-                    </FilterChip>
-                    <FilterChip
-                      active={scoreOrder === "asc"}
-                      onClick={() => setScoreOrder("asc")}
-                    >
-                      低在前
-                    </FilterChip>
+                {hasScores && (
+                  <div className="flex min-w-0 flex-wrap items-center gap-2 md:ml-auto">
+                    <span className="shrink-0 text-[12px] text-[color:var(--text-muted)]">
+                      评分
+                    </span>
+                    <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                      <FilterChip
+                        active={scoreOrder === "desc"}
+                        onClick={() => setScoreOrder("desc")}
+                      >
+                        高在前
+                      </FilterChip>
+                      <FilterChip
+                        active={scoreOrder === "asc"}
+                        onClick={() => setScoreOrder("asc")}
+                      >
+                        低在前
+                      </FilterChip>
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
             </div>
           </div>
@@ -569,10 +570,10 @@ export function BrowseClient({
         {!pending && items.length === 0 && dataStatus === "unavailable" && (
           <GlassPanel className="t-stagger is-shown p-10 text-center">
             <p className="t-stagger-line t-stagger-line--1 text-[14px] text-[color:var(--text-secondary)]">
-              Bangumi 与长门番堂暂时连接失败
+              长门番堂暂时连接失败
             </p>
             <p className="t-stagger-line t-stagger-line--2 mt-1 text-[12px] text-[color:var(--text-muted)]">
-              长门番堂和本地也没有这个季度的数据。稍后刷新，或先切换到其他季度。
+              本地也没有这个季度的数据。稍后刷新，或先切换其他季度。
             </p>
           </GlassPanel>
         )}

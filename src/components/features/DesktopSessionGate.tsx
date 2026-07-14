@@ -4,8 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
 import { RefreshCw } from "lucide-react";
-import { BrandLogo } from "@/components/features/BrandLogo";
-import { Button, ShimmerText } from "@/components/ui";
+import { Button } from "@/components/ui";
 
 export function DesktopSessionGate({ from }: { from: string }) {
   const router = useRouter();
@@ -14,14 +13,17 @@ export function DesktopSessionGate({ from }: { from: string }) {
 
   const enterDesktop = useCallback(async () => {
     setError(null);
-    const result = await signIn("desktop-session", { redirect: false });
-    if (!result?.ok || result.error) {
-      setError("本机会话建立失败，请重新尝试");
+    try {
+      const result = await signIn("desktop-session", { redirect: false });
+      if (!result?.ok || result.error) {
+        throw new Error(result?.error ?? "desktop_session_rejected");
+      }
+      router.replace(from.startsWith("/") ? from : "/");
+      router.refresh();
+    } catch {
+      setError("Bandi 无法建立本机会话。请重试；下载记录和设置不会受影响。");
       started.current = false;
-      return;
     }
-    router.replace(from.startsWith("/") ? from : "/");
-    router.refresh();
   }, [from, router]);
 
   useEffect(() => {
@@ -31,42 +33,30 @@ export function DesktopSessionGate({ from }: { from: string }) {
   }, [enterDesktop]);
 
   return (
-    <main className="desktop-viewport relative grid min-h-screen place-items-center overflow-hidden bg-[color:var(--bg-base)] px-6">
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 opacity-70"
-        style={{
-          background:
-            "radial-gradient(circle at 50% 42%, rgb(var(--accent-rgb) / 0.12), transparent 34%), radial-gradient(circle at 16% 18%, rgb(var(--accent-rgb) / 0.05), transparent 28%)",
-        }}
-      />
-      <section className="t-stagger is-shown relative w-full max-w-[420px] rounded-[12px] border border-[color:var(--border-default)] bg-[color:var(--bg-elevated)] px-8 py-9 text-center shadow-[0_24px_80px_rgba(0,0,0,0.38)]">
-        <div className="t-stagger-line t-stagger-line--1 flex justify-center">
-          <BrandLogo showText={false} markSize="lg" />
+    <main className="desktop-viewport desktop-boot-screen">
+      <section className="desktop-boot-card" aria-labelledby="desktop-boot-title">
+        <div className="desktop-boot-heading">
+          <span className="desktop-boot-indicator" aria-hidden />
+          <h1 id="desktop-boot-title">
+            {error ? "本机会话连接失败" : "正在打开 Bandi"}
+          </h1>
         </div>
-        <h1 className="t-stagger-line t-stagger-line--2 mt-5 text-[22px] font-bold tracking-[-0.02em] text-[color:var(--text-primary)]">
-          正在打开你的私人放映厅
-        </h1>
-        <div className="t-stagger-line t-stagger-line--3 mt-2 min-h-5 text-[12px] text-[color:var(--text-muted)]">
-          {error ? (
-            <span className="text-[color:var(--status-error)]">{error}</span>
-          ) : (
-            <ShimmerText text="正在准备本地资料与下载服务…" />
-          )}
-        </div>
+        <p role={error ? "alert" : "status"}>
+          {error ?? "正在载入本地资料。"}
+        </p>
         {error && (
           <Button
             variant="secondary"
             size="sm"
             leftIcon={<RefreshCw size={12} />}
-            className="mt-5"
+            className="mt-4"
             onClick={() => {
               if (started.current) return;
               started.current = true;
               void enterDesktop();
             }}
           >
-            重新尝试
+            重试进入 Bandi
           </Button>
         )}
       </section>

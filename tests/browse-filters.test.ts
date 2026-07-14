@@ -59,16 +59,23 @@ test("browse quarter tabs use a full-width divider and fit four quarters on phon
   );
 });
 
-test("browse distinguishes Bangumi outage from an empty season", () => {
+test("browse uses YUC as the primary quarterly source and keeps a local fallback", () => {
   assert.match(browsePageSource, /getSeasonalBrowseResult/);
-  assert.match(browseHelperSource, /isBangumiUnavailableError/);
+  assert.doesNotMatch(browseHelperSource, /getSubjectsBySeason/);
+  assert.match(browseHelperSource, /buildSeasonalBrowseItems\(\s*userId,\s*\[\]/);
   assert.match(browseHelperSource, /getLocalSeasonalBrowseFallback/);
   assert.match(browseHelperSource, /getYucEntriesForQuarter/);
   assert.match(browsePageSource, /dataStatus=\{dataStatus\}/);
   assert.match(browseSource, /dataStatus: "fresh" \| "fallback" \| "unavailable"/);
-  assert.match(browseSource, /Bangumi 暂时连接失败/);
-  assert.match(browseSource, /显示长门番堂或本地已有数据/);
-  assert.match(browseSource, /长门番堂和本地也没有这个季度的数据/);
+  assert.match(browseSource, /数据来源 长门番堂/);
+  assert.match(browseSource, /长门番堂暂时无法更新/);
+  assert.match(browseSource, /本地也没有这个季度的数据/);
+  assert.doesNotMatch(browseSource, /Bangumi 暂时连接失败/);
+});
+
+test("browse hides rating controls when the primary source has no scores", () => {
+  assert.match(browseSource, /const hasScores = items\.some/);
+  assert.match(browseSource, /\{hasScores && \(/);
 });
 
 test("browse local fallback infers season from year-month tags", () => {

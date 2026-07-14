@@ -6,7 +6,10 @@ import {
   resolveYucAnime,
   YucIdentityConflictError,
 } from "@/lib/yuc/identity";
-import { parseYucSourceKey } from "@/lib/yuc/parser";
+import {
+  decodeYucSourceKeyParam,
+  parseYucSourceKey,
+} from "@/lib/yuc/parser";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +18,9 @@ interface PageProps {
 }
 
 export default async function AnimeByYucPage({ params }: PageProps) {
-  const { yucKey } = await params;
+  const routeParams = await params;
+  const yucKey = decodeYucSourceKeyParam(routeParams.yucKey);
+  if (!yucKey) notFound();
   const parts = parseYucSourceKey(yucKey);
   if (!parts) notFound();
 

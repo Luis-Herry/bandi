@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import {
   buildYucSourceKey,
+  decodeYucSourceKeyParam,
   findYucEntryBySourceKey,
   inferYucProviderService,
   normalizeYucCoverUrl,
@@ -69,6 +70,13 @@ test("parseYucSeasonPage merges schedule and detail records", () => {
   });
   assert.equal(parseYucSourceKey("yuc:season:new:0123456789abcdef"), null);
   assert.equal(parseYucSourceKey("yuc:future:sp:0123456789abcdef"), null);
+  assert.equal(decodeYucSourceKeyParam(entry.sourceKey), entry.sourceKey);
+  assert.equal(
+    decodeYucSourceKeyParam(encodeURIComponent(entry.sourceKey)),
+    entry.sourceKey,
+  );
+  assert.equal(decodeYucSourceKeyParam("yuc%2Fseason%2F202607"), null);
+  assert.equal(decodeYucSourceKeyParam("%E0%A4%A"), null);
   assert.equal(findYucEntryBySourceKey(entries, entry.sourceKey), entry);
   assert.equal(findYucEntryBySourceKey([entry, entry], entry.sourceKey), null);
 });

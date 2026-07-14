@@ -1,5 +1,6 @@
 import { auth } from "@/auth";
 import { AccentProvider } from "@/components/features/AccentProvider";
+import { DesktopDownloadServiceNotice } from "@/components/features/DesktopDownloadServiceNotice";
 import { Nav } from "@/components/features/Nav";
 import { ToastHost } from "@/components/features/ToastHost";
 import {
@@ -31,6 +32,7 @@ export default async function MainLayout({
           isDesktop={isDesktop}
         />
         <ToastHost />
+        {isDesktop && <DesktopDownloadServiceNotice />}
         {isDesktop && <div className="desktop-nav-spacer" aria-hidden />}
         {/* Web 继续由页面内容延伸到透明导航后方；桌面端把滚动区限定在导航下方。 */}
         <main
