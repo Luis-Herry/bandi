@@ -88,6 +88,17 @@ interface BrowseClientProps {
   dataStatus: "fresh" | "fallback" | "unavailable";
 }
 
+type ScoreLoadStatus = "loading" | "ready" | "unavailable";
+
+interface BrowseScoreResponse {
+  status: "ready" | "unavailable";
+  scores: Array<{
+    bangumiId: number | null;
+    yucKey: string | null;
+    score: number;
+  }>;
+}
+
 export function BrowseClient({
   initialSeason,
   initialYear,
@@ -108,6 +119,11 @@ export function BrowseClient({
   const [patches, setPatches] = useState<
     Map<string, { inLibrary: boolean; localAnimeId: number | null }>
   >(new Map());
+  const [scorePatches, setScorePatches] = useState<Map<string, number>>(
+    new Map(),
+  );
+  const [scoreStatus, setScoreStatus] =
+    useState<ScoreLoadStatus>("loading");
   const [adding, setAdding] = useState<Set<string>>(new Set());
 
   // 筛选状态：每类一个选中值（null = 全部）
@@ -133,17 +149,69 @@ export function BrowseClient({
   }, [activeKey]);
 
   const items = useMemo<SeasonalBrowseItem[]>(() => {
-    if (patches.size === 0) return initialItems;
+    if (patches.size === 0 && scorePatches.size === 0) return initialItems;
     return initialItems.map((it) => {
       const p = patches.get(it.itemKey);
-      if (!p) return it;
+      const enrichedScore =
+        (it.yucKey ? scorePatches.get(`yuc:${it.yucKey}`) : undefined) ??
+        (it.bangumiId != null
+          ? scorePatches.get(`bgm:${it.bangumiId}`)
+          : undefined);
+      if (!p && enrichedScore == null) return it;
       return {
         ...it,
-        inLibrary: p.inLibrary,
-        localAnimeId: p.localAnimeId ?? it.localAnimeId,
+        score: enrichedScore ?? it.score,
+        inLibrary: p?.inLibrary ?? it.inLibrary,
+        localAnimeId: p?.localAnimeId ?? it.localAnimeId,
       };
     });
-  }, [initialItems, patches]);
+  }, [initialItems, patches, scorePatches]);
+
+  // 长门目录先展示，Bangumi 评分在后台按需补齐；连接失败不阻塞浏览。
+  useEffect(() => {
+    const controller = new AbortController();
+    const params = new URLSearchParams({
+      season: initialSeason,
+      year: String(initialYear),
+      mode: "scores",
+    });
+
+    setScorePatches(new Map());
+    setScoreStatus("loading");
+
+    void fetch(`/api/browse/season?${params.toString()}`, {
+      cache: "no-store",
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error(`score request failed: ${response.status}`);
+        }
+        return (await response.json()) as BrowseScoreResponse;
+      })
+      .then((payload) => {
+        if (controller.signal.aborted) return;
+        if (payload.status !== "ready") {
+          setScoreStatus("unavailable");
+          return;
+        }
+
+        const next = new Map<string, number>();
+        for (const item of payload.scores) {
+          if (item.yucKey) next.set(`yuc:${item.yucKey}`, item.score);
+          if (item.bangumiId != null) {
+            next.set(`bgm:${item.bangumiId}`, item.score);
+          }
+        }
+        setScorePatches(next);
+        setScoreStatus("ready");
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setScoreStatus("unavailable");
+      });
+
+    return () => controller.abort();
+  }, [activeKey, initialSeason, initialYear]);
 
   // 计算每类「该季实际命中」的可选项
   const availableOptions = useMemo<Record<FilterKey, string[]>>(() => {
@@ -318,7 +386,18 @@ export function BrowseClient({
   const filteredCount = filteredItems.length;
   const isFiltered = filteredCount !== totalCount;
   const hasLocal = items.some((item) => item.sources.includes("local"));
-  const hasScores = items.some((item) => item.score != null && item.score > 0);
+  const scoredCount = filteredItems.filter(
+    (item) => item.score != null && item.score > 0,
+  ).length;
+  const hasScores = scoredCount > 0;
+  const scoreHint =
+    scoreStatus === "loading"
+      ? "评分加载中"
+      : scoreStatus === "unavailable"
+        ? "需连接 Bangumi"
+        : hasScores
+          ? `${scoredCount} 部有评分`
+          : "当前结果暂无评分";
   const sourceLabel =
     dataStatus === "fresh"
       ? hasLocal
@@ -532,27 +611,33 @@ export function BrowseClient({
                     />
                   </div>
                 </div>
-                {hasScores && (
-                  <div className="flex min-w-0 flex-wrap items-center gap-2 md:ml-auto">
-                    <span className="shrink-0 text-[12px] text-[color:var(--text-muted)]">
-                      评分
-                    </span>
-                    <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-                      <FilterChip
-                        active={scoreOrder === "desc"}
-                        onClick={() => setScoreOrder("desc")}
-                      >
-                        高在前
-                      </FilterChip>
-                      <FilterChip
-                        active={scoreOrder === "asc"}
-                        onClick={() => setScoreOrder("asc")}
-                      >
-                        低在前
-                      </FilterChip>
-                    </div>
+                <div className="flex min-w-0 flex-wrap items-center gap-2 md:ml-auto">
+                  <span className="shrink-0 text-[12px] text-[color:var(--text-muted)]">
+                    评分
+                  </span>
+                  <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                    <FilterChip
+                      active={hasScores && scoreOrder === "desc"}
+                      disabled={!hasScores}
+                      onClick={() => setScoreOrder("desc")}
+                    >
+                      高在前
+                    </FilterChip>
+                    <FilterChip
+                      active={hasScores && scoreOrder === "asc"}
+                      disabled={!hasScores}
+                      onClick={() => setScoreOrder("asc")}
+                    >
+                      低在前
+                    </FilterChip>
                   </div>
-                )}
+                  <span
+                    role="status"
+                    className="min-w-[84px] text-[11px] text-[color:var(--text-muted)]"
+                  >
+                    {scoreHint}
+                  </span>
+                </div>
               </div>
             </div>
           </div>
@@ -630,10 +715,12 @@ function formatQuarterLabel(year: number, season: BgmSeason) {
 
 function FilterChip({
   active,
+  disabled = false,
   onClick,
   children,
 }: {
   active: boolean;
+  disabled?: boolean;
   onClick: () => void;
   children: ReactNode;
 }) {
@@ -641,13 +728,16 @@ function FilterChip({
     <button
       type="button"
       onClick={onClick}
+      disabled={disabled}
       className={cn(
         "inline-flex items-center h-7 px-2.5 rounded-[6px] text-[12px] leading-none",
         "touch-pan-y",
         "transition-[background,color,border-color] duration-150",
         "[transition-timing-function:var(--ease-default)]",
         "border",
-        active
+        disabled
+          ? "cursor-not-allowed border-[color:var(--border-subtle)] bg-transparent text-[color:var(--text-muted)] opacity-55"
+          : active
           ? "bg-[color:var(--accent-subtle)] text-[color:var(--accent)] border-[color:var(--accent-muted)]"
           : "bg-transparent text-[color:var(--text-secondary)] border-[color:var(--border-subtle)] hover:text-[color:var(--text-primary)] hover:border-[color:var(--border-default)]",
       )}

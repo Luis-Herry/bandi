@@ -5,6 +5,10 @@ import { test } from "node:test";
 const browseSource = readFileSync("src/app/(main)/browse/BrowseClient.tsx", "utf8");
 const browsePageSource = readFileSync("src/app/(main)/browse/page.tsx", "utf8");
 const browseHelperSource = readFileSync("src/lib/db-helpers/browse.ts", "utf8");
+const browseSeasonRouteSource = readFileSync(
+  "src/app/api/browse/season/route.ts",
+  "utf8",
+);
 const browseLoadingSource = readFileSync("src/app/(main)/browse/loading.tsx", "utf8");
 
 test("browse region filters only expose Japan and China", () => {
@@ -73,9 +77,19 @@ test("browse uses YUC as the primary quarterly source and keeps a local fallback
   assert.doesNotMatch(browseSource, /Bangumi 暂时连接失败/);
 });
 
-test("browse hides rating controls when the primary source has no scores", () => {
-  assert.match(browseSource, /const hasScores = items\.some/);
-  assert.match(browseSource, /\{hasScores && \(/);
+test("browse keeps rating controls visible and progressively enriches Bangumi scores", () => {
+  assert.match(browseSource, /const scoredCount = filteredItems\.filter/);
+  assert.match(browseSource, /const hasScores = scoredCount > 0/);
+  assert.doesNotMatch(browseSource, /\{hasScores && \(/);
+  assert.match(browseSource, /mode: "scores"/);
+  assert.match(browseSource, /评分加载中/);
+  assert.match(browseSource, /需连接 Bangumi/);
+  assert.match(browseSource, /当前结果暂无评分/);
+  assert.match(browseSource, /部有评分/);
+  assert.match(browseSource, /disabled=\{!hasScores\}/);
+  assert.match(browseSeasonRouteSource, /getSubjectsBySeason\(season, yearRaw\)/);
+  assert.match(browseSeasonRouteSource, /getYucEntriesForQuarter\(yearRaw, season\)/);
+  assert.match(browseSeasonRouteSource, /optional Bangumi scores unavailable/);
 });
 
 test("browse local fallback infers season from year-month tags", () => {

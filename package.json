@@ -1,6 +1,6 @@
 {
   "name": "anime-tracker",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Windows local-first anime tracker, downloader, and personal media center.",
   "author": "Luis-Herry",
   "license": "GPL-3.0-only",
@@ -86,7 +86,10 @@
     "typescript": "^5.9.3"
   },
   "overrides": {
-    "postcss": "$postcss"
+    "postcss": "$postcss",
+    "@esbuild-kit/core-utils": {
+      "esbuild": "^0.25.0"
+    }
   },
   "build": {
     "appId": "cn.luis.anime-tracker.desktop",
