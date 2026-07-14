@@ -5,12 +5,12 @@
 <h1 align="center">追番中心 · Bandi</h1>
 
 <p align="center">
-  Windows 本地优先的私人追番与媒体中心<br>
+  Windows 与 macOS 本地优先的私人追番与媒体中心<br>
   今天看什么、看到第几集、下一集什么时候来，打开一个窗口就知道。
 </p>
 
 <p align="center">
-  <a href="https://github.com/Luis-Herry/anime-tracker-desktop/releases">下载桌面版</a>
+  <a href="https://github.com/Luis-Herry/bandi/releases">下载桌面版</a>
   ·
   <a href="#第一次启动">第一次启动</a>
   ·
@@ -28,7 +28,7 @@
 - **打开就知道今晚看什么**：今日更新、继续观看、漏看提醒与未来七天预告集中在首页。
 - **季度番表信息更完整**：长门番堂提供可直连的季度档期与播出情报，Bangumi 补充详情、人物、制作、评分、评论与关联作品。
 - **从某一集一路走到播放器**：找源、入队、下载、播放、恢复进度和追番进度同步都在应用内完成。
-- **下载服务开箱即用**：桌面版自带独立 qBittorrent，自动选端口、生成本机凭据、健康检查并在异常退出后恢复。
+- **下载服务开箱即用**：Windows 桌面版与 macOS 本地 Web 版都携带独立 qBittorrent，自动选端口、生成本机凭据、健康检查并在异常退出后恢复。
 - **自己的硬盘也能进入片单**：动漫与影视分区扫描，先预览再确认导入，重复扫描不会制造重复条目。
 - **本地优先**：追番关系、评分、观看事件和播放进度保存在本机 SQLite，项目未集成第三方遥测服务。
 
@@ -124,21 +124,26 @@
 
 ### 运行前提
 
-- Windows 10 / 11 x64。
+- Windows 10 / 11 x64，或 macOS 13 及以上版本。
+- macOS 分为 Intel x64 与 Apple Silicon ARM64 两个安装包，必须选择与 Mac 芯片一致的版本。
 - 建议预留足够的视频下载空间。
 - 应用会把数据库、配置与缓存放进当前 Windows 用户的应用数据目录，无需准备特定盘符。
 - 首次启动会显示系统“视频”目录下的推荐位置，你可以改选任意可写的本地文件夹或 UNC 网络共享。安装位置与视频保存位置互不绑定。
 
 ### 选择分发包
 
-前往 [GitHub Releases](https://github.com/Luis-Herry/anime-tracker-desktop/releases) 下载当前版本：
+前往 [GitHub Releases](https://github.com/Luis-Herry/bandi/releases) 下载当前版本：
 
 | 文件 | 适合谁 | 使用方式 |
 |---|---|---|
 | `Bandi-Setup-*-x64.exe` | 日常长期使用 | 可选择安装目录，并创建桌面与开始菜单快捷方式 |
 | `Bandi-*-x64-portable.exe` | 临时体验或移动硬盘 | 直接运行；首次自解压可能需要等待一会儿 |
+| `Bandi-Local-Web-*-macOS-x64.dmg` | Intel Mac | 安装后由菜单栏启动本地服务，并在默认浏览器打开 |
+| `Bandi-Local-Web-*-macOS-arm64.dmg` | Apple Silicon Mac | 安装后由菜单栏启动本地服务，并在默认浏览器打开 |
 
 当前安装包尚未进行 Authenticode 代码签名，Windows SmartScreen 可能显示未知发布者。请只从本仓库 Releases 下载，并对照 Release 中公布的 SHA-256 校验值。
+
+macOS Local Web 的 Intel x64、Apple Silicon ARM64，以及 iOS/iPadOS Safari 局域网客户端仍待社区真机验证。正式附件会在两种 Mac 芯片各自通过启动、下载、播放、局域网配对与 Gatekeeper 检查后进入 Releases；手机和平板还需分别确认 Safari 播放、进度保存、字幕与配对撤销。验证步骤见 [社区真机验证清单](docs/desktop/macos-community-verification.md)，完成后请通过 [GitHub Issue Form](https://github.com/Luis-Herry/bandi/issues/new?template=macos-community-verification.yml) 回传脱敏结果。
 
 ### 第一次启动
 
@@ -155,6 +160,8 @@
 ![首次启动：下载目录、画质、字幕与托盘行为的一页式引导](docs/screenshots/onboarding.png)
 
 桌面右上角关闭按钮会按你的托盘设置执行。托盘菜单里的“退出”会完整结束窗口、本地服务和受管下载引擎。
+
+macOS 本地 Web 版没有账号注册、密码登录或云端同步。Bandi 常驻菜单栏，浏览器通过单次本机令牌进入；数据库、下载、缓存和媒体文件都留在 Mac。需要用 iPhone 或 iPad 时，先在设置中心开启局域网访问，再输入 Mac 生成的六位配对码。关闭局域网访问会清空已配对设备。
 
 ## 功能地图
 
@@ -209,7 +216,7 @@
 
 应用会按需访问 Bangumi、长门番堂、AniList、TMDB、豆瓣、RSS 与图片源。源码中没有第三方遥测 SDK；网络请求主要用于资料、封面、季度番表、资源搜索与用户主动触发的下载。
 
-现行数据路径：
+Windows 数据路径：
 
 | 内容 | 默认位置 |
 |---|---|
@@ -225,11 +232,22 @@
 
 准备备份时，先完整退出托盘应用，再复制 `%APPDATA%\anime-tracker\`。数据库运行中可能同时存在 `anime.db-wal` 与 `anime.db-shm`，只复制主文件可能得到不完整快照。
 
+macOS 数据路径：
+
+| 内容 | 默认位置 |
+|---|---|
+| SQLite、配置、日志与缓存 | `~/Library/Application Support/Bandi/` |
+| qBittorrent 独立 profile | `~/Library/Application Support/Bandi/qbit-profile/` |
+| 视频下载 | `~/Movies/Bandi/Downloads`，可在设置中改选 |
+| 播放器截图 | `~/Pictures/Bandi` |
+
+iPhone 与 iPad 只读取 Mac 通过当前局域网提供的页面和视频流。下载任务、数据库、缓存与文件都在 Mac 上，项目没有云端账户与同步服务。默认只监听 `127.0.0.1`；用户主动开启局域网访问后才监听局域网接口，且新设备需要配对。
+
 ## 常见问题
 
 ### 需要自己安装 qBittorrent 吗？
 
-正常桌面模式无需安装。应用内置 qBittorrent 5.2.3，并由 Electron 管理端口、凭据、健康检查与恢复。外部 qBittorrent 兼容模式仍保留，主要用于已有特殊配置的用户。
+正常使用无需安装。Windows 与 macOS 安装包都携带 qBittorrent，并由 Bandi 管理独立 profile、端口、凭据、健康检查与恢复。ARM64 使用官方 qBittorrent 5.2.3，Intel 使用仍支持 x64 的官方 qBittorrent 5.0.5。用户自己安装的 qBittorrent 配置和任务不会被接管。
 
 ### 关闭窗口后下载会停吗？
 
@@ -245,7 +263,7 @@
 
 ### 能在 macOS、Linux 或手机上运行吗？
 
-当前产品只面向 Windows x64。Next.js 界面可用于开发调试，完整桌面生命周期、内置下载器和本地目录能力依赖 Electron 与 Windows。
+Windows x64 继续使用桌面版。macOS 13+ 使用 Bandi Local Web，Intel x64 与 Apple Silicon ARM64 分包发布；Mac 负责 SQLite、qBittorrent、下载和媒体文件，浏览器负责界面。iPhone 与 iPad 可以在同一局域网配对后作为客户端访问这台 Mac。只有 iPhone、没有 Mac 或其他宿主机时，无法运行完整下载与本地媒体能力。Linux、Docker/NAS 与 PWA 暂未进入本轮范围。
 
 ### 为什么安装包体积较大？
 
@@ -276,14 +294,14 @@ npm run dev
 
 ### 准备环境
 
-- Windows 10 / 11。
+- Windows 10 / 11，或用于构建对应架构的 macOS 13+ 真机。
 - Node.js 24 推荐。
 - npm。
 - 仅开发资料页时可以不启动 qBittorrent；下载链路验收应使用仓库内置版本。
 
 ```bash
-git clone https://github.com/Luis-Herry/anime-tracker-desktop.git
-cd anime-tracker-desktop
+git clone https://github.com/Luis-Herry/bandi.git
+cd bandi
 npm install
 npm run dev
 ```
@@ -304,6 +322,8 @@ npm run desktop:start
 | `npm run desktop:prepare` | 准备 Electron 所需 standalone 资源 |
 | `npm run desktop:check-build` | 检查桌面输入指纹和构建完整性 |
 | `npm run desktop:dist` | 生成 Windows 安装版与 portable |
+| `npm run local-server:dist:x64` | 在 Intel Mac 生成 x64 DMG 与 ZIP |
+| `npm run local-server:dist:arm64` | 在 Apple Silicon Mac 生成 ARM64 DMG 与 ZIP |
 | `npm run db:seed` | 填充本地演示数据，仅供开发环境 |
 
 请勿同时运行 `npm run build` 与 `npm start`，两者会竞争 `.next` 目录。详细打包流程见 [docs/desktop/packaging.md](docs/desktop/packaging.md)。

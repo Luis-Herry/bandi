@@ -39,6 +39,7 @@ import {
   stripTrailingArcAfterSeason,
 } from "@/lib/source-match";
 import { expandZhVariants } from "@/lib/zh-convert";
+import { requireRouteUser } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -196,6 +197,8 @@ export async function GET(
   req: Request,
   { params }: { params: Promise<{ id: string; ep: string }> },
 ) {
+  const user = await requireRouteUser();
+  if (user instanceof Response) return user;
   const { id, ep } = await params;
   const animeId = Number(id);
   const epNumber = Number(ep);

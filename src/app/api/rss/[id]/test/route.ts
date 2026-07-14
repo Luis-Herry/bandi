@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { rssSources } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { fetchRss } from "@/lib/rss";
+import { requireRouteUser } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -10,6 +11,8 @@ export async function POST(
   _req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const user = await requireRouteUser();
+  if (user instanceof Response) return user;
   const { id } = await params;
   const rowId = Number(id);
   if (!Number.isFinite(rowId))

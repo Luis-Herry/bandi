@@ -1,6 +1,6 @@
 import path from "node:path";
 import type { BgmSeason } from "@/lib/bangumi";
-import { isSafeAbsoluteWindowsPath } from "@/lib/download-root";
+import { normalizeRuntimeDirectory } from "@/lib/download-root";
 import {
   createYucCache,
   YucUnavailableError,
@@ -69,12 +69,15 @@ function getConfiguredCacheDirectory(): string | null {
     }
     return null;
   }
-  if (!isSafeAbsoluteWindowsPath(configured)) {
+  const normalized = normalizeRuntimeDirectory(configured);
+  if (!normalized) {
     throw new Error(
-      `YUC_CACHE_DIR 必须是完整的 Windows 盘符或 UNC 子目录：${configured}`,
+      process.env.ANIME_LOCAL_SERVER_APP === "1"
+        ? `YUC_CACHE_DIR 必须是完整的 macOS 子目录：${configured}`
+        : `YUC_CACHE_DIR 必须是完整的 Windows 盘符或 UNC 子目录：${configured}`,
     );
   }
-  return path.win32.normalize(configured);
+  return normalized;
 }
 
 function seasonUrl(year: number, month: number): string {

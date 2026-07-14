@@ -8,6 +8,7 @@ import {
   normalizeRssTitleAlias,
   removeRssTitleAlias,
 } from "@/lib/rss-title-aliases";
+import { requireRouteUser } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +16,8 @@ export async function GET(
   _req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const user = await requireRouteUser();
+  if (user instanceof Response) return user;
   const animeId = await parseAnimeId(params);
   if (animeId == null) {
     return NextResponse.json({ error: "invalid id" }, { status: 400 });
@@ -30,6 +33,8 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const user = await requireRouteUser();
+  if (user instanceof Response) return user;
   const animeId = await parseAnimeId(params);
   if (animeId == null) {
     return NextResponse.json({ error: "invalid id" }, { status: 400 });
@@ -51,6 +56,8 @@ export async function DELETE(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const user = await requireRouteUser();
+  if (user instanceof Response) return user;
   const animeId = await parseAnimeId(params);
   if (animeId == null) {
     return NextResponse.json({ error: "invalid id" }, { status: 400 });

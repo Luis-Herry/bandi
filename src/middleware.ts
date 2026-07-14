@@ -14,7 +14,9 @@ const PUBLIC_PATHS = new Set<string>(["/login"]);
 
 export default auth((req) => {
   const { pathname } = req.nextUrl;
-  const isLoggedIn = !!req.auth;
+  const isLoggedIn = Boolean(
+    req.auth?.user?.id && req.auth.user.localSessionValid !== false,
+  );
 
   // 公开图片代理（仅白名单 DMM，非开放代理）：不鉴权、不重定向，供 <img> 直接加载
   if (pathname === "/api/img") {
@@ -23,6 +25,9 @@ export default auth((req) => {
 
   // login page: if already logged in, kick to home
   if (PUBLIC_PATHS.has(pathname)) {
+    if (process.env.ANIME_LOCAL_SERVER_APP === "1") {
+      return NextResponse.next();
+    }
     if (isLoggedIn) {
       const url = req.nextUrl.clone();
       const from = req.nextUrl.searchParams.get("from");

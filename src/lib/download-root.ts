@@ -12,7 +12,9 @@ export type DownloadRootResult =
 
 interface DownloadRootEnvironment {
   ANIME_DESKTOP_APP?: string;
+  ANIME_LOCAL_SERVER_APP?: string;
   DESKTOP_CONFIG_PATH?: string;
+  LOCAL_SERVER_CONFIG_PATH?: string;
   DOWNLOAD_ROOT?: string;
 }
 
@@ -35,15 +37,37 @@ export function isSafeAbsoluteWindowsPath(value: unknown): value is string {
   return normalized !== path.win32.parse(normalized).root;
 }
 
+export function isSafeAbsolutePosixPath(value: unknown): value is string {
+  if (typeof value !== "string" || !value.trim()) return false;
+  const candidate = value.trim();
+  if (candidate.includes("\0") || !path.posix.isAbsolute(candidate)) return false;
+  const normalized = path.posix.normalize(candidate);
+  return normalized !== path.posix.parse(normalized).root;
+}
+
+export function normalizeRuntimeDirectory(value: unknown): string | null {
+  if (process.env.ANIME_LOCAL_SERVER_APP === "1") {
+    return isSafeAbsolutePosixPath(value)
+      ? path.posix.normalize(value.trim())
+      : null;
+  }
+  return isSafeAbsoluteWindowsPath(value)
+    ? path.win32.normalize(value.trim())
+    : null;
+}
+
 export function resolveDownloadRoot(
   env: DownloadRootEnvironment = {
     ANIME_DESKTOP_APP: process.env.ANIME_DESKTOP_APP,
+    ANIME_LOCAL_SERVER_APP: process.env.ANIME_LOCAL_SERVER_APP,
     DESKTOP_CONFIG_PATH: process.env.DESKTOP_CONFIG_PATH,
+    LOCAL_SERVER_CONFIG_PATH: process.env.LOCAL_SERVER_CONFIG_PATH,
     DOWNLOAD_ROOT: process.env.DOWNLOAD_ROOT,
   },
 ): DownloadRootResult {
   let configured: string | undefined;
   let desktopConfigPath: string | undefined;
+  let localServerConfigPath: string | undefined;
 
   if (env.ANIME_DESKTOP_APP === "1") {
     const configPath = env.DESKTOP_CONFIG_PATH?.trim();
@@ -74,6 +98,35 @@ export function resolveDownloadRoot(
         message: `桌面配置路径不可用：${configPath}（${errorMessage(error)}）。`,
       };
     }
+  } else if (env.ANIME_LOCAL_SERVER_APP === "1") {
+    const configPath = env.LOCAL_SERVER_CONFIG_PATH?.trim();
+    if (!configPath) {
+      return {
+        ok: false,
+        message: "本地服务配置路径不可用：LOCAL_SERVER_CONFIG_PATH 未配置。",
+      };
+    }
+    if (!isSafeAbsolutePosixPath(configPath)) {
+      return {
+        ok: false,
+        message: `本地服务配置路径不可用：${configPath} 必须是完整的 macOS 子目录。`,
+      };
+    }
+    localServerConfigPath = path.posix.normalize(configPath);
+    try {
+      const config = JSON.parse(readFileSync(localServerConfigPath, "utf8")) as {
+        downloadDir?: unknown;
+      };
+      configured =
+        typeof config.downloadDir === "string"
+          ? config.downloadDir.trim()
+          : undefined;
+    } catch (error) {
+      return {
+        ok: false,
+        message: `本地服务配置路径不可用：${configPath}（${errorMessage(error)}）。`,
+      };
+    }
   } else {
     configured = env.DOWNLOAD_ROOT?.trim();
   }
@@ -83,17 +136,27 @@ export function resolveDownloadRoot(
       ok: false,
       message: desktopConfigPath
         ? `下载目录不可用：${desktopConfigPath} 没有有效的 downloadDir。`
+        : localServerConfigPath
+          ? `下载目录不可用：${localServerConfigPath} 没有有效的 downloadDir。`
         : "下载目录不可用：DOWNLOAD_ROOT 未配置。",
     };
   }
-  if (!isSafeAbsoluteWindowsPath(configured)) {
+  const isLocalServer = env.ANIME_LOCAL_SERVER_APP === "1";
+  const valid = isLocalServer
+    ? isSafeAbsolutePosixPath(configured)
+    : isSafeAbsoluteWindowsPath(configured);
+  if (!valid) {
     return {
       ok: false,
-      message: `下载目录不可用：${configured} 必须是完整的 Windows 盘符或 UNC 子目录。`,
+      message: isLocalServer
+        ? `下载目录不可用：${configured} 必须是完整的 macOS 子目录。`
+        : `下载目录不可用：${configured} 必须是完整的 Windows 盘符或 UNC 子目录。`,
     };
   }
 
-  const downloadRoot = path.win32.normalize(configured);
+  const downloadRoot = isLocalServer
+    ? path.posix.normalize(configured)
+    : path.win32.normalize(configured);
 
   try {
     if (!statSync(downloadRoot).isDirectory()) {

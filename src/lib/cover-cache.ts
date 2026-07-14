@@ -6,7 +6,7 @@
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { isSafeAbsoluteWindowsPath } from "@/lib/download-root";
+import { normalizeRuntimeDirectory } from "@/lib/download-root";
 
 export const MAX_COVER_BYTES = 12 * 1024 * 1024;
 
@@ -116,12 +116,15 @@ function getCoverCacheDirectory(): string {
   if (!configured) {
     throw new Error("COVER_CACHE_DIR 未配置，封面缓存已停止写入");
   }
-  if (!isSafeAbsoluteWindowsPath(configured)) {
+  const normalized = normalizeRuntimeDirectory(configured);
+  if (!normalized) {
     throw new Error(
-      `COVER_CACHE_DIR 必须是完整的 Windows 盘符或 UNC 子目录：${configured}`,
+      process.env.ANIME_LOCAL_SERVER_APP === "1"
+        ? `COVER_CACHE_DIR 必须是完整的 macOS 子目录：${configured}`
+        : `COVER_CACHE_DIR 必须是完整的 Windows 盘符或 UNC 子目录：${configured}`,
     );
   }
-  return path.win32.normalize(configured);
+  return normalized;
 }
 
 function ensureCoverCacheDirectory(): string {

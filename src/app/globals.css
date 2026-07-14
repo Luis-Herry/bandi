@@ -325,6 +325,10 @@ html[data-desktop-app="true"] {
   scrollbar-gutter: auto;
 }
 
+html[data-local-server-app="true"] {
+  --desktop-titlebar-shell-height: 0px;
+}
+
 html[data-desktop-app="true"] body {
   height: 100%;
   overflow: hidden;

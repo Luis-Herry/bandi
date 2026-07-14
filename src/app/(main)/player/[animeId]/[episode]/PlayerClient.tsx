@@ -48,6 +48,7 @@ interface PlayerClientProps {
   previousPlayableEpisode: number | null;
   nextPlayableEpisode: number | null;
   autoPlayOnReady: boolean;
+  canOpenExternalPlayer: boolean;
 }
 
 interface PlayerEpisodeItem {
@@ -68,6 +69,13 @@ interface SaveProgressResponse {
   watchStatus?: string;
 }
 
+interface ProgressPayload {
+  positionSeconds: number;
+  durationSeconds: number;
+}
+
+type VideoErrorKind = "network" | "decode" | "file" | "playback";
+
 interface SubtitleTrackItem {
   name: string;
   label: string;
@@ -83,6 +91,9 @@ const PLAYER_SUBTITLES_KEY = "anime-player:subtitles-enabled";
 const AUTO_PLAY_COUNTDOWN_SECONDS = 5;
 const PLAYBACK_RATES = [0.75, 1, 1.25, 1.5, 2];
 const FULLSCREEN_CONTROLS_IDLE_MS = 2200;
+const MEDIA_ERROR_NETWORK = 2;
+const MEDIA_ERROR_DECODE = 3;
+const MEDIA_ERROR_SOURCE_UNSUPPORTED = 4;
 
 export function PlayerClient({
   animeId,
@@ -97,13 +108,24 @@ export function PlayerClient({
   previousPlayableEpisode,
   nextPlayableEpisode,
   autoPlayOnReady,
+  canOpenExternalPlayer,
 }: PlayerClientProps) {
   const router = useRouter();
+  const streamUrl = useMemo(
+    () => `/api/player/stream?animeId=${animeId}&episode=${episodeNumber}`,
+    [animeId, episodeNumber],
+  );
   const theaterRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const restoredRef = useRef(false);
   const autoPlayAttemptedRef = useRef(false);
+  const compatibleAutoPlayRef = useRef(false);
+  const compatibleTaskIdRef = useRef<string | null>(null);
+  const compatibleRequestGenerationRef = useRef(0);
+  const mountedRef = useRef(true);
   const lastSavedPositionRef = useRef(initialPositionSeconds);
+  const pendingProgressRef = useRef<ProgressPayload | null>(null);
+  const progressSaveInFlightRef = useRef<Promise<boolean> | null>(null);
   const controlsHideTimerRef = useRef<number | null>(null);
   const [position, setPosition] = useState(initialPositionSeconds);
   const [duration, setDuration] = useState(initialDurationSeconds);
@@ -111,6 +133,15 @@ export function PlayerClient({
   const [saving, setSaving] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [videoError, setVideoError] = useState<string | null>(null);
+  const [videoErrorKind, setVideoErrorKind] = useState<VideoErrorKind | null>(
+    null,
+  );
+  const [videoSource, setVideoSource] = useState(streamUrl);
+  const [playbackMode, setPlaybackMode] = useState<"range" | "compatible">(
+    "range",
+  );
+  const [compatiblePending, setCompatiblePending] = useState(false);
+  const [nativeHlsSupported, setNativeHlsSupported] = useState(false);
   const [externalPending, setExternalPending] = useState(false);
   const [volume, setVolume] = useState(80);
   const [muted, setMuted] = useState(false);
@@ -131,10 +162,6 @@ export function PlayerClient({
     null,
   );
 
-  const streamUrl = useMemo(
-    () => `/api/player/stream?animeId=${animeId}&episode=${episodeNumber}`,
-    [animeId, episodeNumber],
-  );
   const detailHref =
     mediaType === "anime" ? `/anime/${animeId}` : `/cinema/${animeId}`;
   const episodeUnit = mediaType === "anime" ? "话" : "集";
@@ -193,6 +220,38 @@ export function PlayerClient({
     scheduleControlsHide();
   }, [scheduleControlsHide]);
 
+  const cancelCompatibleTaskById = useCallback(
+    async (taskId: string, keepalive = false): Promise<void> => {
+      try {
+        await fetch(`/api/player/compatible/${encodeURIComponent(taskId)}`, {
+          method: "DELETE",
+          cache: "no-store",
+          keepalive,
+        });
+      } catch {}
+    },
+    [],
+  );
+
+  const cancelActiveCompatibleTask = useCallback(
+    (keepalive = false): Promise<void> => {
+      const taskId = compatibleTaskIdRef.current;
+      compatibleTaskIdRef.current = null;
+      if (!taskId) return Promise.resolve();
+      return cancelCompatibleTaskById(taskId, keepalive);
+    },
+    [cancelCompatibleTaskById],
+  );
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      compatibleRequestGenerationRef.current += 1;
+      void cancelActiveCompatibleTask(true);
+    };
+  }, [cancelActiveCompatibleTask]);
+
   useEffect(() => {
     const handleFullscreenChange = () => {
       setIsTheaterFullscreen(document.fullscreenElement === theaterRef.current);
@@ -231,6 +290,24 @@ export function PlayerClient({
     video.muted = muted;
     video.playbackRate = playbackRate;
   }, [muted, playbackRate, volume]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    setNativeHlsSupported(
+      !!video?.canPlayType("application/vnd.apple.mpegurl"),
+    );
+  }, []);
+
+  useEffect(() => {
+    compatibleRequestGenerationRef.current += 1;
+    void cancelActiveCompatibleTask(true);
+    setVideoSource(streamUrl);
+    setPlaybackMode("range");
+    setVideoError(null);
+    setVideoErrorKind(null);
+    restoredRef.current = false;
+    autoPlayAttemptedRef.current = false;
+  }, [cancelActiveCompatibleTask, streamUrl]);
 
   useEffect(() => {
     writeStoredNumber(PLAYER_VOLUME_KEY, volume);
@@ -293,6 +370,73 @@ export function PlayerClient({
     }
   }, [selectedSubtitleUrl, subtitlesEnabled]);
 
+  const sendProgressPayload = useCallback(
+    async function sendProgressPayloadImpl(
+      payload: ProgressPayload,
+      keepalive = false,
+    ): Promise<boolean> {
+      pendingProgressRef.current = payload;
+      const inFlight = progressSaveInFlightRef.current;
+      if (inFlight) {
+        const previousSaved = await inFlight;
+        if (!previousSaved || pendingProgressRef.current !== payload) return false;
+        return sendProgressPayloadImpl(payload, keepalive);
+      }
+
+      setSaving(true);
+      const request = (async () => {
+        try {
+          const res = await fetch("/api/player/progress", {
+            method: "PATCH",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              animeId,
+              episode: episodeNumber,
+              positionSeconds: payload.positionSeconds,
+              durationSeconds: payload.durationSeconds,
+            }),
+            keepalive,
+          });
+          const data = (await res.json().catch(() => null)) as
+            | SaveProgressResponse
+            | null;
+          if (!res.ok) return false;
+
+          lastSavedPositionRef.current = payload.positionSeconds;
+          if (pendingProgressRef.current === payload) {
+            pendingProgressRef.current = null;
+          }
+          setCompleted(!!data?.completed);
+          if (typeof data?.currentEpisode === "number") {
+            window.dispatchEvent(
+              new CustomEvent("anime-progress-change", {
+                detail: { animeId, currentEpisode: data.currentEpisode },
+              }),
+            );
+          }
+          if (data?.watchStatus) {
+            window.dispatchEvent(
+              new CustomEvent("anime-watch-status-change", {
+                detail: { animeId, watchStatus: data.watchStatus },
+              }),
+            );
+          }
+          return true;
+        } catch {
+          return false;
+        }
+      })();
+      progressSaveInFlightRef.current = request;
+      try {
+        return await request;
+      } finally {
+        progressSaveInFlightRef.current = null;
+        setSaving(false);
+      }
+    },
+    [animeId, episodeNumber],
+  );
+
   const saveProgress = useCallback(
     async (force = false, keepalive = false) => {
       const video = videoRef.current;
@@ -306,63 +450,34 @@ export function PlayerClient({
           Number.isFinite(video?.duration) ? video?.duration ?? duration : duration,
         ),
       );
-      if (nextPosition <= 0 && nextDuration <= 0) return;
+      if (nextPosition <= 0 && nextDuration <= 0) return false;
       if (
         !force &&
         Math.abs(nextPosition - lastSavedPositionRef.current) <
           SAVE_INTERVAL_SECONDS
       ) {
-        return;
+        return false;
       }
-
-      lastSavedPositionRef.current = nextPosition;
-      setSaving(true);
-      try {
-        const res = await fetch("/api/player/progress", {
-          method: "PATCH",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            animeId,
-            episode: episodeNumber,
-            positionSeconds: nextPosition,
-            durationSeconds: nextDuration,
-          }),
-          keepalive,
-        });
-        const data = (await res.json().catch(() => null)) as
-          | SaveProgressResponse
-          | null;
-        if (!res.ok) return;
-
-        setCompleted(!!data?.completed);
-        if (typeof data?.currentEpisode === "number") {
-          window.dispatchEvent(
-            new CustomEvent("anime-progress-change", {
-              detail: { animeId, currentEpisode: data.currentEpisode },
-            }),
-          );
-        }
-        if (data?.watchStatus) {
-          window.dispatchEvent(
-            new CustomEvent("anime-watch-status-change", {
-              detail: { animeId, watchStatus: data.watchStatus },
-            }),
-          );
-        }
-      } finally {
-        setSaving(false);
-      }
+      return sendProgressPayload(
+        { positionSeconds: nextPosition, durationSeconds: nextDuration },
+        keepalive,
+      );
     },
-    [animeId, duration, episodeNumber, position],
+    [duration, position, sendProgressPayload],
   );
 
   useEffect(() => {
-    const persistBeforeLeaving = () => {
+    const persistProgress = () => {
       void saveProgress(true, true);
+    };
+    const persistBeforeLeaving = () => {
+      persistProgress();
+      compatibleRequestGenerationRef.current += 1;
+      void cancelActiveCompatibleTask(true);
     };
     const handleVisibilityChange = () => {
       if (document.visibilityState === "hidden") {
-        persistBeforeLeaving();
+        persistProgress();
       }
     };
 
@@ -372,7 +487,20 @@ export function PlayerClient({
       window.removeEventListener("pagehide", persistBeforeLeaving);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [saveProgress]);
+  }, [cancelActiveCompatibleTask, saveProgress]);
+
+  useEffect(() => {
+    const retryPendingProgress = () => {
+      const pending = pendingProgressRef.current;
+      if (pending) void sendProgressPayload(pending);
+    };
+    const timer = window.setInterval(retryPendingProgress, 15_000);
+    window.addEventListener("online", retryPendingProgress);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("online", retryPendingProgress);
+    };
+  }, [sendProgressPayload]);
 
   const seekBy = useCallback(
     (deltaSeconds: number) => {
@@ -395,11 +523,13 @@ export function PlayerClient({
       if (!targetEpisode || targetEpisode === episodeNumber) return;
       setAutoPlayCountdown(null);
       await saveProgress(true);
+      compatibleRequestGenerationRef.current += 1;
+      void cancelActiveCompatibleTask(true);
       router.push(
         `/player/${animeId}/${targetEpisode}${autoPlay ? "?autoplay=1" : ""}`,
       );
     },
-    [animeId, episodeNumber, router, saveProgress],
+    [animeId, cancelActiveCompatibleTask, episodeNumber, router, saveProgress],
   );
 
   useEffect(() => {
@@ -545,6 +675,126 @@ export function PlayerClient({
     }
   };
 
+  const startCompatiblePlayback = async () => {
+    if (compatiblePending) return;
+    if (!nativeHlsSupported) {
+      setVideoErrorKind("decode");
+      setVideoError("当前浏览器不支持 HLS 兼容播放，请在宿主机使用外部播放器。");
+      return;
+    }
+    setCompatiblePending(true);
+    setVideoErrorKind("decode");
+    setVideoError("正在由本地服务准备兼容播放，首次转码可能需要一点时间。");
+    const requestGeneration = compatibleRequestGenerationRef.current + 1;
+    compatibleRequestGenerationRef.current = requestGeneration;
+    await cancelActiveCompatibleTask(false);
+    try {
+      const res = await fetch("/api/player/compatible/start", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ animeId, episode: episodeNumber }),
+      });
+      const data = (await res.json().catch(() => null)) as {
+        taskId?: string;
+        playlistUrl?: string;
+        mode?: "remux" | "transcode";
+        message?: string;
+        error?: string;
+      } | null;
+      const taskId = data?.taskId;
+      if (!res.ok || !taskId || !/^[A-Za-z0-9_-]{32}$/.test(taskId)) {
+        setVideoErrorKind("playback");
+        setVideoError(data?.message ?? data?.error ?? "兼容播放准备失败，可以稍后重试。");
+        return;
+      }
+
+      if (
+        !mountedRef.current ||
+        compatibleRequestGenerationRef.current !== requestGeneration
+      ) {
+        await cancelCompatibleTaskById(taskId, true);
+        return;
+      }
+
+      compatibleTaskIdRef.current = taskId;
+      restoredRef.current = false;
+      compatibleAutoPlayRef.current = true;
+      setVideoError(null);
+      setVideoErrorKind(null);
+      setPlaybackMode("compatible");
+      setVideoSource(
+        `/api/player/compatible/${encodeURIComponent(taskId)}/playlist`,
+      );
+      showToast({
+        title: data.mode === "remux" ? "已切换兼容封装" : "已切换兼容转码",
+        description:
+          data.mode === "remux"
+            ? "视频内容保持原编码，已转换为 Safari 可读取的 HLS。"
+            : "正在由本地服务转换为 H.264 与 AAC。",
+        tone: "play",
+      });
+    } catch {
+      setVideoErrorKind("network");
+      setVideoError("无法连接 Bandi 本地服务，网络恢复后可以重试兼容播放。");
+    } finally {
+      if (mountedRef.current) setCompatiblePending(false);
+    }
+  };
+
+  const handleVideoError = async () => {
+    const video = videoRef.current;
+    const mediaErrorCode = video?.error?.code ?? 0;
+    setIsPlaying(false);
+
+    if (!navigator.onLine || mediaErrorCode === MEDIA_ERROR_NETWORK) {
+      setVideoErrorKind("network");
+      setVideoError("连接中断；恢复网络后可继续，播放进度会自动重试保存。");
+      return;
+    }
+
+    if (playbackMode === "compatible") {
+      setVideoErrorKind("playback");
+      setVideoError("兼容播放已中断，可以重新准备后继续。");
+      return;
+    }
+
+    if (
+      mediaErrorCode === MEDIA_ERROR_DECODE ||
+      mediaErrorCode === MEDIA_ERROR_SOURCE_UNSUPPORTED
+    ) {
+      try {
+        const check = await fetch(streamUrl, {
+          headers: { Range: "bytes=0-0" },
+          cache: "no-store",
+        });
+        if (check.status === 404 || check.status === 410) {
+          const data = (await check.json().catch(() => null)) as {
+            message?: string;
+          } | null;
+          setVideoErrorKind("file");
+          setVideoError(data?.message ?? "视频文件已不在原位置，请检查宿主机媒体目录。");
+          return;
+        }
+      } catch {
+        setVideoErrorKind("network");
+        setVideoError("无法读取宿主机上的视频文件，请检查网络连接。");
+        return;
+      }
+      setVideoErrorKind("decode");
+      setVideoError(
+        nativeHlsSupported
+          ? "Safari 无法解码当前封装或编码，可以切换兼容播放。"
+          : canOpenExternalPlayer
+            ? "浏览器无法解码当前文件，请使用外部播放器。"
+            : "当前浏览器无法解码这个文件。请改用支持 HLS 的 Safari。",
+      );
+      return;
+    }
+
+    setVideoErrorKind("playback");
+    setVideoError("播放被中断，可以稍后重试。");
+  };
+
   const handleLoadedMetadata = () => {
     const video = videoRef.current;
     if (!video) return;
@@ -564,6 +814,17 @@ export function PlayerClient({
       setPosition(resumePosition);
     }
     restoredRef.current = true;
+    if (compatibleAutoPlayRef.current) {
+      compatibleAutoPlayRef.current = false;
+      video
+        .play()
+        .then(() => setIsPlaying(true))
+        .catch(() => {
+          setVideoErrorKind("playback");
+          setVideoError("兼容视频已经就绪，点一下播放按钮即可继续。");
+        });
+      return;
+    }
     if (autoPlayOnReady && !autoPlayAttemptedRef.current) {
       autoPlayAttemptedRef.current = true;
       video
@@ -613,14 +874,19 @@ export function PlayerClient({
         await video.play();
         setIsPlaying(true);
       } catch {
-        setVideoError("浏览器暂时无法开始播放，可以再点一次或用外部播放器打开。");
+        setVideoErrorKind("playback");
+        setVideoError(
+          canOpenExternalPlayer
+            ? "浏览器暂时无法开始播放，可以再点一次或使用外部播放器。"
+            : "浏览器暂时无法开始播放，可以再点一次。",
+        );
       }
       return;
     }
 
     video.pause();
     setIsPlaying(false);
-  }, []);
+  }, [canOpenExternalPlayer]);
 
   const handleSeekChange = (nextValue: number) => {
     const video = videoRef.current;
@@ -798,22 +1064,24 @@ export function PlayerClient({
               >
                 <a href={detailHref}>详情页</a>
               </Button>
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                leftIcon={
-                  externalPending ? (
-                    <Loader2 size={13} className="animate-spin" />
-                  ) : (
-                    <ExternalLink size={13} />
-                  )
-                }
-                onClick={openExternalPlayer}
-                disabled={externalPending}
-              >
-                外部播放器
-              </Button>
+              {canOpenExternalPlayer && (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  leftIcon={
+                    externalPending ? (
+                      <Loader2 size={13} className="animate-spin" />
+                    ) : (
+                      <ExternalLink size={13} />
+                    )
+                  }
+                  onClick={openExternalPlayer}
+                  disabled={externalPending}
+                >
+                  外部播放器
+                </Button>
+              )}
             </div>
           </header>
 
@@ -831,7 +1099,7 @@ export function PlayerClient({
             <video
               ref={videoRef}
               className="h-full w-full bg-black object-contain"
-              src={streamUrl}
+              src={videoSource}
               poster={shouldShowVideoPoster ? coverUrl ?? undefined : undefined}
               preload="metadata"
               playsInline
@@ -844,11 +1112,7 @@ export function PlayerClient({
                 void saveProgress(true);
               }}
               onEnded={handleEnded}
-              onError={() =>
-                setVideoError(
-                  "浏览器无法播放这个文件格式，可以用外部播放器打开。",
-                )
-              }
+              onError={() => void handleVideoError()}
             >
               {subtitlesEnabled && selectedSubtitleUrl && (
                 <track
@@ -887,7 +1151,25 @@ export function PlayerClient({
                     size={15}
                     className="mt-0.5 shrink-0 text-[color:var(--status-error)]"
                   />
-                  <span>{videoError}</span>
+                  <div className="min-w-0 flex-1">
+                    <span>{videoError}</span>
+                    {(videoErrorKind === "decode" ||
+                      (videoErrorKind === "playback" &&
+                        playbackMode === "compatible")) &&
+                      nativeHlsSupported && (
+                        <button
+                          type="button"
+                          className="mt-2 inline-flex items-center gap-1.5 rounded-[6px] bg-[color:var(--accent)] px-2.5 py-1.5 text-[11px] font-semibold text-[color:var(--accent-contrast)] disabled:cursor-wait disabled:opacity-60"
+                          onClick={() => void startCompatiblePlayback()}
+                          disabled={compatiblePending}
+                        >
+                          {compatiblePending && (
+                            <Loader2 size={12} className="animate-spin" />
+                          )}
+                          {compatiblePending ? "正在准备" : "兼容播放"}
+                        </button>
+                      )}
+                  </div>
                 </div>
               </div>
             )}

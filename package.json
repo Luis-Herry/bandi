@@ -6,13 +6,13 @@
   "license": "GPL-3.0-only",
   "private": true,
   "main": "desktop/main.cjs",
-  "homepage": "https://github.com/Luis-Herry/anime-tracker-desktop#readme",
+  "homepage": "https://github.com/Luis-Herry/bandi#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Luis-Herry/anime-tracker-desktop.git"
+    "url": "git+https://github.com/Luis-Herry/bandi.git"
   },
   "bugs": {
-    "url": "https://github.com/Luis-Herry/anime-tracker-desktop/issues"
+    "url": "https://github.com/Luis-Herry/bandi/issues"
   },
   "keywords": [
     "anime",
@@ -26,10 +26,20 @@
     "dev": "node --use-env-proxy node_modules/next/dist/bin/next dev",
     "build": "next build",
     "desktop:prepare": "node scripts/prepare-standalone.mjs && node scripts/generate-third-party-licenses.mjs",
+    "media:verify-ffmpeg": "node scripts/verify-ffmpeg-runtime.mjs",
+    "media:source-offer": "node --use-env-proxy scripts/prepare-ffmpeg-source-offer.mjs",
     "desktop:start": "node scripts/desktop-dev-start.mjs",
     "desktop:check-build": "node scripts/desktop-dev-start.mjs --check",
     "desktop:pack": "npm run build && npm run desktop:prepare && electron-builder --dir",
     "desktop:dist": "npm run build && npm run desktop:prepare && electron-builder --win",
+    "desktop:dist:local-ffmpeg": "npm run media:verify-ffmpeg && npm run build && npm run desktop:prepare && electron-builder --config desktop/electron-builder-local.cjs --win",
+    "local-server:assets:x64": "node scripts/prepare-macos-assets.mjs --arch=x64",
+    "local-server:assets:arm64": "node scripts/prepare-macos-assets.mjs --arch=arm64",
+    "local-server:dist:x64": "node scripts/build-macos-local.mjs --arch=x64",
+    "local-server:dist:arm64": "node scripts/build-macos-local.mjs --arch=arm64",
+    "local-server:dist:x64:local-ffmpeg": "node scripts/build-macos-local.mjs --arch=x64 --local-ffmpeg",
+    "local-server:dist:arm64:local-ffmpeg": "node scripts/build-macos-local.mjs --arch=arm64 --local-ffmpeg",
+    "local-server:smoke": "node scripts/smoke-local-web.mjs",
     "test": "tsx --test tests/*.test.ts",
     "start": "node --use-env-proxy node_modules/next/dist/bin/next start",
     "db:push": "drizzle-kit push --force",
@@ -82,6 +92,7 @@
     "drizzle-kit": "^0.31.10",
     "electron": "^42.3.0",
     "electron-builder": "^26.8.1",
+    "ffmpeg-static": "5.3.0",
     "tsx": "^4.22.3",
     "typescript": "^5.9.3"
   },

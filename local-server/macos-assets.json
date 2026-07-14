@@ -1,0 +1,29 @@
+{
+  "node": {
+    "version": "24.14.1",
+    "x64": {
+      "url": "https://nodejs.org/dist/v24.14.1/node-v24.14.1-darwin-x64.tar.gz",
+      "sha256": "2526230ad7d922be82d4fdb1e7ee1e84303e133e3b4b0ec4c2897ab31de0253d"
+    },
+    "arm64": {
+      "url": "https://nodejs.org/dist/v24.14.1/node-v24.14.1-darwin-arm64.tar.gz",
+      "sha256": "25495ff85bd89e2d8a24d88566d7e2f827c6b0d3d872b2cebf75371f93fcb1fe"
+    }
+  },
+  "qbittorrent": {
+    "x64": {
+      "version": "5.0.5",
+      "url": "https://sourceforge.net/projects/qbittorrent/files/qbittorrent-mac/qbittorrent-5.0.5/qbittorrent-5.0.5.dmg/download",
+      "sha256": "7285e98b5ef4b9a227247dcd933f1a556bfc1ff10901fc7aedb0c4b7ad082814",
+      "sourceUrl": "https://github.com/qbittorrent/qBittorrent/archive/refs/tags/release-5.0.5.tar.gz",
+      "sourceSha256": "79b030565fa392a6bc267b24f538d7b8e762f607ee734b3d459b19c61c168b73"
+    },
+    "arm64": {
+      "version": "5.2.3",
+      "url": "https://sourceforge.net/projects/qbittorrent/files/qbittorrent-mac/qbittorrent-5.2.3/qbittorrent-5.2.3.dmg/download",
+      "sha256": "9e37f6c7ff848c7bdd3c10167614c0cb78c00e2ddcc323f1ad3ac6c008a0481f",
+      "sourceUrl": "https://github.com/qbittorrent/qBittorrent/archive/refs/tags/release-5.2.3.tar.gz",
+      "sourceSha256": "a5f540cdfb0053f0ce1a1c62ccd92d08214f16bcb2c512569ec54d81531e541f"
+    }
+  }
+}

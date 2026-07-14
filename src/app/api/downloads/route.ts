@@ -30,12 +30,15 @@ import {
   type QbitTorrent,
 } from "@/lib/qbit";
 import { extractEpisodeNumber } from "@/lib/rss";
+import { requireRouteUser } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
 type DbStatus = "pending" | "downloading" | "completed" | "failed";
 
 export async function GET() {
+  const user = await requireRouteUser();
+  if (user instanceof Response) return user;
   const downloadRoot = resolveDownloadRoot();
   if (!downloadRoot.ok) {
     return downloadDirectoryUnavailable(downloadRoot.message);
@@ -368,6 +371,8 @@ function promoteStartedByDownloadedEpisode(episodeId: number) {
 }
 
 export async function POST(req: Request) {
+  const user = await requireRouteUser();
+  if (user instanceof Response) return user;
   const downloadRoot = resolveDownloadRoot();
   if (!downloadRoot.ok) {
     return downloadDirectoryUnavailable(downloadRoot.message);

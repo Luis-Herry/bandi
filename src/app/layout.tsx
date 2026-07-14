@@ -42,6 +42,7 @@ export default async function RootLayout({
 }) {
   const theme = await getUserTheme();
   const isDesktop = process.env.ANIME_DESKTOP_APP === "1";
+  const isLocalServer = process.env.ANIME_LOCAL_SERVER_APP === "1";
 
   return (
     // suppressHydrationWarning: 容忍浏览器扩展（通义、沉浸式翻译、暗色主题插件等）
@@ -51,6 +52,7 @@ export default async function RootLayout({
       lang="zh-CN"
       data-theme={theme}
       data-desktop-app={isDesktop ? "true" : undefined}
+      data-local-server-app={isLocalServer ? "true" : undefined}
       className={`${inter.variable} ${notoSansSC.variable}`}
       suppressHydrationWarning
     >

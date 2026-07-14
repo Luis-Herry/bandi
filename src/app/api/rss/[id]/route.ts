@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { rssSources } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { requireRouteUser } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -9,6 +10,8 @@ export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const user = await requireRouteUser();
+  if (user instanceof Response) return user;
   const { id } = await params;
   const rowId = Number(id);
   if (!Number.isFinite(rowId))
@@ -36,6 +39,8 @@ export async function DELETE(
   _req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const user = await requireRouteUser();
+  if (user instanceof Response) return user;
   const { id } = await params;
   const rowId = Number(id);
   if (!Number.isFinite(rowId))

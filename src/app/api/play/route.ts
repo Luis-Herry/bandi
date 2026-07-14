@@ -7,18 +7,22 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 /**
- * 用 Windows 文件关联打开本地文件。走 cmd /c start 让系统决定播放器。
- * spawn 数组参数 + windowsVerbatimArguments + 一次性 ""（窗口标题占位）防止
- * 路径中的空格 / 引号 / Unicode 被错误解析。
+ * 用宿主系统的文件关联打开本地文件。Windows 走 cmd /c start，macOS 走
+ * /usr/bin/open；参数均通过 spawn 数组传递，避免路径中的空格或 Unicode
+ * 被重新解释。
  */
 function openWithDefaultApp(absPath: string): { ok: boolean; error?: string } {
-  if (process.platform !== "win32") {
+  const command = process.platform === "win32" ? "cmd" : "/usr/bin/open";
+  const args = process.platform === "win32"
+    ? ["/c", "start", "", absPath]
+    : [absPath];
+  if (process.platform !== "win32" && process.platform !== "darwin") {
     return { ok: false, error: "platform_unsupported" };
   }
   try {
     const child = spawn(
-      "cmd",
-      ["/c", "start", "", absPath],
+      command,
+      args,
       {
         detached: true,
         stdio: "ignore",
@@ -42,11 +46,25 @@ function openWithDefaultApp(absPath: string): { ok: boolean; error?: string } {
  * - 若 episode 缺省，则取 userAnime.currentEpisode；未开始时降级到 1。
  * - 从 download_queue 找该 (animeId, episodeId) 且 status=completed 的最新一条。
  * - 从 magnetUrl 提取 infohash → qBit API 取文件列表 + save_path。
- * - 选最大体积的视频文件作为目标，spawn cmd 用系统默认关联程序打开。
+ * - 选最大体积的视频文件作为目标，用宿主系统默认关联程序打开。
  */
 export async function POST(req: Request) {
   const user = await requireUser().catch((r) => r as Response);
   if (user instanceof Response) return user;
+
+  if (
+    process.platform === "darwin" &&
+    process.env.ANIME_LOCAL_SERVER_APP === "1" &&
+    user.isLocalHost !== true
+  ) {
+    return NextResponse.json(
+      {
+        error: "host_action_required",
+        message: "系统播放器只能由运行 Bandi 的 Mac 打开。请在 Mac 上执行此操作。",
+      },
+      { status: 403 },
+    );
+  }
 
   const body = (await req.json().catch(() => ({}))) as {
     animeId?: number;

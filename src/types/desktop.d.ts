@@ -12,12 +12,23 @@ declare global {
     closeToTray: boolean;
     onboardingComplete: boolean;
     onboardingMode: DesktopOnboardingMode;
+    runtime?: "windows-desktop" | "macos-local-web";
+    lanAccess?: boolean;
+    lanUrls?: string[];
+    pairedDevices?: Array<{
+      id: string;
+      name: string;
+      createdAt: number;
+      lastSeenAt: number;
+    }>;
+    pairing?: { active: true; expiresAt: number } | null;
   }
 
   interface DesktopSettingsSaveInput {
     downloadDir: string;
     closeToTray: boolean;
     completeOnboarding?: boolean;
+    lanAccess?: boolean;
   }
 
   interface DesktopSettingsSaveResult {
@@ -90,6 +101,14 @@ declare global {
       onDownloadServiceStateChange(
         callback: (state: DesktopDownloadServiceState) => void,
       ): () => void;
+      createPairing?(): Promise<{
+        ok: boolean;
+        error?: string;
+        code?: string;
+        expiresAt?: number;
+        urls?: string[];
+      }>;
+      revokeDevice?(deviceId: string): Promise<{ ok: boolean }>;
     };
   }
 }

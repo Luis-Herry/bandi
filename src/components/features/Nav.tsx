@@ -28,6 +28,7 @@ interface NavProps {
   currentTheme: UserTheme;
   notifications: NavNotificationSummary;
   isDesktop?: boolean;
+  isManagedLocal?: boolean;
 }
 
 const TEXT = {
@@ -105,6 +106,7 @@ export function Nav({
   currentTheme,
   notifications,
   isDesktop = false,
+  isManagedLocal = false,
 }: NavProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -237,7 +239,7 @@ export function Nav({
           {username ?? TEXT.user}
         </div>
         <div className="mt-0.5 text-[10px] text-[color:var(--text-muted)]">
-          {isDesktop ? "本机资料" : TEXT.account}
+          {isManagedLocal ? "本机资料" : TEXT.account}
         </div>
       </div>
       <DropdownMenu.Item
@@ -274,7 +276,7 @@ export function Nav({
           </span>
         </a>
       </DropdownMenu.Item>
-      {!isDesktop && (
+      {!isManagedLocal && (
         <DropdownMenu.Item
           onSelect={handleSignOut}
           className={cn(

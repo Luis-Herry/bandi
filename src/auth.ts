@@ -14,7 +14,7 @@
  * The middleware imports `auth.config.ts` directly so it doesn't drag
  * better-sqlite3 / bcryptjs into the Edge bundle.
  */
-import NextAuth, { type DefaultSession } from "next-auth";
+import NextAuth, { type DefaultSession, type User } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import "next-auth/jwt";
 import { timingSafeEqual } from "node:crypto";
@@ -22,14 +22,32 @@ import bcrypt from "bcryptjs";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { users } from "@/db/schema";
-import { authConfig } from "@/auth.config";
+import {
+  authConfig,
+  createSessionDeviceKey,
+  revalidateLocalDeviceToken,
+} from "@/auth.config";
+import {
+  authorizeLocalHost,
+  isLocalDeviceActive,
+  pairLocalDevice,
+} from "@/lib/local-server-control";
 
 declare module "next-auth" {
   interface Session {
     user: {
       id: string;
       username: string;
+      isLocalHost?: boolean;
+      sessionDeviceKey?: string;
+      localSessionValid?: boolean;
     } & DefaultSession["user"];
+  }
+
+  interface User {
+    localHost?: boolean;
+    localDeviceId?: string;
+    localRevision?: number;
   }
 }
 
@@ -37,6 +55,11 @@ declare module "next-auth/jwt" {
   interface JWT {
     uid?: string;
     username?: string;
+    localHost?: boolean;
+    localDeviceId?: string;
+    localRevision?: number;
+    localCheckedAt?: number;
+    localSessionValid?: boolean;
   }
 }
 
@@ -53,6 +76,12 @@ function findUser(username: string) {
 }
 
 const isDesktopApp = process.env.ANIME_DESKTOP_APP === "1";
+const isLocalServerApp = process.env.ANIME_LOCAL_SERVER_APP === "1";
+const isManagedLocalApp = isDesktopApp || isLocalServerApp;
+const localRecheckMs = Math.max(
+  5000,
+  Number(process.env.LOCAL_SESSION_RECHECK_MS || 30000),
+);
 
 function hasValidDesktopToken(request: Request) {
   if (!isDesktopApp) return false;
@@ -70,7 +99,7 @@ export const {
 } = NextAuth({
   ...authConfig,
   providers: [
-    ...(!isDesktopApp
+    ...(!isManagedLocalApp
       ? [
           Credentials({
             name: "credentials",
@@ -116,5 +145,94 @@ export const {
           }),
         ]
       : []),
+    ...(isLocalServerApp
+      ? [
+          Credentials({
+            id: "local-session",
+            name: "Bandi Local Host",
+            credentials: {
+              bootstrapToken: { label: "bootstrapToken", type: "password" },
+            },
+            async authorize(raw) {
+              const bootstrapToken =
+                typeof raw?.bootstrapToken === "string"
+                  ? raw.bootstrapToken.trim()
+                  : "";
+              if (!bootstrapToken) return null;
+              const accepted = await authorizeLocalHost(bootstrapToken);
+              if (!accepted.ok) return null;
+              const username =
+                process.env.LOCAL_SERVER_BOOTSTRAP_USER?.trim() || "admin";
+              const row = findUser(username);
+              if (!row) return null;
+              return { id: row.id, name: row.username, localHost: true };
+            },
+          }),
+          Credentials({
+            id: "local-pair",
+            name: "Bandi LAN Pairing",
+            credentials: {
+              pairingCode: { label: "pairingCode", type: "text" },
+              deviceName: { label: "deviceName", type: "text" },
+            },
+            async authorize(raw) {
+              const code =
+                typeof raw?.pairingCode === "string" ? raw.pairingCode.trim() : "";
+              const deviceName =
+                typeof raw?.deviceName === "string" ? raw.deviceName.trim() : "";
+              const paired = await pairLocalDevice(code, deviceName);
+              if (!paired.ok || !paired.device) return null;
+              const username =
+                process.env.LOCAL_SERVER_BOOTSTRAP_USER?.trim() || "admin";
+              const row = findUser(username);
+              if (!row) return null;
+              return {
+                id: row.id,
+                name: row.username,
+                localDeviceId: paired.device.id,
+                localRevision: paired.device.revision,
+              };
+            },
+          }),
+        ]
+      : []),
   ],
+  callbacks: {
+    async jwt({ token, user }) {
+      if (user) {
+        const localUser = user as User;
+        token.uid = user.id as string;
+        token.username = user.name ?? undefined;
+        token.localHost = localUser.localHost === true;
+        token.localDeviceId = localUser.localDeviceId;
+        token.localRevision = localUser.localRevision;
+        token.localCheckedAt = Date.now();
+        token.localSessionValid = true;
+      }
+      await revalidateLocalDeviceToken(token, {
+        enabled: isLocalServerApp,
+        now: Date.now(),
+        recheckMs: localRecheckMs,
+        isDeviceActive: isLocalDeviceActive,
+      });
+      return token;
+    },
+    async session({ session, token }) {
+      if (token.uid) {
+        session.user.id = token.uid;
+        session.user.username = token.username ?? "";
+        session.user.name = token.username ?? session.user.name ?? "";
+      }
+      session.user.isLocalHost = token.localHost === true;
+      session.user.sessionDeviceKey = token.uid
+        ? await createSessionDeviceKey({
+            userId: token.uid,
+            isLocalHost: token.localHost === true,
+            localDeviceId: token.localDeviceId,
+          })
+        : undefined;
+      session.user.localSessionValid = token.localSessionValid !== false;
+      return session;
+    },
+  },
 });

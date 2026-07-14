@@ -9,7 +9,7 @@ import {
   buildSeasonalBrowseItems,
   type SeasonalBrowseItem,
 } from "@/lib/db-helpers/browse";
-import { getCurrentUser } from "@/lib/session";
+import { requireRouteUser } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 const POPULAR_LIMIT = 4;
@@ -28,14 +28,8 @@ interface RecommendationItem {
 }
 
 export async function GET() {
-  const user = await getCurrentUser();
-  if (!user) {
-    return NextResponse.json({
-      continueWatching: [],
-      todayUpdates: [],
-      popular: [],
-    });
-  }
+  const user = await requireRouteUser();
+  if (user instanceof Response) return user;
   const seen = new Set<string>();
 
   const continueWatching: RecommendationItem[] = getContinueWatching(

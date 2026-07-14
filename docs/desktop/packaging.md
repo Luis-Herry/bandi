@@ -1,17 +1,18 @@
 # Desktop Packaging
 
-This is the canonical Windows Electron product repository as of 2026-07-12. The old Web repository is frozen as a read-only historical source and does not provide live runtime data.
+This is the canonical Bandi repository for the Windows Electron product and macOS Local Web distribution. The old Web repository is frozen as a read-only historical source and does not provide live runtime data.
 
 ## Repository And Release
 
-- Repository: https://github.com/Luis-Herry/anime-tracker-desktop
+- Repository: https://github.com/Luis-Herry/bandi
 - Visibility: public
-- Latest GitHub release: https://github.com/Luis-Herry/anime-tracker-desktop/releases/tag/v0.1.4
-- Current local build: `0.1.5`
+- Latest GitHub release: https://github.com/Luis-Herry/bandi/releases/tag/v0.1.5
+- Latest release title: `Bandi 0.1.5`
+- Current release version: `0.1.5`
 - Local installer: `release/追番中心-Setup-0.1.5-x64.exe`
 - Local portable build: `release/追番中心-0.1.5-x64-portable.exe`
-- Latest release installer asset: `Bandi-Setup-0.1.4-x64.exe`
-- Latest release portable asset: `Bandi-0.1.4-x64-portable.exe`
+- Latest release installer asset: `Bandi-Setup-0.1.5-x64.exe`
+- Latest release portable asset: `Bandi-0.1.5-x64-portable.exe`
 
 `electron-builder` 在本地 `release/` 目录生成带中文产品名的文件；发布到 GitHub Release 时使用上面的 ASCII 附件名，避免托管平台净化文件名后与校验清单不一致。
 
@@ -65,13 +66,29 @@ npm run desktop:pack
 npm run desktop:dist
 npm run desktop:start
 npm run desktop:check-build
+npm run local-server:dist:x64
+npm run local-server:dist:arm64
 ```
 
 `desktop:dist` builds Next standalone output, copies `public/` and `.next/static/` into the standalone server folder, then creates an NSIS installer exe and a portable Windows exe in `release/`.
 
+公开的 Windows Desktop 与 macOS Local Web 分发包不捆绑 FFmpeg 或 `ffmpeg-static`。兼容播放需要时，Bandi 会发现宿主系统已经安装的 FFmpeg：Windows 检查 PATH 与 WinGet Links，macOS 检查 PATH 与 Homebrew 常用路径；管理员也可以同时提供经过 SHA-256 固定的显式路径。系统组件缺失或校验失败时只停用兼容播放，原文件 Range 播放与外部播放器入口继续可用。
+
 `desktop:start` 面向本地开发快捷方式。它对 `src/`、根配置、依赖清单和 `.env*` 计算内容 SHA-256，校验 standalone server、两份一致的 `BUILD_ID`、server 运行树和关键 manifest；输入变化、文件删除或产物残缺时才执行 Next build。build 前后输入指纹不一致会停止启动，避免把编译期间的新改动错误标成已构建。`desktop:prepare` 对 `public/` 和 `.next/static/` 做镜像同步，已删除资源不会残留到 standalone。
 
 The portable exe self-extracts on launch, so its first launch can be noticeably slower than the installed build. The installer is the recommended daily-use artifact.
+
+## macOS Local Web Packaging
+
+- `local-server:dist:x64` 必须在 Intel Mac 上执行；`local-server:dist:arm64` 必须在 Apple Silicon Mac 上执行。脚本会拒绝宿主架构与目标架构不一致的构建，避免把错误架构的 `better-sqlite3` 放进安装包。
+- 两个构建都生成 DMG 与 ZIP，最低系统版本为 macOS 13。输出分别进入 `release/macos-x64/` 与 `release/macos-arm64/`。
+- 构建脚本下载并校验 Node.js v24.14.1、当前架构的官方 qBittorrent DMG 和对应源码归档。所有 SHA-256 固定在 `local-server/macos-assets.json`；`vendor/macos/` 是本机构建缓存，已从 Git 排除。
+- Intel 包使用 qBittorrent v5.0.5，ARM64 包使用 v5.2.3。运行时把官方 `.app` 从随包 DMG 复制到当前用户的 Bandi 数据目录，不要求管理员权限，不修改 Gatekeeper quarantine 标记，也不改用户已有 qBittorrent。
+- Bandi 默认把 Next 绑定到 `127.0.0.1`。用户在设置中开启局域网访问后，启动器重启 Next 并绑定 `0.0.0.0`；iPhone/iPad 仍需六位配对码，连续八次失败会让当前配对码失效。
+- 本机浏览器通过 URL fragment 中的单次令牌建立会话。fragment 不会进入 HTTP 请求或服务日志，客户端提交后立即从地址栏清除。qBittorrent 凭据和内部控制令牌只存在于启动器配置或子进程环境中。
+- Apple 签名凭据不写入仓库。开发包可用于社区真机验证；公开发布前需要用维护者的 Developer ID Application 完成签名和 notarization，并复查 stapled ticket。
+
+社区真机验证步骤见 `docs/desktop/macos-community-verification.md`。macOS Intel x64、Apple Silicon ARM64 与 iOS/iPadOS Safari 仍待社区真机验证。Windows 能完成的共享验证包括 `npm test`、TypeScript、Next build、资产哈希、配置生成、鉴权边界和包结构静态检查；Mach-O 架构、Gatekeeper、原生目录选择、qBittorrent 启动和 Safari 播放必须分别在两种 Mac 真机确认，iOS/iPadOS Safari 也要单独回传局域网配对与播放结果。
 
 ## App Icon Assets
 

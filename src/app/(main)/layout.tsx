@@ -8,6 +8,7 @@ import {
   getNavNotifications,
 } from "@/lib/nav-notifications";
 import { getUserTheme } from "@/lib/theme";
+import { redirect } from "next/navigation";
 
 export default async function MainLayout({
   children,
@@ -15,9 +16,14 @@ export default async function MainLayout({
   children: React.ReactNode;
 }) {
   const session = await auth();
+  if (!session?.user?.id || session.user.localSessionValid === false) {
+    redirect("/login");
+  }
   const username = session?.user?.username ?? session?.user?.name ?? null;
   const currentTheme = await getUserTheme();
   const isDesktop = process.env.ANIME_DESKTOP_APP === "1";
+  const isLocalServer = process.env.ANIME_LOCAL_SERVER_APP === "1";
+  const isManagedLocal = isDesktop || isLocalServer;
   const notifications = session?.user?.id
     ? getNavNotifications(session.user.id)
     : EMPTY_NAV_NOTIFICATIONS;
@@ -30,9 +36,10 @@ export default async function MainLayout({
           currentTheme={currentTheme}
           notifications={notifications}
           isDesktop={isDesktop}
+          isManagedLocal={isManagedLocal}
         />
         <ToastHost />
-        {isDesktop && <DesktopDownloadServiceNotice />}
+        {isManagedLocal && <DesktopDownloadServiceNotice />}
         {isDesktop && <div className="desktop-nav-spacer" aria-hidden />}
         {/* Web 继续由页面内容延伸到透明导航后方；桌面端把滚动区限定在导航下方。 */}
         <main

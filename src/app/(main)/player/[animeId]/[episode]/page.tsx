@@ -196,6 +196,9 @@ export default async function PlayerPage({ params, searchParams }: PageProps) {
       previousPlayableEpisode={navigation.previousPlayableEpisode}
       nextPlayableEpisode={navigation.nextPlayableEpisode}
       autoPlayOnReady={resolvedSearchParams?.autoplay === "1"}
+      canOpenExternalPlayer={
+        process.env.ANIME_LOCAL_SERVER_APP !== "1" || user.isLocalHost
+      }
     />
   );
 }

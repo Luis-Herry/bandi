@@ -47,7 +47,7 @@ test("desktop qBit client keeps the embedded 8080 route and web fallback", () =>
   assert.match(source, /const DEFAULT_QBIT_URLS = \[\s*"http:\/\/localhost:8080"/);
   assert.match(source, /"http:\/\/127\.0\.0\.1:18080"/);
   assert.match(source, /const isDesktopApp = process\.env\.ANIME_DESKTOP_APP === "1"/);
-  assert.match(source, /isDesktopApp\).*DEFAULT_QBIT_URLS\[0\]/s);
+  assert.match(source, /isManagedLocalApp\).*DEFAULT_QBIT_URLS\[0\]/s);
   assert.match(source, /isLocalDefaultWebUiUrl/);
 });
 

@@ -21,6 +21,7 @@
 /build
 /release
 /dist
+/vendor/macos/
 
 # misc
 .DS_Store
@@ -44,6 +45,7 @@ codex-next-start.log
 .tmp-*
 tmp-*.png
 .desktop-verify/
+.local-web-smoke/
 docs/handoff/mouse-panel-monitor.log
 docs/handoff/watch-main-cpl.ps1
 

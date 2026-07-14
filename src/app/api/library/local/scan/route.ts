@@ -4,7 +4,7 @@
  */
 
 import { NextResponse } from "next/server";
-import { getCurrentUser } from "@/lib/session";
+import { requireLocalHostRouteUser } from "@/lib/session";
 import {
   getAnimeLibraryRoots,
   importScannedAnimeTitles,
@@ -15,18 +15,14 @@ import {
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const user = await getCurrentUser();
-  if (!user) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  }
+  const user = await requireLocalHostRouteUser();
+  if (user instanceof Response) return user;
   return NextResponse.json({ roots: getAnimeLibraryRoots() });
 }
 
 export async function POST(req: Request) {
-  const user = await getCurrentUser();
-  if (!user) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  }
+  const user = await requireLocalHostRouteUser();
+  if (user instanceof Response) return user;
 
   const raw = (await req.json().catch(() => ({}))) as {
     roots?: unknown;

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { rssSources, type RssFilters } from "@/db/schema";
+import { requireRouteUser } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -12,11 +13,15 @@ interface RssBody {
 }
 
 export async function GET() {
+  const user = await requireRouteUser();
+  if (user instanceof Response) return user;
   const rows = db.select().from(rssSources).all();
   return NextResponse.json({ items: rows });
 }
 
 export async function POST(req: Request) {
+  const user = await requireRouteUser();
+  if (user instanceof Response) return user;
   const body = (await req.json().catch(() => ({}))) as RssBody;
   if (!body.name || !body.url) {
     return NextResponse.json(

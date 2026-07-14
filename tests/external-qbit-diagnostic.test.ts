@@ -1,8 +1,39 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { registerHooks } from "node:module";
+import path from "node:path";
 import { test } from "node:test";
+import { pathToFileURL } from "node:url";
 
 import { diagnoseExternalQbit } from "../src/lib/qbit-external-diagnostic";
+
+type RouteUser = Response | {
+  id: string;
+  username: string;
+  isLocalHost: boolean;
+};
+
+const routeState = globalThis as typeof globalThis & {
+  __bandiExternalQbitRouteUser?: RouteUser;
+  __bandiExternalQbitRouteCalls?: number;
+};
+const sessionMockUrl = pathToFileURL(
+  path.resolve("tests/fixtures/external-qbit-session.mjs"),
+).href;
+const diagnosticMockUrl = pathToFileURL(
+  path.resolve("tests/fixtures/external-qbit-diagnostic.mjs"),
+).href;
+registerHooks({
+  resolve(specifier, context, nextResolve) {
+    if (specifier === "@/lib/session") {
+      return { url: sessionMockUrl, shortCircuit: true };
+    }
+    if (specifier === "@/lib/qbit-external-diagnostic") {
+      return { url: diagnosticMockUrl, shortCircuit: true };
+    }
+    return nextResolve(specifier, context);
+  },
+});
 
 test("external qBit diagnostic uses fixed read-only loopback endpoints", async () => {
   const calls: Array<{ url: string; init?: RequestInit }> = [];
@@ -74,7 +105,7 @@ test("external qBit diagnostic rejects redirects", async () => {
   assert.equal(result.authRequired, undefined);
 });
 
-test("external qBit route is desktop-gated and settings expose an on-demand probe", async () => {
+test("external qBit route requires full auth before the host-only diagnostic", async () => {
   const route = readFileSync(
     "src/app/api/downloads/qbit/external-status/route.ts",
     "utf8",
@@ -84,20 +115,42 @@ test("external qBit route is desktop-gated and settings expose an on-demand prob
     "utf8",
   );
   assert.match(route, /ANIME_DESKTOP_APP !== "1"/);
+  assert.match(route, /const user = await requireRouteUser\(\)/);
   assert.match(settings, /外部 qBittorrent 兼容诊断/);
   assert.match(settings, /只读检测本机 18080/);
   assert.match(settings, /\/api\/downloads\/qbit\/external-status/);
 
   const previousDesktopMode = process.env.ANIME_DESKTOP_APP;
-  delete process.env.ANIME_DESKTOP_APP;
+  process.env.ANIME_DESKTOP_APP = "1";
   try {
     const { GET } = await import(
       "../src/app/api/downloads/qbit/external-status/route"
     );
-    const response = await GET();
-    assert.equal(response.status, 404);
-    assert.equal((await response.json()).error, "desktop_only");
+    routeState.__bandiExternalQbitRouteCalls = 0;
+    routeState.__bandiExternalQbitRouteUser = new Response("unauthorized", {
+      status: 401,
+    });
+    const denied = await GET();
+    assert.equal(denied.status, 401);
+    assert.equal(routeState.__bandiExternalQbitRouteCalls, 0);
+
+    routeState.__bandiExternalQbitRouteUser = {
+      id: "owner",
+      username: "admin",
+      isLocalHost: true,
+    };
+    const accepted = await GET();
+    assert.equal(accepted.status, 200);
+    assert.equal(routeState.__bandiExternalQbitRouteCalls, 1);
+
+    delete process.env.ANIME_DESKTOP_APP;
+    const desktopOnly = await GET();
+    assert.equal(desktopOnly.status, 404);
+    assert.equal((await desktopOnly.json()).error, "desktop_only");
+    assert.equal(routeState.__bandiExternalQbitRouteCalls, 1);
   } finally {
+    delete routeState.__bandiExternalQbitRouteUser;
+    delete routeState.__bandiExternalQbitRouteCalls;
     if (previousDesktopMode === undefined) delete process.env.ANIME_DESKTOP_APP;
     else process.env.ANIME_DESKTOP_APP = previousDesktopMode;
   }

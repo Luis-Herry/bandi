@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { runCheckUpdates } from "@/lib/cron";
-import { getCurrentUser } from "@/lib/session";
+import { requireRouteUser } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300; // 5 min, 同步集数表可能跑得久
@@ -19,10 +19,10 @@ export async function POST(req: Request) {
 
 async function authorize(req: Request): Promise<boolean> {
   const secret = process.env.CRON_SECRET;
-  if (secret) {
+  if (process.env.ANIME_LOCAL_SERVER_APP !== "1" && secret) {
     const header = req.headers.get("x-cron-secret");
     if (header === secret) return true;
   }
-  const user = await getCurrentUser();
-  return !!user;
+  const user = await requireRouteUser();
+  return !(user instanceof Response);
 }

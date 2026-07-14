@@ -1,0 +1,152 @@
+name: macOS / iOS 社区真机验证
+description: 回传 Intel x64、Apple Silicon ARM64 与 iOS/iPadOS Safari 的脱敏真机结果
+title: "[Community verification] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢参与 Bandi 社区真机验证。请先完成 `docs/desktop/macos-community-verification.md`。
+
+        这里只收集公开测试素材产生的脱敏结果。失败结果同样有价值，请保留最短复现步骤。
+
+  - type: input
+    id: bandi_version
+    attributes:
+      label: Bandi 版本或 commit
+      description: 填写 Release 版本、commit SHA 或测试包文件名，禁止填写本地绝对路径。
+      placeholder: v0.1.5 / abc1234 / Bandi-Local-Web-0.1.5-macOS-arm64.dmg
+    validations:
+      required: true
+
+  - type: dropdown
+    id: mac_architecture
+    attributes:
+      label: Mac 芯片架构
+      options:
+        - Intel x64
+        - Apple Silicon ARM64
+    validations:
+      required: true
+
+  - type: input
+    id: macos_version
+    attributes:
+      label: macOS 版本
+      placeholder: macOS 15.5 (24F74)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: artifact_type
+    attributes:
+      label: 验证产物
+      options:
+        - DMG
+        - ZIP
+        - DMG 和 ZIP
+        - 本地源码构建
+    validations:
+      required: true
+
+  - type: dropdown
+    id: install_result
+    attributes:
+      label: 安装与首次启动
+      options:
+        - PASS
+        - FAIL
+        - 未验证
+    validations:
+      required: true
+
+  - type: dropdown
+    id: gatekeeper_result
+    attributes:
+      label: Gatekeeper
+      description: 记录系统是否允许打开，以及开发包或正式签名包的实际提示。
+      options:
+        - PASS
+        - FAIL
+        - 未验证
+    validations:
+      required: true
+
+  - type: dropdown
+    id: download_result
+    attributes:
+      label: 受管下载服务
+      description: 包含启动、入队、暂停、继续、完成与退出后的进程清理。
+      options:
+        - PASS
+        - FAIL
+        - 未验证
+    validations:
+      required: true
+
+  - type: dropdown
+    id: playback_result
+    attributes:
+      label: Safari 播放
+      description: 至少覆盖 H.264/AAC MP4、Range 拖动、进度恢复、字幕和截图。
+      options:
+        - PASS
+        - FAIL
+        - 部分通过
+        - 未验证
+    validations:
+      required: true
+
+  - type: input
+    id: ios_devices
+    attributes:
+      label: iPhone / iPad 与系统版本
+      description: 没有验证移动设备时填写“未验证”。
+      placeholder: iPhone 15 / iOS 18.5；iPad Air M2 / iPadOS 18.5
+    validations:
+      required: true
+
+  - type: dropdown
+    id: lan_pairing_result
+    attributes:
+      label: 局域网配对与撤销
+      description: 覆盖配对码、错误码拒绝、设备撤销、关闭 LAN 后失效。
+      options:
+        - PASS
+        - FAIL
+        - 部分通过
+        - 未验证
+    validations:
+      required: true
+
+  - type: textarea
+    id: failure_details
+    attributes:
+      label: 失败项与最短复现步骤
+      description: PASS 项可以写“无”。请说明预期、实际结果和复现频率。
+      placeholder: |
+        1. 打开……
+        2. 执行……
+        3. 实际看到……
+    validations:
+      required: true
+
+  - type: textarea
+    id: sanitized_evidence
+    attributes:
+      label: 脱敏证据
+      description: 可粘贴最短日志或截图说明。使用 <redacted> 替换敏感值，不要上传数据库或配置文件。
+      render: shell
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: privacy_confirmation
+    attributes:
+      label: 隐私确认
+      options:
+        - label: 我已移除本地路径、用户名、媒体名称、观看记录和成人内容记录。
+          required: true
+        - label: 我已移除 magnet、tracker、私人 RSS、下载任务名称、配对码、令牌、Cookie、密码、API Key 与 qBittorrent 凭据。
+          required: true
+        - label: 我使用公开测试视频、合成数据或有权使用的测试资源，没有上传数据库、配置文件或应用数据目录。
+          required: true

@@ -4,15 +4,13 @@ import {
   getReadNotificationIds,
   markNavNotificationsRead,
 } from "@/lib/nav-notifications";
-import { getCurrentUser } from "@/lib/session";
+import { requireRouteUser } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
-  const user = await getCurrentUser();
-  if (!user) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  }
+  const user = await requireRouteUser();
+  if (user instanceof Response) return user;
 
   const raw = (await req.json().catch(() => null)) as unknown;
   if (!raw || typeof raw !== "object") {

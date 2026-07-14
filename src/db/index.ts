@@ -16,7 +16,10 @@ const sqlite = new Database(dbPath);
 sqlite.pragma("journal_mode = WAL");
 sqlite.pragma("foreign_keys = ON");
 ensureDatabaseSchema(sqlite);
-if (process.env.ANIME_DESKTOP_APP === "1") {
+if (
+  process.env.ANIME_DESKTOP_APP === "1" ||
+  process.env.ANIME_LOCAL_SERVER_APP === "1"
+) {
   ensureDesktopDefaults(sqlite);
 }
 

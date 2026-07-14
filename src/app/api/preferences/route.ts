@@ -13,15 +13,13 @@ import {
   DEFAULT_PREFERENCES,
   type DownloadPreferences,
 } from "@/lib/preferences";
-import { getCurrentUser } from "@/lib/session";
+import { requireRouteUser } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const user = await getCurrentUser();
-  if (!user) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  }
+  const user = await requireRouteUser();
+  if (user instanceof Response) return user;
   const prefs = await getPreferences();
   return NextResponse.json({
     preferences: prefs,
@@ -30,10 +28,8 @@ export async function GET() {
 }
 
 export async function PUT(req: Request) {
-  const user = await getCurrentUser();
-  if (!user) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  }
+  const user = await requireRouteUser();
+  if (user instanceof Response) return user;
 
   const raw = (await req.json().catch(() => null)) as unknown;
   if (!raw || typeof raw !== "object") {

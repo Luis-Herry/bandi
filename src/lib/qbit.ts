@@ -16,6 +16,8 @@ const DEFAULT_QBIT_URLS = [
   "http://127.0.0.1:18080",
 ];
 const isDesktopApp = process.env.ANIME_DESKTOP_APP === "1";
+const isLocalServerApp = process.env.ANIME_LOCAL_SERVER_APP === "1";
+const isManagedLocalApp = isDesktopApp || isLocalServerApp;
 const qbitConfigPath = process.env.QBIT_CONFIG_PATH?.trim();
 
 let activeUrl: string | null = envQbitUrl
@@ -48,7 +50,7 @@ function isLocalDefaultWebUiUrl(url: string): boolean {
 }
 
 function getConnectionConfig(): QbitConnectionConfig {
-  if (isDesktopApp && qbitConfigPath) {
+  if (isManagedLocalApp && qbitConfigPath) {
     try {
       const config = JSON.parse(readFileSync(qbitConfigPath, "utf8")) as {
         qbitPort?: number;
@@ -75,7 +77,7 @@ function getConnectionConfig(): QbitConnectionConfig {
     username: process.env.QBIT_USER ?? "admin",
     password: process.env.QBIT_PASS ?? "",
     allowLocalFallback:
-      !isDesktopApp && (!envQbitUrl || isLocalDefaultWebUiUrl(envQbitUrl)),
+      !isManagedLocalApp && (!envQbitUrl || isLocalDefaultWebUiUrl(envQbitUrl)),
   };
 }
 
@@ -83,7 +85,7 @@ function getCandidateUrls(connection: QbitConnectionConfig): string[] {
   const configured = connection.configuredUrl
     ? [normalizeUrl(connection.configuredUrl)]
     : [];
-  if (isDesktopApp) {
+  if (isManagedLocalApp) {
     return configured.length > 0 ? configured : [DEFAULT_QBIT_URLS[0]];
   }
   const defaults = connection.allowLocalFallback ? DEFAULT_QBIT_URLS : [];
@@ -250,7 +252,7 @@ export async function getStatus(): Promise<QbitStatus> {
   if (!version.ok)
     return {
       connected: false,
-      managed: isDesktopApp,
+      managed: isManagedLocalApp,
       url: version.url,
       error: version.error,
     };
@@ -267,7 +269,7 @@ export async function getStatus(): Promise<QbitStatus> {
   const serverState = mainData.ok ? mainData.data?.server_state : undefined;
   return {
     connected: true,
-    managed: isDesktopApp,
+    managed: isManagedLocalApp,
     url: version.url,
     version: version.data,
     apiVersion: apiVersion.ok ? apiVersion.data : undefined,

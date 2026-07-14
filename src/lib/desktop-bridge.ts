@@ -1,6 +1,74 @@
 export function getDesktopBridge() {
   if (typeof window === "undefined") return null;
-  return window.bandiDesktop ?? null;
+  if (window.bandiDesktop) return window.bandiDesktop;
+  if (document.documentElement.dataset.localServerApp !== "true") return null;
+  return createLocalServerBridge();
+}
+
+async function localRequest<T>(pathname: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(`/api/local-server${pathname}`, {
+    ...init,
+    headers: {
+      ...(init?.body ? { "Content-Type": "application/json" } : {}),
+      ...init?.headers,
+    },
+    cache: "no-store",
+  });
+  const value = await response.json().catch(() => ({ error: "invalid_response" }));
+  if (!response.ok) throw new Error(value.error || `local_server_http_${response.status}`);
+  return value as T;
+}
+
+function createLocalServerBridge(): NonNullable<Window["bandiDesktop"]> {
+  return {
+    getSettings: () => localRequest<DesktopSettingsState>("/settings"),
+    chooseDownloadDirectory: () => localRequest<DesktopDirectoryChoice>(
+      "/choose-download-directory",
+      { method: "POST", body: "{}" },
+    ),
+    chooseMediaDirectory: (input) => localRequest<DesktopMediaDirectoryChoice>(
+      "/choose-media-directory",
+      { method: "POST", body: JSON.stringify(input || {}) },
+    ),
+    saveSettings: (input) => localRequest<DesktopSettingsSaveResult>("/settings", {
+      method: "PUT",
+      body: JSON.stringify(input),
+    }),
+    getDownloadServiceState: () => localRequest<DesktopDownloadServiceState>(
+      "/download-service",
+    ),
+    retryDownloadService: () => localRequest<DesktopDownloadServiceRetryResult>(
+      "/download-service/retry",
+      { method: "POST", body: "{}" },
+    ),
+    getWindowState: async () => ({ isMaximized: false }),
+    minimizeWindow: async () => ({ ok: false }),
+    toggleMaximizeWindow: async () => ({ isMaximized: false }),
+    closeWindow: async () => ({ ok: false }),
+    onWindowStateChange: () => () => undefined,
+    onDownloadServiceStateChange: (callback) => {
+      let active = true;
+      const poll = async () => {
+        while (active) {
+          await new Promise((resolve) => window.setTimeout(resolve, 2500));
+          if (!active) break;
+          if (document.hidden) continue;
+          try {
+            callback(await localRequest<DesktopDownloadServiceState>("/download-service"));
+          } catch {
+            // The launcher may be restarting the local service after a LAN change.
+          }
+        }
+      };
+      void poll();
+      return () => { active = false; };
+    },
+    createPairing: () => localRequest("/pairing", { method: "POST", body: "{}" }),
+    revokeDevice: (deviceId) => localRequest(
+      `/devices/${encodeURIComponent(deviceId)}`,
+      { method: "DELETE" },
+    ),
+  };
 }
 
 export function formatStorageBytes(value: number | null | undefined) {

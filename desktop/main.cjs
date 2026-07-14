@@ -7,13 +7,16 @@ const {
   ipcMain,
   shell,
 } = require("electron");
-const { spawn } = require("node:child_process");
+const { spawn, spawnSync } = require("node:child_process");
 const crypto = require("node:crypto");
 const fs = require("node:fs");
 const http = require("node:http");
 const net = require("node:net");
 const path = require("node:path");
 const { buildNextProxyEnv } = require("./proxy-env.cjs");
+const {
+  createCredentialRepairCycle,
+} = require("./qbit-credential-repair.cjs");
 const {
   isSafeAbsoluteWindowsPath,
   normalizeManagedQbitPort,
@@ -33,6 +36,8 @@ const ONBOARDING_VERSION = 1;
 const DESKTOP_AUTH_HEADER = "X-Bandi-Desktop-Token";
 const DEFAULT_APP_USER = "admin";
 const DEFAULT_QBIT_USER = "admin";
+const PARENT_LEASE_INTERVAL_MS = 2000;
+const PARENT_LEASE_MAX_AGE_MS = 10000;
 
 let mainWindow = null;
 let tray = null;
@@ -44,6 +49,9 @@ let qbitAutoRestartEnabled = false;
 let qbitRestartAttempt = 0;
 let qbitRestartTimer = null;
 let qbitRestarting = false;
+let qbitStartPromise = null;
+const qbitCredentialRepairCycle = createCredentialRepairCycle();
+const expectedQbitExits = new WeakSet();
 let qbitServiceStatus = "starting";
 let qbitServiceMessage = null;
 let pendingQbitDownloadDir = null;
@@ -52,6 +60,9 @@ let shutdownComplete = false;
 let shutdownPromise = null;
 let desktopSessionToken = null;
 let bootStage = "storage";
+let parentLeasePath = null;
+let parentLeaseToken = null;
+let parentLeaseTimer = null;
 
 function getDownloadServiceState() {
   return {
@@ -162,6 +173,7 @@ function nextRuntimeDirectories({
 } = {}) {
   return {
     COVER_CACHE_DIR: path.join(userDataDir, "cache", "covers"),
+    MEDIA_COMPAT_CACHE_DIR: path.join(userDataDir, "cache", "media-compat"),
     YUC_CACHE_DIR: path.join(userDataDir, "cache", "yuc"),
     SCREENSHOT_DIR: path.join(picturesDir, "Bandi"),
   };
@@ -201,28 +213,121 @@ function configureElectronSessionData(
 }
 
 function readJson(file) {
-  if (!fs.existsSync(file)) return {};
+  if (!fs.existsSync(file)) return { ok: false, missing: true };
   try {
-    return JSON.parse(fs.readFileSync(file, "utf8"));
-  } catch {
-    return {};
+    const value = JSON.parse(fs.readFileSync(file, "utf8"));
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      throw new Error("JSON root must be an object");
+    }
+    return { ok: true, value };
+  } catch (error) {
+    return { ok: false, missing: false, error };
   }
 }
 
-function writeJson(file, value) {
-  fs.writeFileSync(file, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+function writeFileDurably(file, content, mode = 0o600) {
+  const handle = fs.openSync(file, "w", mode);
+  try {
+    fs.writeFileSync(handle, content, "utf8");
+    fs.fsyncSync(handle);
+  } finally {
+    fs.closeSync(handle);
+  }
+}
+
+function writeJsonAtomic(file, value, { backupCurrent = true } = {}) {
+  ensureDir(path.dirname(file));
+  const serialized = `${JSON.stringify(value, null, 2)}\n`;
+  const temporary = `${file}.tmp-${process.pid}-${Date.now()}`;
+  writeFileDurably(temporary, serialized);
+  try {
+    if (backupCurrent) {
+      const current = readJson(file);
+      if (current.ok) {
+        const backup = `${file}.bak`;
+        const backupTemporary = `${backup}.tmp-${process.pid}-${Date.now()}`;
+        fs.copyFileSync(file, backupTemporary);
+        const backupHandle = fs.openSync(backupTemporary, "r+");
+        try {
+          fs.fsyncSync(backupHandle);
+        } finally {
+          fs.closeSync(backupHandle);
+        }
+        fs.renameSync(backupTemporary, backup);
+      }
+    }
+    fs.renameSync(temporary, file);
+  } catch (error) {
+    try {
+      fs.unlinkSync(temporary);
+    } catch {}
+    throw error;
+  }
 }
 
 function configFile(userDataDir = app.getPath("userData")) {
   return path.join(userDataDir, CONFIG_NAME);
 }
 
+function renewParentLease() {
+  writeJsonAtomic(
+    parentLeasePath,
+    {
+      pid: process.pid,
+      token: parentLeaseToken,
+      updatedAt: Date.now(),
+    },
+    { backupCurrent: false },
+  );
+}
+
+function startParentLease() {
+  parentLeasePath = path.join(app.getPath("userData"), "runtime", "parent-lease.json");
+  parentLeaseToken = randomSecret(24);
+  renewParentLease();
+  parentLeaseTimer = setInterval(() => {
+    try {
+      renewParentLease();
+    } catch (error) {
+      appendLog("desktop.err.log", `[desktop] Parent lease renewal failed: ${error}\n`);
+    }
+  }, PARENT_LEASE_INTERVAL_MS);
+  parentLeaseTimer.unref?.();
+}
+
+function stopParentLease() {
+  if (parentLeaseTimer) clearInterval(parentLeaseTimer);
+  parentLeaseTimer = null;
+  if (!parentLeasePath || !parentLeaseToken) return;
+  try {
+    writeJsonAtomic(
+      parentLeasePath,
+      { pid: process.pid, token: parentLeaseToken, updatedAt: 0 },
+      { backupCurrent: false },
+    );
+  } catch {}
+}
+
 function saveDesktopConfig() {
-  writeJson(configFile(), desktopConfig);
+  writeJsonAtomic(configFile(), desktopConfig);
 }
 
 function loadDesktopConfig(userDataDir) {
-  const existing = readJson(configFile(userDataDir));
+  const file = configFile(userDataDir);
+  const primary = readJson(file);
+  let existing = {};
+  if (primary.ok) {
+    existing = primary.value;
+  } else if (!primary.missing) {
+    const backup = readJson(`${file}.bak`);
+    if (!backup.ok) {
+      throw new Error(
+        `Bandi 配置已损坏，且没有可恢复的备份：${file}。请保留该文件并联系社区协助恢复。`,
+      );
+    }
+    existing = backup.value;
+    writeJsonAtomic(file, existing, { backupCurrent: false });
+  }
   const hasExistingConfig = Object.keys(existing).length > 0;
   const qbitPort = normalizeManagedQbitPort(existing.qbitPort);
   const qbitUser =
@@ -253,7 +358,7 @@ function loadDesktopConfig(userDataDir) {
           ? "upgrade"
           : "new",
   };
-  writeJson(configFile(userDataDir), config);
+  writeJsonAtomic(file, config);
   return config;
 }
 
@@ -324,18 +429,23 @@ async function findOpenPort(start) {
 function waitForHttp(url, timeoutMs = 25000) {
   const started = Date.now();
   return new Promise((resolve, reject) => {
+    const retry = () => {
+      if (Date.now() - started > timeoutMs) {
+        reject(new Error(`Timed out waiting for ${url}`));
+        return;
+      }
+      setTimeout(tick, 350);
+    };
     const tick = () => {
       const req = http.get(url, (res) => {
         res.resume();
-        resolve();
-      });
-      req.on("error", () => {
-        if (Date.now() - started > timeoutMs) {
-          reject(new Error(`Timed out waiting for ${url}`));
+        if ((res.statusCode || 500) < 500) {
+          resolve();
           return;
         }
-        setTimeout(tick, 350);
+        retry();
       });
+      req.on("error", retry);
       req.setTimeout(1200, () => req.destroy());
     };
     tick();
@@ -372,6 +482,18 @@ function getNodeExePath() {
   }
   const bundled = path.join(getAppRoot(), "vendor", "node", "node.exe");
   return fs.existsSync(bundled) ? bundled : "node";
+}
+
+function bundledFfmpegEnvironment() {
+  const executable = path.join(
+    process.resourcesPath,
+    "vendor",
+    "ffmpeg",
+    "ffmpeg.exe",
+  );
+  return app.isPackaged && fs.existsSync(executable)
+    ? { FFMPEG_PATH: executable, BANDI_BUNDLED_FFMPEG: "1" }
+    : {};
 }
 
 function escapeIniPath(value) {
@@ -432,7 +554,7 @@ function writeQbitConfig({ profileDir, config, downloadDir }) {
   setIniValue(lines, "Preferences", "WebUI\\Address", "127.0.0.1");
   setIniValue(lines, "Preferences", "WebUI\\Port", String(config.qbitPort));
   setIniValue(lines, "Preferences", "WebUI\\Username", config.qbitUser);
-  setIniValue(lines, "Preferences", "WebUI\\LocalHostAuth", "false");
+  setIniValue(lines, "Preferences", "WebUI\\LocalHostAuth", "true");
   setIniValue(lines, "Preferences", "WebUI\\UseUPnP", "false");
   setIniValue(
     lines,
@@ -453,7 +575,16 @@ function writeQbitConfig({ profileDir, config, downloadDir }) {
   setIniValue(lines, "BitTorrent", "Session\\MaxActiveUploads", "1");
   setIniValue(lines, "BitTorrent", "Session\\StartPaused", "false");
 
-  fs.writeFileSync(iniPath, `${lines.join("\n").replace(/\n+$/, "")}\n`, "utf8");
+  const temporary = `${iniPath}.tmp-${process.pid}-${Date.now()}`;
+  writeFileDurably(temporary, `${lines.join("\n").replace(/\n+$/, "")}\n`);
+  try {
+    fs.renameSync(temporary, iniPath);
+  } catch (error) {
+    try {
+      fs.unlinkSync(temporary);
+    } catch {}
+    throw error;
+  }
 }
 
 async function qbitLogin() {
@@ -554,7 +685,18 @@ async function waitForQbit(timeoutMs = QBIT_START_TIMEOUT_MS) {
     }
     await delay(400);
   }
-  throw new Error(`qBittorrent health check failed: ${lastError}`);
+  const error = new Error(`qBittorrent health check failed: ${lastError}`);
+  error.code = lastError;
+  throw error;
+}
+
+function isQbitAuthError(value) {
+  const code = typeof value === "string" ? value : value?.code;
+  return (
+    code === "auth_failed" ||
+    code === "auth_cookie_missing" ||
+    String(code || "").startsWith("auth_http_")
+  );
 }
 
 async function selectQbitPort() {
@@ -574,22 +716,131 @@ function attachQbitProcess(child) {
     if (!isQuitting) markQbitUnavailable(err);
   });
   child.on("exit", (code, signal) => {
-    if (qbitProcess === child) qbitProcess = null;
+    const wasCurrent = qbitProcess === child;
+    if (wasCurrent) qbitProcess = null;
+    const expected = expectedQbitExits.has(child);
+    expectedQbitExits.delete(child);
     appendLog("qbit.log", `[desktop] qBit exited: ${code ?? signal}\n`);
-    if (!isQuitting) {
+    if (wasCurrent && !expected && !isQuitting) {
       markQbitUnavailable(new Error("qbit_process_exited"));
       if (qbitAutoRestartEnabled) scheduleQbitRestart();
     }
   });
 }
 
-async function startQbit(preselected = null) {
+function waitForChildExit(child, timeoutMs = 5000) {
+  if (!child || child.exitCode != null) return Promise.resolve(true);
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (exited) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      child.off("exit", onExit);
+      resolve(exited);
+    };
+    const onExit = () => finish(true);
+    const timer = setTimeout(() => finish(child.exitCode != null), timeoutMs);
+    timer.unref?.();
+    child.once("exit", onExit);
+  });
+}
+
+async function terminateOwnedQbit(child, reason) {
+  if (!child || child.exitCode != null) return;
+  expectedQbitExits.add(child);
+  if (qbitProcess === child) qbitProcess = null;
+  appendLog("qbit.log", `[desktop] Stopping managed qBit: ${reason}\n`);
+  try {
+    child.kill();
+  } catch {}
+  if (await waitForChildExit(child, 3500)) return;
+  if (process.platform === "win32" && child.pid) {
+    spawnSync("taskkill", ["/PID", String(child.pid), "/T", "/F"], {
+      stdio: "ignore",
+      windowsHide: true,
+    });
+  } else {
+    try {
+      child.kill("SIGKILL");
+    } catch {}
+  }
+  await waitForChildExit(child, 1500);
+}
+
+function qbitCredentialRepairExhausted(errorCode = "auth_failed") {
+  const error = new Error(
+    `qBittorrent credential repair exhausted: ${errorCode}`,
+  );
+  error.code = "credential_repair_exhausted";
+  return error;
+}
+
+async function repairOwnedQbitCredentials({ child, profileDir, downloadDir, port }) {
+  return qbitCredentialRepairCycle.repairCredentialsOnce({
+    stop: () => terminateOwnedQbit(child, "authentication repair"),
+    rewriteCredentials: () => {
+      appendLog(
+        "qbit.log",
+        "[desktop] Rewriting managed qBit credentials and restarting once\n",
+      );
+      writeQbitConfig({ profileDir, config: desktopConfig, downloadDir });
+    },
+    restart: async () => {
+      await startQbitOnce(
+        { port, adopt: false },
+        { allowCredentialRepair: false, ensureConfig: false },
+      );
+      return { authenticated: true };
+    },
+  });
+}
+
+async function startQbitOnce(
+  preselected = null,
+  { allowCredentialRepair = true, ensureConfig = true } = {},
+) {
+  if (qbitCredentialRepairCycle.isExhausted() && allowCredentialRepair) {
+    const authenticated = await probeQbit();
+    if (!authenticated.ok) {
+      throw qbitCredentialRepairExhausted(authenticated.error);
+    }
+    preselected = { port: desktopConfig.qbitPort, adopt: true };
+  }
   const exe = getQbitExePath();
   if (!fs.existsSync(exe)) {
     throw new Error(`qBittorrent not found: ${exe}`);
   }
 
-  const selection = preselected ?? (await selectQbitPort());
+  let selection = preselected;
+  if (!selection && qbitProcess && qbitProcess.exitCode == null) {
+    const ownedProbe = await probeQbit();
+    if (ownedProbe.ok) {
+      selection = { port: desktopConfig.qbitPort, adopt: true };
+    } else {
+      const repairCredentials = isQbitAuthError(ownedProbe.error);
+      const owned = qbitProcess;
+      if (repairCredentials && allowCredentialRepair) {
+        const userData = app.getPath("userData");
+        const profileDir = path.join(userData, "qbit-profile");
+        const downloadDir = desktopConfig.downloadDir;
+        ensureDir(profileDir);
+        ensureDir(downloadDir);
+        const repaired = await repairOwnedQbitCredentials({
+          child: owned,
+          profileDir,
+          downloadDir,
+          port: desktopConfig.qbitPort,
+        });
+        if (repaired.authenticated) return;
+        throw qbitCredentialRepairExhausted(ownedProbe.error);
+      }
+      await terminateOwnedQbit(owned, "health recovery");
+      if (repairCredentials) throw qbitCredentialRepairExhausted(ownedProbe.error);
+      selection = { port: desktopConfig.qbitPort, adopt: false };
+    }
+  }
+  selection = selection ?? (await selectQbitPort());
   desktopConfig.qbitPort = selection.port;
   saveDesktopConfig();
 
@@ -600,6 +851,7 @@ async function startQbit(preselected = null) {
       qbitReady = false;
       throw new Error(`qBittorrent save path update failed: ${pending.error}`);
     }
+    qbitCredentialRepairCycle.markAuthenticatedReady();
     qbitRestartAttempt = 0;
     setDownloadServiceState("ready");
     appendLog(
@@ -614,7 +866,9 @@ async function startQbit(preselected = null) {
   const downloadDir = desktopConfig.downloadDir;
   ensureDir(profileDir);
   ensureDir(downloadDir);
-  writeQbitConfig({ profileDir, config: desktopConfig, downloadDir });
+  if (ensureConfig) {
+    writeQbitConfig({ profileDir, config: desktopConfig, downloadDir });
+  }
 
   const child = spawn(
     exe,
@@ -633,19 +887,46 @@ async function startQbit(preselected = null) {
   qbitProcess = child;
   attachQbitProcess(child);
 
-  const status = await waitForQbit();
+  let status;
+  try {
+    status = await waitForQbit();
+  } catch (error) {
+    if (allowCredentialRepair && isQbitAuthError(error)) {
+      const repaired = await repairOwnedQbitCredentials({
+        child,
+        profileDir,
+        downloadDir,
+        port: desktopConfig.qbitPort,
+      });
+      if (repaired.authenticated) return;
+      throw qbitCredentialRepairExhausted(error.code);
+    }
+    await terminateOwnedQbit(child, "failed post-spawn health check");
+    if (isQbitAuthError(error)) throw qbitCredentialRepairExhausted(error.code);
+    throw error;
+  }
   qbitReady = true;
   const pending = await applyPendingQbitDownloadDirectory();
   if (!pending.ok) {
     qbitReady = false;
+    await terminateOwnedQbit(child, "failed post-spawn save path update");
     throw new Error(`qBittorrent save path update failed: ${pending.error}`);
   }
+  qbitCredentialRepairCycle.markAuthenticatedReady();
   qbitRestartAttempt = 0;
   setDownloadServiceState("ready");
   appendLog(
     "qbit.log",
     `[desktop] Managed qBittorrent ready on 127.0.0.1:${desktopConfig.qbitPort} (${status.data.trim()})\n`,
   );
+}
+
+async function startQbit(preselected = null) {
+  if (qbitStartPromise) return qbitStartPromise;
+  qbitStartPromise = startQbitOnce(preselected).finally(() => {
+    qbitStartPromise = null;
+  });
+  return qbitStartPromise;
 }
 
 function scheduleQbitRestart() {
@@ -678,9 +959,17 @@ function scheduleQbitRestart() {
 
 async function retryDownloadService() {
   if (qbitReady) {
-    return { ok: true, state: getDownloadServiceState() };
+    const authenticated = await probeQbit();
+    if (authenticated.ok) {
+      return { ok: true, state: getDownloadServiceState() };
+    }
+    markQbitUnavailable(
+      Object.assign(new Error(`qBittorrent health check failed: ${authenticated.error}`), {
+        code: authenticated.error,
+      }),
+    );
   }
-  if (qbitRestarting) {
+  if (qbitRestarting || qbitStartPromise) {
     return { ok: false, state: getDownloadServiceState() };
   }
   if (qbitRestartTimer) {
@@ -726,7 +1015,7 @@ async function startNextServer(runtimePathEnv) {
   const appUrl = `http://127.0.0.1:${port}`;
   const proxyEnv = await getNextProxyEnv();
 
-  nextProcess = spawn(getNodeExePath(), ["--use-env-proxy", serverEntry], {
+  const spawnedNext = spawn(getNodeExePath(), ["--use-env-proxy", serverEntry], {
     cwd: standaloneDir,
     env: {
       ...process.env,
@@ -745,21 +1034,42 @@ async function startNextServer(runtimePathEnv) {
       QBIT_PASS: desktopConfig.qbitPassword,
       QBIT_CONFIG_PATH: configFile(userData),
       DESKTOP_CONFIG_PATH: configFile(userData),
+      ...bundledFfmpegEnvironment(),
       ANIME_DESKTOP_APP: "1",
       DESKTOP_BOOTSTRAP_USER: desktopConfig.appUser,
       DESKTOP_SESSION_TOKEN: desktopSessionToken,
+      BANDI_PARENT_LEASE_PATH: parentLeasePath,
+      BANDI_PARENT_LEASE_TOKEN: parentLeaseToken,
+      BANDI_PARENT_LEASE_PID: String(process.pid),
+      BANDI_PARENT_LEASE_MAX_AGE_MS: String(PARENT_LEASE_MAX_AGE_MS),
     },
     stdio: ["ignore", "pipe", "pipe"],
     windowsHide: true,
   });
+  nextProcess = spawnedNext;
 
-  nextProcess.stdout.on("data", (chunk) => appendLog("next.log", chunk));
-  nextProcess.stderr.on("data", (chunk) => appendLog("next.err.log", chunk));
-  nextProcess.on("exit", (code, signal) => {
+  spawnedNext.stdout.on("data", (chunk) => appendLog("next.log", chunk));
+  spawnedNext.stderr.on("data", (chunk) => appendLog("next.err.log", chunk));
+  spawnedNext.on("exit", (code, signal) => {
+    if (nextProcess === spawnedNext) nextProcess = null;
     appendLog("next.log", `[desktop] Next exited: ${code ?? signal}\n`);
   });
 
-  await waitForHttp(appUrl);
+  try {
+    await waitForHttp(appUrl);
+  } catch (error) {
+    if (nextProcess === spawnedNext) nextProcess = null;
+    try {
+      spawnedNext.kill();
+    } catch {}
+    if (!(await waitForChildExit(spawnedNext, 2500)) && spawnedNext.pid) {
+      spawnSync("taskkill", ["/PID", String(spawnedNext.pid), "/T", "/F"], {
+        stdio: "ignore",
+        windowsHide: true,
+      });
+    }
+    throw error;
+  }
   return appUrl;
 }
 
@@ -1086,6 +1396,7 @@ async function boot() {
   ensureDir(userData);
   desktopSessionToken = randomSecret(32);
   desktopConfig = loadDesktopConfig(userData);
+  startParentLease();
 
   bootStage = "window";
   registerDesktopIpc();
@@ -1187,6 +1498,7 @@ async function shutdownServices() {
   }
   await waitForQbitExit();
   if (qbitProcess && !qbitProcess.killed) qbitProcess.kill();
+  stopParentLease();
 }
 
 try {

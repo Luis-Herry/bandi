@@ -10,7 +10,7 @@ import { revalidatePath } from "next/cache";
 import { and, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { anime } from "@/db/schema";
-import { getCurrentUser } from "@/lib/session";
+import { requireRouteUser } from "@/lib/session";
 import { extractJavCode } from "@/lib/jav";
 import { getLocalLibraryAnimeIds } from "@/lib/cinema-import";
 import { getCinemaWatchlist } from "@/lib/db-helpers/cinema";
@@ -39,10 +39,8 @@ function isScraped(r: {
 }
 
 export async function GET(req: Request) {
-  const user = await getCurrentUser();
-  if (!user) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  }
+  const user = await requireRouteUser();
+  if (user instanceof Response) return user;
 
   const localOnly = new URL(req.url).searchParams.get("scope") === "local";
   const localIds = localOnly ? [...getLocalLibraryAnimeIds()] : [];
@@ -106,10 +104,8 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  const user = await getCurrentUser();
-  if (!user) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  }
+  const user = await requireRouteUser();
+  if (user instanceof Response) return user;
 
   const body = (await req.json().catch(() => ({}))) as {
     animeId?: unknown;

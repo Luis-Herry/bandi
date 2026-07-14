@@ -4,10 +4,13 @@
 
 ## 项目资产
 
-- `public/brand/`、`desktop/assets/` 与浏览器图标包含追番中心的应用标识。
+- `public/brand/`、`desktop/assets/` 与浏览器图标包含追番中心的应用标识；macOS Local Web 安装包从 `public/brand/app-logo.png` 生成应用图标与菜单栏图标。
 - `public/media/login-scene-*.mp4` 是登录页使用的抽象视觉背景，不包含人物或用户媒体。
 - `docs/screenshots/` 是使用合成数据制作的产品截图，用于介绍和说明界面。
 - `public/qbit-guide/` 是外部 qBittorrent 兼容模式的说明截图；qBittorrent 名称、界面与商标归对应权利人所有。
+- 公开分发包不含 `vendor/ffmpeg/`。该目录只会出现在文件名带 `LOCAL-ONLY-DO-NOT-RELEASE` 的个人本地测试包中，保存精确锁定的 `ffmpeg-static` v5.3.0 当前平台二进制、binary-specific 许可与构建说明；它不属于 Bandi 原创资产，也不得公开再分发。
+
+兼容播放产生的 HLS 分片写入应用数据目录下的 `cache/media-compat/<随机任务 ID>/`。目录名不包含本地路径、媒体名称或用户信息；任务受会话归属校验，响应禁止缓存，并在过期或服务退出时清理。这些运行时缓存不会进入源码仓库或分发包。
 
 GPL-3.0-only 不授予任何项目名称或标识的商标权。合理引用项目名称、链接仓库和展示未造成官方背书误解的截图不受影响。
 

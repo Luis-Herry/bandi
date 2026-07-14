@@ -413,8 +413,8 @@ test("runtime storage APIs require injected absolute directories", () => {
     /readFileSync\(desktopConfigPath, "utf8"\)/,
   );
   assert.match(mainSource, /isSafeAbsoluteWindowsPath\(value\)[\s\S]*path\.resolve/);
-  assert.match(coverSource, /isSafeAbsoluteWindowsPath\(configured\)/);
-  assert.match(screenshotSource, /isSafeAbsoluteWindowsPath\(configured\)/);
+  assert.match(coverSource, /normalizeRuntimeDirectory\(configured\)/);
+  assert.match(screenshotSource, /normalizeRuntimeDirectory\(configured\)/);
   assert.match(downloadsSource, /resolveDownloadRoot\(\)/);
   for (const source of [
     coverSource,
@@ -459,6 +459,35 @@ test("desktop owns qBit readiness, recovery, tray, and graceful shutdown", () =>
   assert.doesNotMatch(mainSource, /退出并停止下载/);
   assert.match(mainSource, /\/api\/v2\/app\/shutdown/);
   assert.match(mainSource, /mainWindow\.hide\(\)/);
+  assert.match(mainSource, /WebUI\\\\LocalHostAuth", "true"/);
+  assert.match(mainSource, /let qbitStartPromise = null/);
+  assert.match(mainSource, /createCredentialRepairCycle\(\)/);
+  assert.match(mainSource, /qbitCredentialRepairCycle\.isExhausted\(\)/);
+  assert.match(mainSource, /repairCredentialsOnce\(\{/);
+  assert.match(mainSource, /allowCredentialRepair: false, ensureConfig: false/);
+  assert.match(mainSource, /failed post-spawn health check/);
+  assert.match(mainSource, /Rewriting managed qBit credentials and restarting once/);
+  assert.match(mainSource, /spawnSync\("taskkill", \["\/PID"/);
+  assert.match(mainSource, /const authenticated = await probeQbit\(\)/);
+});
+
+test("desktop config and child services fail closed across interrupted writes and parent loss", () => {
+  const mainSource = readFileSync("desktop/main.cjs", "utf8");
+  const instrumentationSource = readFileSync("instrumentation.ts", "utf8");
+
+  assert.match(mainSource, /function writeJsonAtomic\(/);
+  assert.match(mainSource, /fs\.fsyncSync\(handle\)/);
+  assert.match(mainSource, /const backup = readJson\(`\$\{file\}\.bak`\)/);
+  assert.match(mainSource, /且没有可恢复的备份/);
+  assert.doesNotMatch(mainSource, /catch \{\s*return \{\};\s*\}/);
+  assert.match(mainSource, /\(res\.statusCode \|\| 500\) < 500/);
+  assert.match(mainSource, /BANDI_PARENT_LEASE_PATH: parentLeasePath/);
+  assert.match(mainSource, /BANDI_PARENT_LEASE_PID: String\(process\.pid\)/);
+  assert.match(instrumentationSource, /BANDI_PARENT_LEASE_TOKEN/);
+  assert.match(instrumentationSource, /consecutiveExpiredLeases/);
+  assert.match(instrumentationSource, /leaseParentPid/);
+  assert.doesNotMatch(instrumentationSource, /process\.ppid/);
+  assert.match(instrumentationSource, /\/api\/v2\/app\/shutdown/);
 });
 
 test("desktop qBit client only uses the injected URL in desktop mode", () => {
@@ -467,12 +496,12 @@ test("desktop qBit client only uses the injected URL in desktop mode", () => {
   assert.match(qbitSource, /process\.env\.ANIME_DESKTOP_APP === "1"/);
   assert.match(qbitSource, /process\.env\.QBIT_CONFIG_PATH/);
   assert.match(qbitSource, /readFileSync\(qbitConfigPath, "utf8"\)/);
-  assert.match(qbitSource, /if \(isDesktopApp\)/);
+  assert.match(qbitSource, /if \(isManagedLocalApp\)/);
   assert.match(
     qbitSource,
     /return configured\.length > 0 \? configured : \[DEFAULT_QBIT_URLS\[0\]\]/,
   );
-  assert.match(qbitSource, /managed: isDesktopApp/);
+  assert.match(qbitSource, /managed: isManagedLocalApp/);
   assert.match(qbitSource, /\/api\/v2\/sync\/maindata\?rid=0/);
   assert.match(qbitSource, /serverState\?\.free_space_on_disk/);
   assert.doesNotMatch(qbitSource, /xfer\.data\.free_space_on_disk/);
@@ -638,7 +667,7 @@ test("desktop login establishes a local session without showing credentials", ()
     assert.match(sessionGateSource, new RegExp(className));
   }
   assert.match(authSource, /const isDesktopApp = process\.env\.ANIME_DESKTOP_APP === "1"/);
-  assert.match(authSource, /\.\.\.\(!isDesktopApp/);
+  assert.match(authSource, /\.\.\.\(!isManagedLocalApp/);
   assert.match(authSource, /\.\.\.\(isDesktopApp/);
   assert.match(authSource, /id: "desktop-session"/);
   assert.match(authSource, /x-bandi-desktop-token/);
@@ -681,7 +710,7 @@ test("desktop keeps download startup in the background and exposes recovery afte
   assert.match(typesSource, /DesktopDownloadServiceStatus/);
   assert.match(typesSource, /DesktopDownloadServiceRetryResult/);
   assert.match(layoutSource, /DesktopDownloadServiceNotice/);
-  assert.match(layoutSource, /isDesktop && <DesktopDownloadServiceNotice/);
+  assert.match(layoutSource, /isManagedLocal && <DesktopDownloadServiceNotice/);
 
   assert.match(noticeSource, /下载服务暂时不可用/);
   assert.match(noticeSource, /立即重试/);
@@ -793,7 +822,7 @@ test("desktop first-run onboarding owns download location and tray behavior", ()
   assert.match(onboardingSource, /1080p/);
   assert.match(onboardingSource, /关闭窗口后继续下载/);
   assert.match(desktopSettingsSource, /更改后只影响新下载/);
-  assert.match(navSource, /!isDesktop &&/);
+  assert.match(navSource, /!isManagedLocal &&/);
 });
 
 test("desktop replaces native Windows chrome with a themed custom titlebar", () => {

@@ -12,10 +12,13 @@ import { inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { downloadQueue } from "@/db/schema";
 import { resetDownloadedFlagsWithoutCompletedRows } from "@/lib/download-cleanup";
+import { requireRouteUser } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
+  const user = await requireRouteUser();
+  if (user instanceof Response) return user;
   const body = (await req.json().catch(() => ({}))) as { ids?: unknown };
   if (!Array.isArray(body.ids) || body.ids.length === 0) {
     return NextResponse.json({ error: "ids required" }, { status: 400 });

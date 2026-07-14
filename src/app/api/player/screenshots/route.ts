@@ -8,8 +8,8 @@ import {
 } from "node:fs";
 import path from "node:path";
 import { NextResponse } from "next/server";
-import { isSafeAbsoluteWindowsPath } from "@/lib/download-root";
-import { requireUser } from "@/lib/session";
+import { normalizeRuntimeDirectory } from "@/lib/download-root";
+import { requireRouteUser } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -24,8 +24,10 @@ interface ScreenshotBody {
 }
 
 export async function POST(req: Request) {
-  const user = await requireUser().catch((r) => r as Response);
+  const user = await requireRouteUser();
   if (user instanceof Response) return user;
+  const pairedLocalClient =
+    process.env.ANIME_LOCAL_SERVER_APP === "1" && !user.isLocalHost;
 
   let screenshotDirectory: string;
   try {
@@ -35,7 +37,9 @@ export async function POST(req: Request) {
     return NextResponse.json(
       {
         error: "screenshot_directory_unavailable",
-        message: `截图目录不可用：${errorMessage(error)}。`,
+        message: pairedLocalClient
+          ? "Mac 上的截图目录暂时不可用。"
+          : `截图目录不可用：${errorMessage(error)}。`,
       },
       { status: 503 },
     );
@@ -72,31 +76,40 @@ export async function POST(req: Request) {
     return NextResponse.json(
       {
         error: "screenshot_write_failed",
-        message: `截图保存失败：${absPath}（${errorMessage(error)}）。`,
+        message: pairedLocalClient
+          ? "截图未能保存到 Mac。"
+          : `截图保存失败：${absPath}（${errorMessage(error)}）。`,
       },
       { status: 503 },
     );
   }
-  const opened = openScreenshotInExplorer(absPath);
+  const opened = pairedLocalClient
+    ? false
+    : openScreenshotInFileManager(absPath);
 
-  return NextResponse.json({
+  const result: Record<string, unknown> = {
     ok: true,
     fileName,
-    directory: screenshotDirectory,
-    path: absPath,
     opened,
-  });
+  };
+  if (!pairedLocalClient) {
+    result.directory = screenshotDirectory;
+    result.path = absPath;
+  }
+  return NextResponse.json(result);
 }
 
 function prepareScreenshotDirectory(): string {
   const configured = process.env.SCREENSHOT_DIR?.trim();
   if (!configured) throw new Error("SCREENSHOT_DIR 未配置");
-  if (!isSafeAbsoluteWindowsPath(configured)) {
+  const directory = normalizeRuntimeDirectory(configured);
+  if (!directory) {
     throw new Error(
-      `SCREENSHOT_DIR 必须是完整的 Windows 盘符或 UNC 子目录：${configured}`,
+      process.env.ANIME_LOCAL_SERVER_APP === "1"
+        ? `SCREENSHOT_DIR 必须是完整的 macOS 子目录：${configured}`
+        : `SCREENSHOT_DIR 必须是完整的 Windows 盘符或 UNC 子目录：${configured}`,
     );
   }
-  const directory = path.win32.normalize(configured);
   mkdirSync(directory, { recursive: true });
   if (!statSync(directory).isDirectory()) {
     throw new Error(`SCREENSHOT_DIR 不是文件夹：${directory}`);
@@ -113,10 +126,12 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "unknown";
 }
 
-function openScreenshotInExplorer(absPath: string) {
-  if (process.platform !== "win32") return false;
+function openScreenshotInFileManager(absPath: string) {
   try {
-    const child = spawn("explorer.exe", ["/select,", absPath], {
+    const command = process.platform === "darwin" ? "/usr/bin/open" : "explorer.exe";
+    const args = process.platform === "darwin" ? ["-R", absPath] : ["/select,", absPath];
+    if (process.platform !== "win32" && process.platform !== "darwin") return false;
+    const child = spawn(command, args, {
       detached: true,
       stdio: "ignore",
       windowsHide: true,

@@ -1,0 +1,7 @@
+Bandi local FFmpeg build
+
+This artifact bundles ffmpeg-static for personal local testing only.
+DO NOT upload it to GitHub Releases, attach it to an Issue, mirror it, or otherwise redistribute it.
+
+The public desktop:dist and local-server:dist:* commands deliberately exclude FFmpeg.
+Public builds use direct Range playback and may use an explicitly configured or system FFmpeg after runtime validation.

@@ -4,7 +4,7 @@ import {
   listEpisodes,
   getUserAnime,
 } from "@/db/queries/anime";
-import { getCurrentUser } from "@/lib/session";
+import { requireRouteUser } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -12,6 +12,8 @@ export async function GET(
   _req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const user = await requireRouteUser();
+  if (user instanceof Response) return user;
   const { id } = await params;
   const animeId = Number(id);
   if (!Number.isFinite(animeId)) {
@@ -21,8 +23,7 @@ export async function GET(
   if (!row) return NextResponse.json({ error: "not found" }, { status: 404 });
 
   const eps = listEpisodes(animeId);
-  const user = await getCurrentUser();
-  const userAnimeRow = user ? getUserAnime(user.id, animeId) : null;
+  const userAnimeRow = getUserAnime(user.id, animeId);
 
   return NextResponse.json({
     anime: row,

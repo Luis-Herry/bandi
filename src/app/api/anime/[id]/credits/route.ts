@@ -5,7 +5,7 @@ import {
   toCharacterCardView,
   toStaffCardView,
 } from "@/lib/bangumi-credits";
-import { getCurrentUser } from "@/lib/session";
+import { requireRouteUser } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -26,10 +26,8 @@ export async function GET(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const user = await getCurrentUser();
-  if (!user) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  }
+  const user = await requireRouteUser();
+  if (user instanceof Response) return user;
 
   const { id } = await params;
   const animeId = Number(id);
