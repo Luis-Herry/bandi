@@ -20,6 +20,8 @@ import {
   parseAnimeMediaFileName,
   type ScannedTitle,
 } from "@/lib/cinema-scan";
+import { extractSeason, stripSeasonSuffix } from "@/lib/rss";
+import { resolveUniqueEpisodeRangeCandidate } from "@/lib/anime-season-range";
 
 const LIBRARY_KEY = "anime_library";
 
@@ -99,13 +101,49 @@ function displayTitleOf(title: ScannedTitle): string {
   return title.title;
 }
 
-function matchingAnimeRows(rows: AnimeRow[], title: string): AnimeRow[] {
+function matchingAnimeRows(
+  rows: AnimeRow[],
+  scanned: ScannedTitle,
+  episodeRows: Array<{ animeId: number; number: number }>,
+): AnimeRow[] {
+  const title = displayTitleOf(scanned);
   const key = normalizeMediaTitleKey(title);
-  return rows.filter((row) =>
+  const exact = rows.filter((row) =>
     [row.title, row.titleJa].some(
       (candidate) => normalizeMediaTitleKey(candidate) === key,
     ),
   );
+  if (
+    scanned.kind !== "tv" ||
+    scanned.files.some((file) => extractSeason(file.absPath) != null)
+  ) {
+    return exact;
+  }
+
+  const baseKey = normalizeMediaTitleKey(stripSeasonSuffix(scanned.title));
+  const sameSeries = rows.filter((row) =>
+    [row.title, row.titleJa].some(
+      (candidate) =>
+        normalizeMediaTitleKey(stripSeasonSuffix(candidate ?? "")) === baseKey,
+    ),
+  );
+  if (sameSeries.length <= 1) return sameSeries.length === 1 ? sameSeries : exact;
+
+  const byAnime = new Map<number, number[]>();
+  for (const episode of episodeRows) {
+    const group = byAnime.get(episode.animeId) ?? [];
+    group.push(episode.number);
+    byAnime.set(episode.animeId, group);
+  }
+  const resolved = resolveUniqueEpisodeRangeCandidate(
+    sameSeries.map((row) => ({
+      value: row,
+      totalEpisodes: row.totalEpisodes,
+      episodeNumbers: byAnime.get(row.id) ?? [],
+    })),
+    scanned.files.map((file) => file.episode),
+  );
+  return resolved ? [resolved] : sameSeries;
 }
 
 function readPathOwners(): Map<string, PathOwner[]> {
@@ -141,6 +179,10 @@ export function previewScannedAnimeTitles(
     .from(anime)
     .where(eq(anime.mediaType, "anime"))
     .all();
+  const episodeRows = db
+    .select({ animeId: episodes.animeId, number: episodes.number })
+    .from(episodes)
+    .all();
   const pathOwners = readPathOwners();
   let existingMatches = 0;
   let newTitles = 0;
@@ -149,7 +191,7 @@ export function previewScannedAnimeTitles(
 
   const samples = titles.slice(0, sampleLimit).map((title) => {
     const displayTitle = displayTitleOf(title);
-    const matches = matchingAnimeRows(animeRows, displayTitle);
+    const matches = matchingAnimeRows(animeRows, title, episodeRows);
     const match = matches.length === 1 ? matches[0] : null;
     let action: "match" | "create" | "conflict";
     if (matches.length > 1) {
@@ -181,7 +223,7 @@ export function previewScannedAnimeTitles(
   if (titles.length > sampleLimit) {
     for (const title of titles.slice(sampleLimit)) {
       const displayTitle = displayTitleOf(title);
-      const matches = matchingAnimeRows(animeRows, displayTitle);
+      const matches = matchingAnimeRows(animeRows, title, episodeRows);
       const match = matches.length === 1 ? matches[0] : null;
       if (matches.length > 1) titlesConflicted += 1;
       else if (match) existingMatches += 1;
@@ -243,6 +285,10 @@ export function importScannedAnimeTitles(
       .from(anime)
       .where(eq(anime.mediaType, "anime"))
       .all();
+    const identityEpisodeRows = tx
+      .select({ animeId: episodes.animeId, number: episodes.number })
+      .from(episodes)
+      .all();
     const pathRows = tx
       .select({
         animeId: downloadQueue.animeId,
@@ -266,7 +312,7 @@ export function importScannedAnimeTitles(
 
     for (const scanned of titles) {
       const title = displayTitleOf(scanned);
-      const matches = matchingAnimeRows(animeRows, title);
+      const matches = matchingAnimeRows(animeRows, scanned, identityEpisodeRows);
       if (matches.length > 1) {
         summary.titlesConflicted += 1;
         continue;
@@ -293,19 +339,15 @@ export function importScannedAnimeTitles(
         animeId = existing.id;
         summary.animeMatched += 1;
       } else {
-        const initialMaxEpisode =
-          scanned.kind === "movie"
-            ? 1
-            : Math.max(0, ...importableFiles.map((file) => file.episode));
         existing = tx
           .insert(anime)
           .values({
             title,
             type: scanned.kind === "movie" ? "Movie" : "TV",
-            status: "completed",
+            status: scanned.kind === "movie" ? "completed" : "airing",
             mediaType: "anime",
             year: scanned.year ?? null,
-            totalEpisodes: initialMaxEpisode || null,
+            totalEpisodes: scanned.kind === "movie" ? 1 : null,
           })
           .returning()
           .get();
@@ -388,11 +430,12 @@ export function importScannedAnimeTitles(
         summary.filesImported += 1;
       }
 
-      const maxEpisode = Math.max(0, ...episodeByNumber.keys());
       const totalEpisodes =
         matchedExisting && existing.totalEpisodes != null
           ? existing.totalEpisodes
-          : maxEpisode || null;
+          : scanned.kind === "movie"
+            ? 1
+            : null;
       tx.update(anime)
         .set({ totalEpisodes, updatedAt: new Date() })
         .where(and(eq(anime.id, animeId), eq(anime.mediaType, "anime")))

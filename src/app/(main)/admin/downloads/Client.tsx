@@ -2,12 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  RefreshCw,
   Trash2,
   Activity,
   ChevronDown,
   ChevronRight,
   Download,
+  FolderOpen,
   HelpCircle,
   Layers,
   Pause,
@@ -27,6 +27,7 @@ import { ConfirmDialog } from "@/components/features/ConfirmDialog";
 import { PlayButton } from "@/components/features/PlayButton";
 import { QbitSetupGuideDialog } from "@/components/features/QbitSetupGuideDialog";
 import { showToast } from "@/components/features/ToastHost";
+import { AnimeDataRefreshButton } from "@/components/features/AnimeDataRefreshButton";
 import { cn } from "@/lib/cn";
 import { formatDataSize, formatTransferSpeed } from "@/lib/transfer-format";
 import type { DownloadStatus } from "@/components/ui";
@@ -75,7 +76,11 @@ interface QbitStatus {
 
 /* ─── Client ────────────────────────────────────────────────── */
 
-export function DownloadsAdminClient() {
+export function DownloadsAdminClient({
+  canOpenLocalDirectory = true,
+}: {
+  canOpenLocalDirectory?: boolean;
+}) {
   const [downloads, setDownloads] = useState<DownloadRow[]>([]);
   const [qbit, setQbit] = useState<QbitStatus | null>(null);
   const [tab, setTab] = useState<"all" | DownloadStatus>("all");
@@ -322,6 +327,35 @@ export function DownloadsAdminClient() {
     void refresh();
   }
 
+  async function handleOpenLocation(downloadId?: number) {
+    const response = await fetch("/api/downloads/open-location", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(downloadId == null ? {} : { downloadId }),
+    });
+    const result = (await response.json().catch(() => ({}))) as {
+      ok?: boolean;
+      fallback?: boolean;
+      error?: string;
+    };
+    if (!response.ok || !result.ok) {
+      showToast({
+        title: "打开目录失败",
+        description:
+          result.error === "local_file_missing"
+            ? "本地文件已移动或删除"
+            : "下载目录暂时无法访问",
+        tone: "error",
+      });
+      return;
+    }
+    showToast({
+      title: result.fallback ? "已打开下载目录" : "已定位本地文件",
+      description: result.fallback ? "当前任务尚未生成可定位的视频文件" : undefined,
+      tone: "info",
+    });
+  }
+
   return (
     <div className="app-page-container py-6 sm:py-8">
       {/* ── 页头 ── */}
@@ -334,14 +368,30 @@ export function DownloadsAdminClient() {
             查看下载队列与实时传输状态
           </p>
         </div>
-        <Button
-          variant="secondary"
-          size="sm"
-          leftIcon={<RefreshCw size={12} className={loading ? "animate-spin" : ""} />}
-          onClick={refresh}
-        >
-          刷新
-        </Button>
+        <div className="flex flex-col items-start gap-1.5 sm:items-end">
+          <div className="flex items-center gap-2">
+            {canOpenLocalDirectory && (
+              <Button
+                variant="secondary"
+                size="sm"
+                leftIcon={<FolderOpen size={12} />}
+                onClick={() => void handleOpenLocation()}
+              >
+                打开下载目录
+              </Button>
+            )}
+            <AnimeDataRefreshButton
+              scope="downloads"
+              label="刷新下载与资料"
+              onRefreshed={refresh}
+            />
+          </div>
+          {canOpenLocalDirectory && (
+            <p className="text-[10px] text-[color:var(--text-muted)]">
+              更改保存位置请前往设置中心
+            </p>
+          )}
+        </div>
       </header>
 
       {/* ── qBit 状态卡片 ── */}
@@ -459,6 +509,11 @@ export function DownloadsAdminClient() {
                   selected={selectedDownloadIds.has(entry.row.id)}
                   onToggleSelected={() => toggleDownloadSelection(entry.row.id)}
                   onDelete={() => handleDeleteDownload(entry.row.id)}
+                  onOpenLocation={
+                    canOpenLocalDirectory
+                      ? () => handleOpenLocation(entry.row.id)
+                      : undefined
+                  }
                   onPause={() => handlePauseDownload(entry.row.id)}
                   onResume={() => handleResumeDownload(entry.row.id)}
                   onRetry={() => handleRetryDownload(entry.row.id)}
@@ -483,6 +538,11 @@ export function DownloadsAdminClient() {
                         selected={selectedDownloadIds.has(row.id)}
                         onToggleSelected={() => toggleDownloadSelection(row.id)}
                         onDelete={() => handleDeleteDownload(row.id)}
+                        onOpenLocation={
+                          canOpenLocalDirectory
+                            ? () => handleOpenLocation(row.id)
+                            : undefined
+                        }
                         onPause={() => handlePauseDownload(row.id)}
                         onResume={() => handleResumeDownload(row.id)}
                         onRetry={() => handleRetryDownload(row.id)}
@@ -878,6 +938,7 @@ function DownloadRowItem({
   selected,
   onToggleSelected,
   onDelete,
+  onOpenLocation,
   onPause,
   onResume,
   onRetry,
@@ -886,6 +947,7 @@ function DownloadRowItem({
   selected: boolean;
   onToggleSelected: () => void;
   onDelete: () => Promise<void>;
+  onOpenLocation?: () => Promise<void>;
   onPause: () => Promise<void>;
   onResume: () => Promise<void>;
   onRetry: () => Promise<void>;
@@ -1026,6 +1088,17 @@ function DownloadRowItem({
               buttonClassName="h-7 w-7 rounded-[6px] text-[color:var(--accent)] hover:brightness-110"
             />
           )}
+          {onOpenLocation && (
+            <button
+              type="button"
+              onClick={() => void onOpenLocation()}
+              aria-label="打开本地目录"
+              title="打开本地目录"
+              className="inline-flex h-7 w-7 items-center justify-center rounded-[6px] text-[color:var(--text-muted)] transition-colors hover:bg-[color:var(--bg-surface-hover)] hover:text-[color:var(--text-primary)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--accent)]"
+            >
+              <FolderOpen size={13} />
+            </button>
+          )}
           {canControl && (
             isPaused ? (
               <button
@@ -1071,7 +1144,8 @@ function DownloadRowItem({
               <button
                 type="button"
                 aria-label="删除"
-                className="w-7 h-7 inline-flex items-center justify-center rounded-[6px] text-[color:var(--text-muted)] hover:text-[color:var(--status-error,#ef4444)] hover:bg-[color:var(--bg-surface-hover)] transition-colors"
+                title="删除"
+                className="w-7 h-7 inline-flex items-center justify-center rounded-[6px] text-[color:var(--text-muted)] hover:text-[color:var(--status-error,#ef4444)] hover:bg-[color:var(--bg-surface-hover)] transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--accent)]"
               >
                 <Trash2 size={13} />
               </button>

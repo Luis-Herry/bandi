@@ -83,7 +83,7 @@ test("anime local library exposes preview-confirm scanning and native anime fold
   assert.match(route, /previewScannedAnimeTitles/);
   assert.match(route, /importScannedAnimeTitles/);
   assert.match(main, /选择本地动漫文件夹/);
-  assert.match(main, /扫描动漫目录/);
+  assert.match(main, /扫描本地库/);
   assert.doesNotMatch(detail, /9\.2|1,287 评分/);
 });
 

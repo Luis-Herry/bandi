@@ -97,7 +97,10 @@ test("home responsive layout collapses dense grids before they overflow", () => 
   assert.doesNotMatch(globalsSource, /min-width:\s*1280px/);
   assert.doesNotMatch(heroSource, /break-words/);
   assert.match(heroSource, /text-balance/);
-  assert.match(heroSource, /lg:items-center lg:justify-between/);
+  assert.match(
+    heroSource,
+    /min-\[1180px\]:items-center min-\[1180px\]:justify-between/,
+  );
   assert.match(heroSource, /lg:flex/);
   assert.match(heroSource, /-mt-16 lg:h-\[640px\]/);
   assert.match(layoutSource, /flex-1 pt-16/);
@@ -114,6 +117,28 @@ test("home responsive layout collapses dense grids before they overflow", () => 
   assert.match(rowItemSource, /flex-wrap sm:flex-nowrap/);
   assert.match(loadingSource, /grid-cols-1 sm:grid-cols-2 xl:grid-cols-4/);
   assert.match(loadingSource, /grid-cols-1 gap-6 lg:grid-cols-2/);
+});
+
+test("home hero keeps plain carousel arrows beside the thumbnail rail", () => {
+  assert.match(heroSource, /thumbnailNavigationButtonClassName/);
+  assert.match(heroSource, /aria-label="上一张海报"/);
+  assert.match(heroSource, /aria-label="下一张海报"/);
+  assert.match(heroSource, /ChevronLeft/);
+  assert.match(heroSource, /ChevronRight/);
+  assert.match(heroSource, /border-0 bg-transparent/);
+  assert.match(
+    heroSource,
+    /hidden shrink-0 items-center justify-end gap-1\.5 lg:flex/,
+  );
+  assert.match(heroSource, /w-\[440px\] overflow-x-hidden/);
+  assert.match(heroSource, /h-11 w-5 shrink-0/);
+  assert.doesNotMatch(heroSource, /top-1\/2 z-30 -translate-y-1\/2/);
+  assert.doesNotMatch(heroSource, /backdrop-blur-\[14px\]/);
+  assert.match(
+    heroSource,
+    /\(current - 1 \+ slides\.length\) % slides\.length/,
+  );
+  assert.match(heroSource, /\(current \+ 1\) % slides\.length/);
 });
 
 test("Bangumi covers load directly after entering the viewport", () => {

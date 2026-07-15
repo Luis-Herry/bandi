@@ -230,6 +230,7 @@
   --app-page-max: 1440px;
   --app-page-padding: 1rem;
   --app-page-gutter: var(--app-page-padding);
+  --app-page-scrollbar-width: 0px;
 
   color-scheme: dark;
 }
@@ -320,6 +321,7 @@
 
 html[data-desktop-app="true"] {
   --desktop-titlebar-shell-height: 44px;
+  --app-page-scrollbar-width: 10px;
   height: 100%;
   overflow: hidden;
   scrollbar-gutter: auto;
@@ -368,7 +370,7 @@ html[data-desktop-app="true"] .desktop-main-shell {
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior-y: contain;
-  scrollbar-gutter: auto;
+  scrollbar-gutter: stable;
 }
 
 html[data-desktop-app="true"] .home-hero {
@@ -764,7 +766,10 @@ select:not([data-no-focus-ring]):focus-visible,
 .app-page-container {
   width: 100%;
   margin-inline: auto;
-  padding-inline: var(--app-page-gutter);
+  padding-inline-start: var(--app-page-gutter);
+  padding-inline-end: calc(
+    var(--app-page-gutter) - var(--app-page-scrollbar-width)
+  );
 }
 
 @media (min-width: 640px) {

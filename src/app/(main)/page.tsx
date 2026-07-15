@@ -78,6 +78,9 @@ export default async function HomePage() {
     watchedAiredCount: it.watchedAiredCount,
     latestAiredEpisode: it.latestAiredEpisode,
     continueEpisodeNumber: it.continueEpisodeNumber,
+    sourceEpisodeNumber: it.sourceEpisodeNumber,
+    nextAiringEpisodeNumber: it.nextAiringEpisodeNumber,
+    nextAiringAt: it.nextAiringAt ? it.nextAiringAt.toISOString() : null,
     totalEpisodes: it.anime.totalEpisodes,
     rating: it.userAnime.rating ?? undefined,
   }));

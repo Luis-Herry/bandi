@@ -7,6 +7,7 @@ import {
 } from "@/lib/source-match";
 import { expandZhVariants } from "@/lib/zh-convert";
 import { extractMagnetHash, type QbitTorrent } from "@/lib/qbit";
+import { resolveUniqueEpisodeRangeCandidate } from "@/lib/anime-season-range";
 
 export type DownloadImportSource = "qbit" | "local-file";
 export type DownloadImportStatus = "pending" | "downloading" | "completed" | "failed";
@@ -25,6 +26,7 @@ export interface DownloadAnimeRef {
   id: number;
   title: string;
   titleJa: string | null;
+  totalEpisodes?: number | null;
 }
 
 export interface DownloadEpisodeRef {
@@ -322,7 +324,34 @@ function inferAnimeEpisode(
   aliasesByAnimeId: Record<number | string, string[]>,
   episodeRowsByAnime: Map<number, DownloadEpisodeRef[]>,
 ): { animeId: number | null; episodeId: number | null } {
-  const anime = findBestAnimeMatch(releaseTitle, animeRefs, aliasesByAnimeId);
+  const ranked = rankAnimeMatches(releaseTitle, animeRefs, aliasesByAnimeId);
+  const releaseEpisode = extractEpisodeNumber(releaseTitle);
+  if (extractSeason(releaseTitle) == null && releaseEpisode != null) {
+    const exact = ranked.filter((candidate) => candidate.exact);
+    const strongestScore = ranked[0]?.score ?? 0;
+    const pool = exact.length > 0
+      ? exact
+      : ranked.filter((candidate) => candidate.score === strongestScore);
+    const ranged = resolveUniqueEpisodeRangeCandidate(
+      pool.map((candidate) => ({
+        value: candidate.anime,
+        totalEpisodes: candidate.anime.totalEpisodes,
+        episodeNumbers: (episodeRowsByAnime.get(candidate.anime.id) ?? []).map(
+          (episode) => episode.number,
+        ),
+      })),
+      [releaseEpisode],
+    );
+    if (ranged) {
+      const episode = (episodeRowsByAnime.get(ranged.id) ?? []).find(
+        (candidate) => candidate.number === releaseEpisode,
+      );
+      return { animeId: ranged.id, episodeId: episode?.id ?? null };
+    }
+    if (pool.length > 1) return { animeId: null, episodeId: null };
+  }
+
+  const anime = ranked[0]?.anime ?? null;
   if (!anime) return { animeId: null, episodeId: null };
 
   const episode = resolveEpisodeForRelease(
@@ -335,12 +364,12 @@ function inferAnimeEpisode(
   };
 }
 
-function findBestAnimeMatch(
+function rankAnimeMatches(
   releaseTitle: string,
   animeRefs: DownloadAnimeRef[],
   aliasesByAnimeId: Record<number | string, string[]>,
-): DownloadAnimeRef | null {
-  let best: { anime: DownloadAnimeRef; score: number } | null = null;
+): Array<{ anime: DownloadAnimeRef; exact: boolean; score: number }> {
+  const matches: Array<{ anime: DownloadAnimeRef; exact: boolean; score: number }> = [];
 
   for (const anime of animeRefs) {
     const aliases = buildAnimeAliases(anime, aliasesByAnimeId[anime.id] ?? []);
@@ -349,10 +378,9 @@ function findBestAnimeMatch(
       ? 100 + Math.max(...aliases.map((alias) => alias.length), 0) / 100
       : scoreFuzzyTitleMatch(releaseTitle, aliases);
     if (score <= 0) continue;
-    if (!best || score > best.score) best = { anime, score };
+    matches.push({ anime, exact, score });
   }
-
-  return best?.anime ?? null;
+  return matches.sort((left, right) => right.score - left.score || left.anime.id - right.anime.id);
 }
 
 function buildAnimeAliases(anime: DownloadAnimeRef, savedAliases: string[]): string[] {

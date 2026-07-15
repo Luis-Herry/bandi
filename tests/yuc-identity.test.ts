@@ -370,6 +370,22 @@ test("later Bangumi sync reuses the YUC-created anime id", async () => {
     format: "TV",
   });
   const created = identity.resolveYucAnime(source);
+  const beforeSync = new Database(dbPath);
+  const episodeId = Number(
+    beforeSync
+      .prepare(
+        "insert into episodes (anime_id, number, title, is_downloaded) values (?, 1, 'Local episode', 1)",
+      )
+      .run(created.anime.id).lastInsertRowid,
+  );
+  beforeSync
+    .prepare(
+      `insert into download_queue (
+        anime_id, episode_id, title, magnet_url, status, progress
+      ) values (?, ?, 'Local episode', 'local-file:D%3A%2FAnime%2F01.mkv', 'completed', 100)`,
+    )
+    .run(created.anime.id, episodeId);
+  beforeSync.close();
   const { syncFromBangumi } = await import("../src/db/queries/anime");
 
   const synced = await syncFromBangumi(778899, {
@@ -383,7 +399,24 @@ test("later Bangumi sync reuses the YUC-created anime id", async () => {
       eps: 12,
       tags: [{ name: "动画", count: 1 }],
     }),
-    getEpisodes: async () => [],
+    getEpisodes: async () => [
+      {
+        id: 1,
+        type: 0,
+        name: "Episode 1",
+        name_cn: "第一集",
+        sort: 1,
+        airdate: "2026-07-05",
+      },
+      {
+        id: 2,
+        type: 0,
+        name: "Episode 2",
+        name_cn: "第二集",
+        sort: 2,
+        airdate: "2026-07-12",
+      },
+    ],
   });
 
   assert.deepEqual(synced, { animeId: created.anime.id, created: false });
@@ -396,6 +429,25 @@ test("later Bangumi sync reuses the YUC-created anime id", async () => {
       )
       .get(),
     { id: created.anime.id, bangumiId: 778899, mediaType: "anime" },
+  );
+  assert.deepEqual(
+    sqlite
+      .prepare(
+        `select id, title, is_downloaded as isDownloaded
+         from episodes where anime_id = ? order by number`,
+      )
+      .all(created.anime.id),
+    [
+      { id: episodeId, title: "第一集", isDownloaded: 1 },
+      { id: episodeId + 1, title: "第二集", isDownloaded: 0 },
+    ],
+  );
+  assert.equal(
+    sqlite
+      .prepare("select episode_id from download_queue where anime_id = ?")
+      .pluck()
+      .get(created.anime.id),
+    episodeId,
   );
   sqlite.close();
 });

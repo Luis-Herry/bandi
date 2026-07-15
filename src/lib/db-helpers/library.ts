@@ -31,6 +31,10 @@ import {
   getWatchedThroughEpisodeNumber,
   type WatchStatus,
 } from "@/lib/watch-progress";
+import {
+  selectContinueEpisode,
+  selectHeroEpisodeAvailability,
+} from "@/lib/continue-watching";
 
 export interface LibraryItem {
   anime: Anime;
@@ -143,6 +147,7 @@ export interface AnimeDetail {
   anime: Anime;
   userAnime: UserAnime | null;
   episodes: Episode[];
+  latestPlaybackProgress: typeof playbackProgress.$inferSelect | null;
   /** 该番剧在下载队列中已完成（status='completed'）的条目数 */
   completedDownloads: number;
   /** 该番剧在下载队列中所有状态的条目数 */
@@ -170,6 +175,18 @@ export function getAnimeDetail(
   const eps = applyCompletedDownloadState(
     dedupeEpisodesByNumber(storedEpisodes),
   );
+  const latestPlayback =
+    db
+      .select()
+      .from(playbackProgress)
+      .where(
+        and(
+          eq(playbackProgress.userId, userId),
+          eq(playbackProgress.animeId, animeId),
+        ),
+      )
+      .orderBy(desc(playbackProgress.lastPlayedAt))
+      .get() ?? null;
   const highestEpisodeNumber = eps.reduce(
     (highest, episode) => Math.max(highest, episode.number),
     0,
@@ -198,6 +215,7 @@ export function getAnimeDetail(
     anime: displayAnime,
     userAnime: ua,
     episodes: eps,
+    latestPlaybackProgress: latestPlayback,
     completedDownloads: Number(dlCounts?.completed ?? 0),
     totalDownloads: Number(dlCounts?.total ?? 0),
   };
@@ -497,26 +515,14 @@ export function getContinueWatching(userId: string, limit = 4): ContinueWatching
         progress?.completed && progress.episodeNumber > watchedThroughEpisode
           ? progress.episodeNumber
           : watchedThroughEpisode;
-      const airedEpisodes = animeEpisodes
-        .filter(
-          (episode) =>
-            episode.airedAt && episode.airedAt.getTime() <= Date.now(),
-        )
-        .sort((a, b) => a.number - b.number);
-      const nextDownloadedAiredEpisode =
-        airedEpisodes.find(
-          (episode) =>
-            episode.number > effectiveWatchedThrough && episode.isDownloaded,
-        ) ?? null;
+      const continueSelection = selectContinueEpisode({
+        watchedThroughEpisode: effectiveWatchedThrough,
+        episodes: animeEpisodes,
+        playbackProgress: progress,
+      });
       const hasIncompletePlayback =
-        !!progress &&
-        !progress.completed &&
-        progress.positionSeconds > 0 &&
-        progress.durationSeconds > 0 &&
-        progress.episodeNumber > effectiveWatchedThrough;
-      const continueEpisodeNumber = hasIncompletePlayback
-        ? progress!.episodeNumber
-        : nextDownloadedAiredEpisode?.number ?? null;
+        continueSelection.source === "incomplete-playback";
+      const continueEpisodeNumber = continueSelection.episodeNumber;
 
       return {
         ...it,
@@ -691,6 +697,9 @@ export interface HeroCandidate extends LibraryItem {
   watchedThroughEpisode: number;
   latestAiredEpisode: number | null;
   continueEpisodeNumber: number | null;
+  sourceEpisodeNumber: number | null;
+  nextAiringEpisodeNumber: number | null;
+  nextAiringAt: Date | null;
 }
 
 /** For the hero carousel — current-season tracked titles, even when caught up. */
@@ -773,36 +782,43 @@ export function getHeroCandidates(
         airedEpisodes.length > 0
           ? airedEpisodes[airedEpisodes.length - 1]!.number
           : null;
-      const hasIncompletePlayback =
-        !!progress &&
-        !progress.completed &&
-        progress.positionSeconds > 0 &&
-        progress.durationSeconds > 0 &&
-        progress.episodeNumber > effectiveWatchedThrough;
-      const nextDownloadedAiredEpisode =
-        airedEpisodes.find(
-          (episode) =>
-            episode.number > effectiveWatchedThrough && episode.isDownloaded,
-        ) ?? null;
+      const continueSelection = selectContinueEpisode({
+        watchedThroughEpisode: effectiveWatchedThrough,
+        episodes: animeEpisodes,
+        playbackProgress: progress,
+        now: new Date(now),
+      });
+      const episodeAvailability = selectHeroEpisodeAvailability({
+        watchedThroughEpisode: effectiveWatchedThrough,
+        episodes: animeEpisodes,
+        now: new Date(now),
+      });
 
       return {
         ...it,
         watchedThroughEpisode: effectiveWatchedThrough,
         latestAiredEpisode,
-        continueEpisodeNumber: hasIncompletePlayback
-          ? progress!.episodeNumber
-          : nextDownloadedAiredEpisode?.number ?? null,
+        continueEpisodeNumber: continueSelection.episodeNumber,
+        sourceEpisodeNumber: episodeAvailability.sourceEpisodeNumber,
+        nextAiringEpisodeNumber:
+          episodeAvailability.nextAiringEpisodeNumber,
+        nextAiringAt: episodeAvailability.nextAiringAt,
       };
     })
     .sort((a, b) => {
-      const actionDelta =
-        Number(b.continueEpisodeNumber != null) -
-        Number(a.continueEpisodeNumber != null);
+      const actionDelta = getHeroActionPriority(b) - getHeroActionPriority(a);
       if (actionDelta !== 0) return actionDelta;
       return b.userAnime.updatedAt.getTime() - a.userAnime.updatedAt.getTime();
     });
 
   return Number.isFinite(limit) ? candidates.slice(0, limit) : candidates;
+}
+
+function getHeroActionPriority(candidate: HeroCandidate) {
+  if (candidate.continueEpisodeNumber != null) return 3;
+  if (candidate.sourceEpisodeNumber != null) return 2;
+  if (candidate.nextAiringAt != null) return 1;
+  return 0;
 }
 
 const LOCAL_SEASON_BY_BGM_SEASON: Record<

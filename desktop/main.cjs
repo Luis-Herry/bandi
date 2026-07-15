@@ -1163,7 +1163,7 @@ function registerDesktopIpc() {
           ? "选择本地动漫文件夹"
           : "选择本地影视文件夹",
       defaultPath,
-      buttonLabel: mediaKind === "anime" ? "扫描动漫目录" : "扫描此文件夹",
+      buttonLabel: mediaKind === "anime" ? "扫描本地库" : "扫描此文件夹",
       properties: ["openDirectory"],
     });
     if (result.canceled || !result.filePaths[0]) return { canceled: true };

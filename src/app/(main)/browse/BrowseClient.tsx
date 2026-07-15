@@ -11,6 +11,7 @@ import {
 import { AlertCircle, Loader2, Search } from "lucide-react";
 import { ClearableInput, GlassPanel } from "@/components/ui";
 import { BrowseCard } from "@/components/features/BrowseCard";
+import { AnimeDataRefreshButton } from "@/components/features/AnimeDataRefreshButton";
 import { showToast } from "@/components/features/ToastHost";
 import type { BgmSeason } from "@/lib/bangumi";
 import type { SeasonalBrowseItem } from "@/lib/db-helpers/browse";
@@ -119,9 +120,9 @@ export function BrowseClient({
   const [patches, setPatches] = useState<
     Map<string, { inLibrary: boolean; localAnimeId: number | null }>
   >(new Map());
-  const [scorePatches, setScorePatches] = useState<Map<string, number>>(
-    new Map(),
-  );
+  const [scorePatches, setScorePatches] = useState<
+    Map<string, { score: number; bangumiId: number | null }>
+  >(new Map());
   const [scoreStatus, setScoreStatus] =
     useState<ScoreLoadStatus>("loading");
   const [adding, setAdding] = useState<Set<string>>(new Set());
@@ -152,15 +153,16 @@ export function BrowseClient({
     if (patches.size === 0 && scorePatches.size === 0) return initialItems;
     return initialItems.map((it) => {
       const p = patches.get(it.itemKey);
-      const enrichedScore =
+      const scorePatch =
         (it.yucKey ? scorePatches.get(`yuc:${it.yucKey}`) : undefined) ??
         (it.bangumiId != null
           ? scorePatches.get(`bgm:${it.bangumiId}`)
           : undefined);
-      if (!p && enrichedScore == null) return it;
+      if (!p && scorePatch == null) return it;
       return {
         ...it,
-        score: enrichedScore ?? it.score,
+        score: scorePatch?.score ?? it.score,
+        bangumiId: scorePatch?.bangumiId ?? it.bangumiId,
         inLibrary: p?.inLibrary ?? it.inLibrary,
         localAnimeId: p?.localAnimeId ?? it.localAnimeId,
       };
@@ -196,11 +198,18 @@ export function BrowseClient({
           return;
         }
 
-        const next = new Map<string, number>();
+        const next = new Map<
+          string,
+          { score: number; bangumiId: number | null }
+        >();
         for (const item of payload.scores) {
-          if (item.yucKey) next.set(`yuc:${item.yucKey}`, item.score);
+          const patch = {
+            score: item.score,
+            bangumiId: item.bangumiId,
+          };
+          if (item.yucKey) next.set(`yuc:${item.yucKey}`, patch);
           if (item.bangumiId != null) {
-            next.set(`bgm:${item.bangumiId}`, item.score);
+            next.set(`bgm:${item.bangumiId}`, patch);
           }
         }
         setScorePatches(next);
@@ -510,8 +519,16 @@ export function BrowseClient({
                 );
               })}
             </div>
-            <div className="pb-2 text-[12px] leading-relaxed text-[color:var(--text-muted)] lg:shrink-0 lg:text-right">
-              {seasonLabel} · {summary}
+            <div className="flex flex-wrap items-center gap-2 pb-2 lg:shrink-0 lg:justify-end">
+              <span className="text-[12px] leading-relaxed text-[color:var(--text-muted)] lg:text-right">
+                {seasonLabel} · {summary}
+              </span>
+              <AnimeDataRefreshButton
+                scope="season"
+                year={initialYear}
+                season={initialSeason}
+                label="刷新资料"
+              />
             </div>
           </div>
         </div>
@@ -633,7 +650,7 @@ export function BrowseClient({
                   </div>
                   <span
                     role="status"
-                    className="min-w-[84px] text-[11px] text-[color:var(--text-muted)]"
+                    className="min-w-[84px] whitespace-nowrap text-[11px] text-[color:var(--text-muted)] md:text-right"
                   >
                     {scoreHint}
                   </span>

@@ -155,9 +155,14 @@ test("anime scan preview is read-only and confirmed import is idempotent", async
   verify = new Database(dbPath);
   assert.deepEqual(
     verify
-      .prepare("select title, media_type as mediaType, total_episodes as totalEpisodes from anime")
+      .prepare("select title, media_type as mediaType, status, total_episodes as totalEpisodes from anime")
       .get(),
-    { title: "Sousou no Frieren", mediaType: "anime", totalEpisodes: 2 },
+    {
+      title: "Sousou no Frieren",
+      mediaType: "anime",
+      status: "airing",
+      totalEpisodes: null,
+    },
   );
   assert.equal(verify.prepare("select count(*) from episodes").pluck().get(), 2);
   assert.equal(verify.prepare("select count(*) from download_queue").pluck().get(), 2);
@@ -167,6 +172,64 @@ test("anime scan preview is read-only and confirmed import is idempotent", async
       verify.prepare("select value from app_settings where key='anime_library'").pluck().get() as string,
     ).roots[0],
     "D:/Anime",
+  );
+  verify.close();
+});
+
+test("anime import reuses simplified and numeric-season metadata rows", async () => {
+  resetDb();
+  const sqlite = new Database(dbPath);
+  sqlite.exec(`
+    insert into anime (
+      id, bangumi_id, title, title_ja, cover_url, type, status,
+      total_episodes, year, media_type
+    ) values (
+      1, 515594, '关于我转生变成史莱姆这档事 第四季',
+      '転生したらスライムだった件 第4期',
+      'https://example.com/slime.jpg', 'TV', 'airing', 24, 2026, 'anime'
+    );
+    insert into episodes (anime_id, number, title, is_downloaded)
+    values (1, 86, 'Episode 86', 0);
+  `);
+  sqlite.close();
+
+  const scanned: ScannedTitle = {
+    kind: "tv",
+    title: "關於我轉生變成史萊姆這檔事",
+    year: null,
+    season: 4,
+    files: [
+      {
+        absPath: "D:/Anime/Slime S4/86.mkv",
+        fileName: "86.mkv",
+        kind: "tv",
+        title: "關於我轉生變成史萊姆這檔事",
+        year: null,
+        season: 4,
+        episode: 86,
+      },
+    ],
+  };
+  const { importScannedAnimeTitles } = await import("../src/lib/anime-local-import");
+  const summary = importScannedAnimeTitles([scanned], ["D:/Anime"]);
+
+  assert.equal(summary.animeCreated, 0);
+  assert.equal(summary.animeMatched, 1);
+  const verify = new Database(dbPath);
+  assert.equal(verify.prepare("select count(*) from anime").pluck().get(), 1);
+  assert.deepEqual(
+    verify
+      .prepare("select bangumi_id as bangumiId, cover_url as coverUrl, total_episodes as totalEpisodes from anime")
+      .get(),
+    {
+      bangumiId: 515594,
+      coverUrl: "https://example.com/slime.jpg",
+      totalEpisodes: 24,
+    },
+  );
+  assert.equal(
+    verify.prepare("select is_downloaded from episodes where number = 86").pluck().get(),
+    1,
   );
   verify.close();
 });
@@ -282,6 +345,61 @@ test("anime import maps season-local files onto existing absolute episode rows",
   );
   assert.equal(
     verify.prepare("select count(*) from episodes where number in (1,2)").pluck().get(),
+    0,
+  );
+  verify.close();
+});
+
+test("anime import sends seasonless absolute EP25 and EP26 only to season three", async () => {
+  resetDb();
+  const sqlite = new Database(dbPath);
+  sqlite.exec(`
+    insert into anime (id, title, title_ja, type, status, total_episodes, media_type)
+    values
+      (1, '超超超超超喜欢你的100个女朋友', '君のことが大大大大大好きな100人の彼女', 'TV', 'completed', 12, 'anime'),
+      (2, '超超超超超喜欢你的100个女朋友 第二季', '君のことが大大大大大好きな100人の彼女 第2期', 'TV', 'completed', 12, 'anime'),
+      (3, '超超超超超喜欢你的100个女朋友 第三季', '君のことが大大大大大好きな100人の彼女 第3期', 'TV', 'airing', 12, 'anime');
+  `);
+  const insertEpisode = sqlite.prepare(
+    "insert into episodes (anime_id, number, title, is_downloaded) values (?, ?, ?, 0)",
+  );
+  for (const [animeId, first] of [[1, 1], [2, 13], [3, 25]] as const) {
+    for (let offset = 0; offset < 12; offset += 1) {
+      insertEpisode.run(animeId, first + offset, `EP${first + offset}`);
+    }
+  }
+  sqlite.close();
+
+  const scanned: ScannedTitle = {
+    kind: "tv",
+    title: "超超超超超喜歡你的100個女朋友",
+    year: null,
+    season: 1,
+    files: [25, 26].map((episode) => ({
+      absPath: `D:/Anime/100 Girlfriends/[ANi] 超超超超超喜歡你的100個女朋友 - ${episode}.mp4`,
+      fileName: `[ANi] 超超超超超喜歡你的100個女朋友 - ${episode}.mp4`,
+      kind: "tv" as const,
+      title: "超超超超超喜歡你的100個女朋友",
+      year: null,
+      season: 1,
+      episode,
+    })),
+  };
+  const { importScannedAnimeTitles } = await import("../src/lib/anime-local-import");
+  const summary = importScannedAnimeTitles([scanned], ["D:/Anime"]);
+
+  assert.equal(summary.animeMatched, 1);
+  assert.equal(summary.animeCreated, 0);
+  assert.equal(summary.filesImported, 2);
+  const verify = new Database(dbPath);
+  assert.deepEqual(
+    verify
+      .prepare("select distinct anime_id as animeId from download_queue order by anime_id")
+      .all(),
+    [{ animeId: 3 }],
+  );
+  assert.equal(
+    verify.prepare("select count(*) from episodes where anime_id = 1 and number > 12").pluck().get(),
     0,
   );
   verify.close();

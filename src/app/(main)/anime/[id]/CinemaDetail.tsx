@@ -171,7 +171,7 @@ export function CinemaDetail({ detail }: { detail: AnimeDetail }) {
           <BackButton />
         </div>
 
-        <div className="relative z-10 mx-auto flex min-h-[430px] max-w-[1440px] flex-col justify-end px-4 pb-8 pt-20 sm:min-h-[460px] sm:px-6 sm:pb-10 lg:h-full lg:px-8 lg:pb-12 lg:pt-16">
+        <div className="app-page-container relative z-10 flex min-h-[430px] flex-col justify-end pb-8 pt-20 sm:min-h-[460px] sm:pb-10 lg:h-full lg:pb-12 lg:pt-16">
           <div className="mb-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-[color:var(--text-secondary)]">
             <span data-tabular>{anime.year ?? "—"}</span>
             <span>·</span>
@@ -268,9 +268,9 @@ export function CinemaDetail({ detail }: { detail: AnimeDetail }) {
       </section>
 
       {/* ========== Body ========== */}
-      <section className="relative mx-auto grid max-w-[1440px] grid-cols-1 gap-6 px-4 py-6 sm:px-6 sm:py-8 lg:grid-cols-12 lg:px-8">
+      <section className="app-page-container relative grid grid-cols-1 gap-6 py-6 sm:py-8 xl:grid-cols-12">
         {/* 左主区 */}
-        <div className="min-w-0 space-y-6 lg:col-span-8">
+        <div className="min-w-0 space-y-6 xl:col-span-8">
           {anime.synopsis && (
             <GlassPanel className="p-5">
               <h2 className="mb-3 text-[16px] font-semibold tracking-tight text-[color:var(--text-primary)]">
@@ -337,7 +337,7 @@ export function CinemaDetail({ detail }: { detail: AnimeDetail }) {
         </div>
 
         {/* 右栏 */}
-        <aside className="min-w-0 space-y-4 lg:col-span-4">
+        <aside className="min-w-0 space-y-4 xl:col-span-4">
           <GlassPanel id="where-to-watch" className="p-5 scroll-mt-24">
             <div className="mb-3 flex items-start justify-between gap-3">
               <h3 className="text-[14px] font-semibold tracking-tight text-[color:var(--text-primary)]">

@@ -182,27 +182,53 @@ export function DesktopDownloadSettings() {
         </Button>
       </div>
 
-      {!isLocalServer && <div className="mt-4 flex items-center justify-between gap-4 border-t border-[color:var(--border-subtle)] pt-4">
-        <div>
-          <p className="text-[12px] font-medium text-[color:var(--text-primary)]">
-            关闭窗口后继续下载
-          </p>
-          <p className="mt-1 text-[10px] text-[color:var(--text-muted)]">
-            关闭窗口时缩到系统托盘
-          </p>
+      {!isLocalServer && (
+        <div className="mt-4 border-t border-[color:var(--border-subtle)] pt-4">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="text-[12px] font-medium text-[color:var(--text-primary)]">
+                关闭窗口后继续下载
+              </p>
+              <p className="mt-1 text-[10px] text-[color:var(--text-muted)]">
+                关闭窗口时缩到系统托盘
+              </p>
+            </div>
+            <div className="flex shrink-0 items-center gap-3">
+              <Switch.Root
+                checked={closeToTray}
+                onCheckedChange={(value) => {
+                  setCloseToTray(value);
+                  setSaved(false);
+                }}
+                aria-label="关闭窗口后继续下载"
+                className="relative h-6 w-11 shrink-0 rounded-full border border-[color:var(--border-default)] bg-[color:var(--bg-surface-hover)] transition-colors focus-visible:outline-2 focus-visible:outline-offset-[6px] focus-visible:outline-[color:var(--accent)] data-[state=checked]:border-[color:var(--accent)] data-[state=checked]:bg-[color:var(--accent)]"
+              >
+                <Switch.Thumb className="block h-4 w-4 translate-x-1 rounded-full bg-[color:var(--text-primary)] shadow-sm transition-transform data-[state=checked]:translate-x-6" />
+              </Switch.Root>
+              <Button
+                variant="primary"
+                size="sm"
+                disabled={!dirty || saving}
+                onClick={save}
+              >
+                {saving ? <ShimmerText text="保存中…" /> : "保存设置"}
+              </Button>
+            </div>
+          </div>
+          {(error || saved) && (
+            <div className="mt-2 flex min-h-4 justify-end">
+              {error ? (
+                <span className="text-[10px] text-[color:var(--status-error)]">{error}</span>
+              ) : (
+                <span className="flex items-center gap-1 text-[10px] text-[color:var(--text-muted)]">
+                  <CheckCircle2 size={11} className="text-[color:var(--status-success)]" />
+                  已保存
+                </span>
+              )}
+            </div>
+          )}
         </div>
-        <Switch.Root
-          checked={closeToTray}
-          onCheckedChange={(value) => {
-            setCloseToTray(value);
-            setSaved(false);
-          }}
-          aria-label="关闭窗口后继续下载"
-          className="relative h-6 w-11 shrink-0 rounded-full border border-[color:var(--border-default)] bg-[color:var(--bg-surface-hover)] transition-colors data-[state=checked]:border-[color:var(--accent)] data-[state=checked]:bg-[color:var(--accent)]"
-        >
-          <Switch.Thumb className="block h-4 w-4 translate-x-1 rounded-full bg-[color:var(--text-primary)] shadow-sm transition-transform data-[state=checked]:translate-x-6" />
-        </Switch.Root>
-      </div>}
+      )}
 
       {isLocalServer && (
         <div className="mt-4 border-t border-[color:var(--border-subtle)] pt-4">
@@ -284,27 +310,29 @@ export function DesktopDownloadSettings() {
         </div>
       )}
 
-      <div className="mt-4 flex min-h-8 items-center justify-end gap-3">
-        {error && (
-          <span className="mr-auto text-[10px] text-[color:var(--status-error)]">
-            {error}
-          </span>
-        )}
-        {saved && !error && (
-          <span className="mr-auto flex items-center gap-1 text-[10px] text-[color:var(--text-muted)]">
-            <CheckCircle2 size={11} className="text-[color:var(--status-success)]" />
-            已保存
-          </span>
-        )}
-        <Button
-          variant="primary"
-          size="sm"
-          disabled={!dirty || saving}
-          onClick={save}
-        >
-          {saving ? <ShimmerText text="保存中…" /> : "保存设置"}
-        </Button>
-      </div>
+      {isLocalServer && (
+        <div className="mt-4 flex min-h-8 items-center justify-end gap-3">
+          {error && (
+            <span className="mr-auto text-[10px] text-[color:var(--status-error)]">
+              {error}
+            </span>
+          )}
+          {saved && !error && (
+            <span className="mr-auto flex items-center gap-1 text-[10px] text-[color:var(--text-muted)]">
+              <CheckCircle2 size={11} className="text-[color:var(--status-success)]" />
+              已保存
+            </span>
+          )}
+          <Button
+            variant="primary"
+            size="sm"
+            disabled={!dirty || saving}
+            onClick={save}
+          >
+            {saving ? <ShimmerText text="保存中…" /> : "保存设置"}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

@@ -525,7 +525,8 @@ function RssRow({
             <button
               type="button"
               aria-label="编辑"
-              className="inline-flex h-7 w-7 items-center justify-center rounded-[6px] text-[color:var(--text-muted)] transition-colors hover:bg-[color:var(--bg-surface-hover)] hover:text-[color:var(--text-primary)]"
+              title="编辑"
+              className="inline-flex h-7 w-7 items-center justify-center rounded-[6px] text-[color:var(--text-muted)] transition-colors hover:bg-[color:var(--bg-surface-hover)] hover:text-[color:var(--text-primary)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--accent)]"
             >
               <Pencil size={13} />
             </button>
@@ -541,7 +542,8 @@ function RssRow({
             <button
               type="button"
               aria-label="删除"
-              className="inline-flex h-7 w-7 items-center justify-center rounded-[6px] text-[color:var(--text-muted)] transition-colors hover:bg-[color:var(--bg-surface-hover)] hover:text-[color:var(--status-error)]"
+              title="删除"
+              className="inline-flex h-7 w-7 items-center justify-center rounded-[6px] text-[color:var(--text-muted)] transition-colors hover:bg-[color:var(--bg-surface-hover)] hover:text-[color:var(--status-error)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--accent)]"
             >
               <Trash2 size={13} />
             </button>
@@ -835,8 +837,9 @@ function IconAction({
     <button
       type="button"
       aria-label={label}
+      title={label}
       onClick={onClick}
-      className="inline-flex h-7 w-7 items-center justify-center rounded-[6px] text-[color:var(--text-muted)] transition-colors hover:bg-[color:var(--bg-surface-hover)] hover:text-[color:var(--text-primary)]"
+      className="inline-flex h-7 w-7 items-center justify-center rounded-[6px] text-[color:var(--text-muted)] transition-colors hover:bg-[color:var(--bg-surface-hover)] hover:text-[color:var(--text-primary)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--accent)]"
     >
       {children}
     </button>

@@ -96,6 +96,7 @@ export async function getYucSeasonPage(
   month: number,
   upstreamUpdatedAt: number | null = null,
   deadlineAt?: number,
+  forceRefresh = false,
 ): Promise<YucCatalogResult> {
   if (!Number.isInteger(year) || year < 1980 || year > 2100) {
     return unavailableCatalog();
@@ -111,6 +112,7 @@ export async function getYucSeasonPage(
       minimumRetainedRatio: 0.7,
       upstreamUpdatedAt,
       deadlineAt,
+      forceRefresh,
       parse: (source) =>
         parseYucSeasonPage(source, { year, month, sourceUrl }),
     });
@@ -128,6 +130,7 @@ export async function getYucSeasonPage(
 export async function getYucFuturePage(
   upstreamUpdatedAt: number | null = null,
   deadlineAt?: number,
+  forceRefresh = false,
 ): Promise<YucCatalogResult> {
   return getSupplementPage(
     "future",
@@ -135,12 +138,14 @@ export async function getYucFuturePage(
     parseYucFuturePage,
     upstreamUpdatedAt,
     deadlineAt,
+    forceRefresh,
   );
 }
 
 export async function getYucSpecialPage(
   upstreamUpdatedAt: number | null = null,
   deadlineAt?: number,
+  forceRefresh = false,
 ): Promise<YucCatalogResult> {
   return getSupplementPage(
     "special",
@@ -148,12 +153,14 @@ export async function getYucSpecialPage(
     parseYucSpecialPage,
     upstreamUpdatedAt,
     deadlineAt,
+    forceRefresh,
   );
 }
 
 export async function getYucMoviePage(
   upstreamUpdatedAt: number | null = null,
   deadlineAt?: number,
+  forceRefresh = false,
 ): Promise<YucCatalogResult> {
   return getSupplementPage(
     "movie",
@@ -161,6 +168,7 @@ export async function getYucMoviePage(
     parseYucMoviePage,
     upstreamUpdatedAt,
     deadlineAt,
+    forceRefresh,
   );
 }
 
@@ -170,6 +178,7 @@ async function getSupplementPage(
   parse: (source: string, options: { sourceUrl: string }) => YucEntry[],
   upstreamUpdatedAt: number | null,
   deadlineAt: number | undefined,
+  forceRefresh: boolean,
 ): Promise<YucCatalogResult> {
   try {
     const result = await getCache().get({
@@ -179,6 +188,7 @@ async function getSupplementPage(
       parserVersion: PARSER_VERSION,
       upstreamUpdatedAt,
       deadlineAt,
+      forceRefresh,
       parse: (source) => parse(source, { sourceUrl }),
     });
     return {
@@ -192,7 +202,9 @@ async function getSupplementPage(
   }
 }
 
-export async function getYucAtomPage(): Promise<YucAtomPage | null> {
+export async function getYucAtomPage(
+  forceRefresh = false,
+): Promise<YucAtomPage | null> {
   try {
     const result = await getCache().get({
       key: "atom",
@@ -206,6 +218,7 @@ export async function getYucAtomPage(): Promise<YucAtomPage | null> {
       ],
       countItems: (items) => items[0]?.entries.length ?? 0,
       minimumRetainedRatio: 0.7,
+      forceRefresh,
     });
     return result.items[0] ?? null;
   } catch (error) {
@@ -225,11 +238,12 @@ export function normalizeYucAtomForCache(page: YucAtomPage): YucAtomPage {
 export async function getYucEntriesForQuarter(
   year: number,
   season: BgmSeason,
+  forceRefresh = false,
 ): Promise<YucCatalogResult> {
   const month = MONTH_BY_SEASON[season];
   const deadlineAt = Date.now() + QUARTER_SOURCE_BUDGET_MS;
   const atomPage = await settleWithin(
-    getYucAtomPage(),
+    getYucAtomPage(forceRefresh),
     ATOM_SIGNAL_BUDGET_MS,
     null,
   );
@@ -239,18 +253,22 @@ export async function getYucEntriesForQuarter(
       month,
       atomPageUpdatedAt(atomPage, seasonUrl(year, month)),
       deadlineAt,
+      forceRefresh,
     ),
     getYucFuturePage(
       atomPageUpdatedAt(atomPage, YUC_FUTURE_URL),
       deadlineAt,
+      forceRefresh,
     ),
     getYucSpecialPage(
       atomPageUpdatedAt(atomPage, YUC_SPECIAL_URL),
       deadlineAt,
+      forceRefresh,
     ),
     getYucMoviePage(
       atomPageUpdatedAt(atomPage, YUC_MOVIE_URL),
       deadlineAt,
+      forceRefresh,
     ),
   ]);
   const supplemental = [futurePage, specialPage, moviePage]
@@ -299,12 +317,14 @@ async function settleWithin<T>(
 
 export async function getYucEntryBySourceKey(
   sourceKey: string,
+  forceRefresh = false,
 ): Promise<YucEntry | null> {
-  return (await lookupYucEntryBySourceKey(sourceKey)).entry;
+  return (await lookupYucEntryBySourceKey(sourceKey, forceRefresh)).entry;
 }
 
 export async function lookupYucEntryBySourceKey(
   sourceKey: string,
+  forceRefresh = false,
 ): Promise<YucEntryLookupResult> {
   const parsed = parseYucSourceKey(sourceKey);
   if (!parsed) return { status: "invalid", entry: null };
@@ -316,13 +336,13 @@ export async function lookupYucEntryBySourceKey(
     }
     const year = Number(parsed.pageId.slice(0, 4));
     const month = Number(parsed.pageId.slice(4, 6));
-    page = await getYucSeasonPage(year, month);
+    page = await getYucSeasonPage(year, month, null, undefined, forceRefresh);
   } else if (parsed.sourceKind === "future") {
-    page = await getYucFuturePage();
+    page = await getYucFuturePage(null, undefined, forceRefresh);
   } else if (parsed.sourceKind === "special") {
-    page = await getYucSpecialPage();
+    page = await getYucSpecialPage(null, undefined, forceRefresh);
   } else {
-    page = await getYucMoviePage();
+    page = await getYucMoviePage(null, undefined, forceRefresh);
   }
   if (page.status === "unavailable") {
     return { status: "unavailable", entry: null };

@@ -200,7 +200,7 @@ function LocalMediaScanButton({ mode }: { mode: ScanMode }) {
         aria-expanded={open}
         aria-controls={panelId}
       >
-        {isAnime ? "扫描动漫目录" : "扫描本地库"}
+        扫描本地库
       </Button>
 
       {open && (

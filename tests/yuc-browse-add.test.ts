@@ -5,7 +5,7 @@ import { getBrowseAddIdentity } from "../src/lib/browse-add";
 test("browse add identity prefers local, then YUC, then Bangumi", () => {
   assert.deepEqual(
     getBrowseAddIdentity({ bangumiId: 42, localAnimeId: 7, yucKey: "yuc-key" }),
-    { source: "local", animeId: 7, yucKey: "yuc-key" },
+    { source: "local", animeId: 7, yucKey: "yuc-key", bangumiId: 42 },
   );
   assert.deepEqual(
     getBrowseAddIdentity({ bangumiId: null, localAnimeId: 7, yucKey: "yuc-key" }),

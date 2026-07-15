@@ -282,6 +282,7 @@ function syncExternalDownloads(live: QbitTorrent[], downloadRoot: string) {
       id: anime.id,
       title: anime.title,
       titleJa: anime.titleJa,
+      totalEpisodes: anime.totalEpisodes,
     })
     .from(anime)
     .all();

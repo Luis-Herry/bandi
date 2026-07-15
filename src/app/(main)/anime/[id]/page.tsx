@@ -5,6 +5,7 @@ import { Calendar, Download, ExternalLink } from "lucide-react";
 import { GlassPanel, Tag } from "@/components/ui";
 import { AnimeCreditsTabs } from "@/components/features/AnimeCreditsTabs";
 import { AnimeSubscriptionButton } from "@/components/features/AnimeSubscriptionButton";
+import { AnimeDataRefreshButton } from "@/components/features/AnimeDataRefreshButton";
 import { BackButton } from "@/components/features/BackButton";
 import { EpisodeGrid } from "@/components/features/EpisodeGrid";
 import { EpisodeProgressControl } from "@/components/features/EpisodeProgressControl";
@@ -16,6 +17,7 @@ import { YucAnimeInfo } from "@/components/features/YucAnimeInfo";
 import { deriveAnimeVisualVars } from "@/lib/anime-visuals";
 import { getSubjectRelations } from "@/lib/bangumi";
 import { selectRelatedResourceViews } from "@/lib/bangumi-relations";
+import { selectContinueEpisode } from "@/lib/continue-watching";
 import { getAnimeDetail } from "@/lib/db-helpers/library";
 import { getCurrentUser } from "@/lib/session";
 import {
@@ -63,8 +65,14 @@ export default async function AnimeDetailPage({ params }: PageProps) {
     redirect(`/cinema/${animeId}`);
   }
 
-  const { anime, userAnime, episodes, completedDownloads, totalDownloads } =
-    detail;
+  const {
+    anime,
+    userAnime,
+    episodes,
+    latestPlaybackProgress,
+    completedDownloads,
+    totalDownloads,
+  } = detail;
   const yucMatchPromise = getYucDetailMatch(anime);
   const visualVars = deriveAnimeVisualVars(anime.accentColor);
 
@@ -90,15 +98,11 @@ export default async function AnimeDetailPage({ params }: PageProps) {
     : 0;
   const detailContinueEpisode =
     userAnime && completedDownloads > 0
-      ? (episodes
-          .filter(
-            (e) =>
-              e.airedAt &&
-              e.airedAt.getTime() <= Date.now() &&
-              e.number > watchedThroughEpisode &&
-              e.isDownloaded,
-          )
-          .sort((a, b) => a.number - b.number)[0]?.number ?? null)
+      ? selectContinueEpisode({
+          watchedThroughEpisode,
+          episodes,
+          playbackProgress: latestPlaybackProgress,
+        }).episodeNumber
       : null;
   const nextAiring = episodes.find(
     (e) => e.airedAt && e.airedAt.getTime() > Date.now(),
@@ -149,7 +153,7 @@ export default async function AnimeDetailPage({ params }: PageProps) {
           <BackButton />
         </div>
 
-        <div className="relative mx-auto flex min-h-[430px] max-w-[1440px] flex-col justify-end px-4 pb-8 pt-20 sm:min-h-[460px] sm:px-6 sm:pb-10 lg:h-full lg:px-8 lg:pb-12 lg:pt-16">
+        <div className="app-page-container relative flex min-h-[430px] flex-col justify-end pb-8 pt-20 sm:min-h-[460px] sm:pb-10 lg:h-full lg:pb-12 lg:pt-16">
           <div className="mb-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-[color:var(--text-secondary)]">
             <span data-tabular>{anime.year ?? "—"}</span>
             <span>·</span>
@@ -224,6 +228,12 @@ export default async function AnimeDetailPage({ params }: PageProps) {
               animeId={anime.id}
               initialSubscribed={!!userAnime}
             />
+            <AnimeDataRefreshButton
+              scope="anime"
+              animeId={anime.id}
+              label="刷新资料"
+              className="h-10 max-sm:flex-[1_1_calc(50%-5px)]"
+            />
             {/* 下载管理：仅在该番剧在 downloadQueue 有任意记录时显示，
                 没下过的番剧跳过去也看不到对应资源。 */}
             {userAnime && totalDownloads > 0 && (
@@ -254,9 +264,9 @@ export default async function AnimeDetailPage({ params }: PageProps) {
       </section>
 
       {/* ========== Body ========== */}
-      <section className="relative mx-auto grid max-w-[1440px] grid-cols-1 gap-6 px-4 py-6 sm:px-6 sm:py-8 lg:grid-cols-12 lg:px-8">
+      <section className="app-page-container relative grid grid-cols-1 gap-6 py-6 sm:py-8 xl:grid-cols-12">
         {/* 左主区 */}
-        <div className="min-w-0 space-y-6 lg:col-span-8">
+        <div className="min-w-0 space-y-6 xl:col-span-8">
           <AnimeCreditsTabs
             animeId={anime.id}
             synopsis={anime.synopsis}
@@ -301,7 +311,7 @@ export default async function AnimeDetailPage({ params }: PageProps) {
               />
             ) : (
               <GlassPanel className="p-6 text-center text-[13px] text-[color:var(--text-muted)]">
-                未拉取到剧集，加入追番后可同步
+                暂无剧集资料，可用页面上方“刷新资料”重新检查
               </GlassPanel>
             )}
             {nextAiring && (
@@ -319,7 +329,7 @@ export default async function AnimeDetailPage({ params }: PageProps) {
         </div>
 
         {/* 右栏 */}
-        <aside className="min-w-0 space-y-4 lg:col-span-4">
+        <aside className="min-w-0 space-y-4 xl:col-span-4">
           <GlassPanel className="p-5">
             <RatingNotes
               animeId={anime.id}

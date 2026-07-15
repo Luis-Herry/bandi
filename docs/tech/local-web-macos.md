@@ -54,6 +54,11 @@ iPad can join over the same LAN after an explicit pairing step.
   macOS folder picker.
 - A magnet can be queued, observed, paused/resumed, completed, and played from
   the existing Bandi download manager and player.
+- The host Mac can open the configured download folder or reveal one completed
+  file in Finder. Paired iPhone/iPad sessions do not render those host actions.
+- Browse, downloads, the local anime library, and anime detail share the same
+  metadata refresh flow as Windows, including reliable Chinese synopsis
+  fallback when a strict Douban identity match exists.
 - MP4/WebM files support Safari Range playback; unsupported containers keep a
   clear format error instead of claiming iOS compatibility.
 - LAN is unreachable before opt-in. A device without a valid pairing code

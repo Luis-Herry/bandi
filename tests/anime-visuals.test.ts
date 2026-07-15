@@ -97,6 +97,6 @@ test("douban covers use the same-origin cached image proxy", () => {
   assert.match(coverCacheSource, /Referer: "https:\/\/movie\.douban\.com\/"/);
   assert.match(cinemaDetailSource, /<AnimeCover/);
   assert.match(cinemaDetailSource, /className="!absolute inset-0 z-0 h-full w-full"/);
-  assert.match(cinemaDetailSource, /className="relative z-10 mx-auto/);
+  assert.match(cinemaDetailSource, /className="app-page-container relative z-10/);
   assert.match(searchCommandSource, /<AnimeCover/);
 });

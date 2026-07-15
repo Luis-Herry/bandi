@@ -301,8 +301,8 @@ function hasCatalogTitleIdentity(
   left: readonly (string | null | undefined)[],
   right: readonly (string | null | undefined)[],
 ): boolean {
-  const leftKeys = unique(left.map(normalizeCatalogTitle));
-  const rightKeys = unique(right.map(normalizeCatalogTitle));
+  const leftKeys = unique(left.map(normalizeYucCatalogTitle));
+  const rightKeys = unique(right.map(normalizeYucCatalogTitle));
   for (const leftKey of leftKeys) {
     for (const rightKey of rightKeys) {
       if (leftKey === rightKey) return true;
@@ -349,7 +349,9 @@ function unorderedCjkSignature(value: string): string {
   return characters.sort().join("");
 }
 
-function normalizeCatalogTitle(value: string | null | undefined): string {
+export function normalizeYucCatalogTitle(
+  value: string | null | undefined,
+): string {
   if (!value) return "";
   return value
     .replace(/[ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ]/gu, (roman) =>
@@ -370,6 +372,20 @@ function normalizeCatalogTitle(value: string | null | undefined): string {
     .replace(/file\.?\s*(\d+)/giu, "part$1")
     .replace(/剧场版|劇場版|電影|电影|映画/gu, "")
     .replace(/[\p{P}\p{S}\s]+/gu, "");
+}
+
+export function yucCatalogTitleVariants(
+  values: readonly (string | null | undefined)[],
+): string[] {
+  const variants = new Set<string>();
+  for (const value of values) {
+    if (!value?.trim()) continue;
+    for (const zhVariant of expandZhVariants(value)) {
+      const normalized = normalizeYucCatalogTitle(zhVariant);
+      if (normalized) variants.add(normalized);
+    }
+  }
+  return [...variants];
 }
 
 function yucMovieTitleVariants(

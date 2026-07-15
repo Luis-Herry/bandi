@@ -103,6 +103,30 @@ test("plans local video files and maps season episode numbers to absolute rows",
   assert.equal(parseLocalFileDownloadUrl(imports[0]?.magnetUrl ?? ""), localPath);
 });
 
+test("seasonless absolute EP26 resolves to season three when every season exists", () => {
+  const fileName = "[ANi] 超超超超超喜歡你的100個女朋友 - 26 [1080P].mp4";
+  const imports = planExternalDownloadImports({
+    downloadRoot,
+    existingDownloads: [],
+    liveTorrents: [],
+    localFiles: [{ path: `${downloadRoot}\\${fileName}`, name: fileName }],
+    animeRefs: [
+      { id: 1, title: "超超超超超喜欢你的100个女朋友", titleJa: null, totalEpisodes: 12 },
+      { id: 2, title: "超超超超超喜欢你的100个女朋友 第二季", titleJa: null, totalEpisodes: 12 },
+      { id: 3, title: "超超超超超喜欢你的100个女朋友 第三季", titleJa: null, totalEpisodes: 12 },
+    ],
+    aliasesByAnimeId: {},
+    episodeRefs: [
+      ...Array.from({ length: 12 }, (_, i) => ({ id: 100 + i, animeId: 1, number: i + 1 })),
+      ...Array.from({ length: 12 }, (_, i) => ({ id: 200 + i, animeId: 2, number: i + 13 })),
+      ...Array.from({ length: 12 }, (_, i) => ({ id: 300 + i, animeId: 3, number: i + 25 })),
+    ],
+  });
+
+  assert.equal(imports[0]?.animeId, 3);
+  assert.equal(imports[0]?.episodeId, 301);
+});
+
 test("plans local SxxEyy files and maps them to existing episode rows", () => {
   const localPath =
     "D:\\Media\\Bandi Downloads\\New Panty & Stocking with Garterbelt 2025 S01E01-[1080p][BDRIP][x265.OPUS].mkv";

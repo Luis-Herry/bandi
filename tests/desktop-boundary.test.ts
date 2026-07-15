@@ -822,6 +822,10 @@ test("desktop first-run onboarding owns download location and tray behavior", ()
   assert.match(onboardingSource, /1080p/);
   assert.match(onboardingSource, /关闭窗口后继续下载/);
   assert.match(desktopSettingsSource, /更改后只影响新下载/);
+  assert.match(
+    desktopSettingsSource,
+    /关闭窗口后继续下载[\s\S]*保存设置/,
+  );
   assert.match(navSource, /!isManagedLocal &&/);
 });
 
@@ -920,7 +924,7 @@ test("desktop replaces native Windows chrome with a themed custom titlebar", () 
   );
   assert.match(
     globalsSource,
-    /\.desktop-page-scroll\s*\{[^}]*overflow-y: auto;[^}]*scrollbar-gutter: auto;/s,
+    /\.desktop-page-scroll\s*\{[^}]*overflow-y: auto;[^}]*scrollbar-gutter: stable;/s,
   );
   assert.match(settingsSource, /desktop-page-sticky/);
   assert.match(

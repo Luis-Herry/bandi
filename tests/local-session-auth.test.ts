@@ -48,6 +48,7 @@ test("local filesystem and launcher controls require the host Mac session", () =
   for (const relativePath of [
     path.normalize("cinema/scan/route.ts"),
     path.normalize("library/local/scan/route.ts"),
+    path.normalize("downloads/open-location/route.ts"),
     path.normalize("local-server/[...path]/route.ts"),
   ]) {
     assert.match(routeSource(relativePath), /requireLocalHostRouteUser\s*\(/);

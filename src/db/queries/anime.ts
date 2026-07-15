@@ -20,8 +20,10 @@ import {
 } from "@/lib/bangumi";
 import { dedupeEpisodesByNumber } from "@/lib/episode-normalize";
 import { selectTitleAliasesFromBangumi } from "@/lib/anime-title-aliases";
+import { selectPreferredSynopsis } from "@/lib/synopsis-language";
 import {
   findUniqueBoundAnimeForYucTarget,
+  listYucIdentitiesForAnime,
   YucIdentityConflictError,
 } from "@/lib/yuc/identity";
 
@@ -61,13 +63,45 @@ export async function syncFromBangumi(
   bangumiId: number,
   dependencies: BangumiSyncDependencies = { getSubject, getEpisodes },
 ): Promise<{ animeId: number; created: boolean } | null> {
+  return syncBangumiSubject(bangumiId, dependencies, {});
+}
+
+export interface BangumiRefreshOptions {
+  force?: boolean;
+  targetAnimeId?: number;
+  preserveTitle?: boolean;
+}
+
+/** Manual metadata refresh with an optional trusted local target. */
+export async function refreshFromBangumi(
+  bangumiId: number,
+  options: BangumiRefreshOptions = {},
+  dependencies: BangumiSyncDependencies = { getSubject, getEpisodes },
+): Promise<{ animeId: number; created: boolean } | null> {
+  return syncBangumiSubject(bangumiId, dependencies, {
+    ...options,
+    force: true,
+  });
+}
+
+async function syncBangumiSubject(
+  bangumiId: number,
+  dependencies: BangumiSyncDependencies,
+  options: BangumiRefreshOptions,
+): Promise<{ animeId: number; created: boolean } | null> {
   const existing = getAnimeByBangumiId(bangumiId);
-  if (existing) {
+  if (existing && !options.force) {
     const updated = existing.updatedAt as Date | number;
     const updatedMs =
       updated instanceof Date ? updated.getTime() : Number(updated) * 1000;
     const ageMs = Date.now() - updatedMs;
-    if (ageMs < 2 * 60 * 60 * 1000) {
+    const hasEpisodes = db
+      .select({ id: episodes.id })
+      .from(episodes)
+      .where(eq(episodes.animeId, existing.id))
+      .limit(1)
+      .get();
+    if (ageMs < 2 * 60 * 60 * 1000 && hasEpisodes) {
       return { animeId: existing.id, created: false };
     }
   }
@@ -100,20 +134,53 @@ export async function syncFromBangumi(
       `YUC-bound anime ${yucBound.id} already has another Bangumi id`,
     );
   }
-  const target = existing ?? yucBound;
+  const preferred = options.targetAnimeId
+    ? getAnimeById(options.targetAnimeId)
+    : null;
+  if (options.targetAnimeId && (!preferred || preferred.mediaType !== "anime")) {
+    throw new YucIdentityConflictError(
+      `Preferred anime ${options.targetAnimeId} is unavailable`,
+    );
+  }
+  if (
+    preferred?.bangumiId != null &&
+    preferred.bangumiId !== bangumiId
+  ) {
+    throw new YucIdentityConflictError(
+      `Preferred anime ${preferred.id} already has another Bangumi id`,
+    );
+  }
+  const authoritativeTarget = existing ?? yucBound;
+  if (
+    preferred &&
+    authoritativeTarget &&
+    preferred.id !== authoritativeTarget.id
+  ) {
+    throw new YucIdentityConflictError(
+      `Bangumi ${bangumiId} points to anime ${authoritativeTarget.id}, not ${preferred.id}`,
+    );
+  }
+  const target = authoritativeTarget ?? preferred;
 
   let animeId: number;
   let created: boolean;
   if (target) {
+    const preserveTitle =
+      options.preserveTitle === true ||
+      listYucIdentitiesForAnime(target.id).length > 0;
     db.update(anime)
       .set({
         bangumiId: row.bangumiId,
-        title: row.title,
+        title: preserveTitle ? target.title : row.title,
         titleJa: row.titleJa,
         coverUrl: row.coverUrl ?? target.coverUrl,
-        synopsis: row.synopsis ?? target.synopsis,
+        synopsis: selectPreferredSynopsis(target.synopsis, row.synopsis),
         type: row.type,
-        totalEpisodes: row.totalEpisodes ?? target.totalEpisodes,
+        status: row.status,
+        totalEpisodes:
+          row.totalEpisodes != null && row.totalEpisodes > 0
+            ? row.totalEpisodes
+            : target.totalEpisodes,
         year: row.year ?? target.year,
         tags: [...new Set([...(target.tags ?? []), ...(row.tags ?? [])])],
         updatedAt: new Date(),
@@ -143,19 +210,39 @@ export async function syncFromBangumi(
     created = true;
   }
 
-  // Episodes sync
+  // Merge authoritative episode metadata into existing rows so local-file and
+  // completed-download references keep their episode ids.
   const eps = selectMainBangumiEpisodes(rawEpisodes);
   if (eps.length > 0) {
-    db.delete(episodes).where(eq(episodes.animeId, animeId)).run();
     for (const e of eps) {
-      db.insert(episodes)
-        .values({
-          animeId,
-          number: e.sort,
-          title: e.name_cn || e.name || null,
-          airedAt: e.airdate ? new Date(e.airdate) : null,
-        })
-        .run();
+      const stored = db
+        .select()
+        .from(episodes)
+        .where(
+          and(
+            eq(episodes.animeId, animeId),
+            eq(episodes.number, e.sort),
+          ),
+        )
+        .all()
+        .sort((left, right) =>
+          Number(right.isDownloaded) - Number(left.isDownloaded) ||
+          left.id - right.id,
+        )[0];
+      const values = {
+        title: e.name_cn || e.name || null,
+        airedAt: e.airdate ? new Date(e.airdate) : null,
+      };
+      if (stored) {
+        db.update(episodes)
+          .set(values)
+          .where(eq(episodes.id, stored.id))
+          .run();
+      } else {
+        db.insert(episodes)
+          .values({ animeId, number: e.sort, ...values })
+          .run();
+      }
     }
   }
 

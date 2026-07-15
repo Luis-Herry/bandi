@@ -13,6 +13,7 @@ import { db } from "@/db";
 import { anime, userAnime } from "@/db/schema";
 import { type BgmSeason, type BgmSubject } from "@/lib/bangumi";
 import { selectBangumiImageByRole } from "@/lib/bangumi-image";
+import { selectPreferredSynopsis } from "@/lib/synopsis-language";
 import { getYucEntriesForQuarter, type YucSourceStatus } from "@/lib/yuc/client";
 import {
   dedupeYucEntries,
@@ -256,7 +257,7 @@ export function buildSeasonalBrowseItems(
       title: subject.name_cn?.trim() || subject.name,
       titleJa: subject.name || yuc?.titleJa || null,
       coverUrl: pickCover(subject) ?? yuc?.coverUrl ?? local?.coverUrl ?? null,
-      summary: subject.summary?.trim() || local?.synopsis || null,
+      summary: selectPreferredSynopsis(local?.synopsis, subject.summary),
       date: subject.date ?? yuc?.premiereDate ?? null,
       airingDay: yuc?.weeklyDay ?? local?.airingDay ?? null,
       airingTime: yuc?.weeklyTime ?? local?.airingTime ?? null,

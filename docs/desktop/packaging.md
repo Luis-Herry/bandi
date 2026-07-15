@@ -85,6 +85,7 @@ The portable exe self-extracts on launch, so its first launch can be noticeably 
 - 构建脚本下载并校验 Node.js v24.14.1、当前架构的官方 qBittorrent DMG 和对应源码归档。所有 SHA-256 固定在 `local-server/macos-assets.json`；`vendor/macos/` 是本机构建缓存，已从 Git 排除。
 - Intel 包使用 qBittorrent v5.0.5，ARM64 包使用 v5.2.3。运行时把官方 `.app` 从随包 DMG 复制到当前用户的 Bandi 数据目录，不要求管理员权限，不修改 Gatekeeper quarantine 标记，也不改用户已有 qBittorrent。
 - Bandi 默认把 Next 绑定到 `127.0.0.1`。用户在设置中开启局域网访问后，启动器重启 Next 并绑定 `0.0.0.0`；iPhone/iPad 仍需六位配对码，连续八次失败会让当前配对码失效。
+- Windows Electron、macOS Local Web 和 iPhone/iPad Safari 共用 `src/` 页面与资料刷新逻辑。打开 Explorer/Finder、选择目录和外部播放器属于宿主机操作；配对设备不显示这些入口，服务端仍通过 `requireLocalHostRouteUser` 拒绝调用。
 - 本机浏览器通过 URL fragment 中的单次令牌建立会话。fragment 不会进入 HTTP 请求或服务日志，客户端提交后立即从地址栏清除。qBittorrent 凭据和内部控制令牌只存在于启动器配置或子进程环境中。
 - Apple 签名凭据不写入仓库。开发包可用于社区真机验证；公开发布前需要用维护者的 Developer ID Application 完成签名和 notarization，并复查 stapled ticket。
 
@@ -164,6 +165,12 @@ DMM and Douban covers use the same-origin `/api/img` route and `src/lib/cover-ca
 ## Local Playback Identity
 
 Completed `downloadQueue` rows are the playback identity. When duplicate `episodes.number` rows exist, every playback entry point uses `getPreferredPlaybackEpisode` and selects the episode row bound to the newest completed download. Untracked adult/local content may save `playbackProgress`, while `userAnime` creation and watch-status changes remain opt-in.
+
+## Metadata Refresh And Synopsis Language
+
+`/api/anime/refresh` owns the manual reconciliation entry points used by browse, downloads, the local anime library, and anime detail. It can merge duplicate local rows, reconnect downloads, refresh Bangumi episodes and YUC identity, expand RSS aliases, and prefer a reliable Chinese synopsis. A Chinese synopsis comes from existing local data or a Douban subject whose title, original title, year, and explicit season agree with the anime row; otherwise the existing Bangumi text stays visible. YUC provides schedule and production facts but no per-show story synopsis.
+
+The browse quarter action refreshes Bangumi and YUC caches first, then runs metadata refresh for local anime rows in the selected quarter. Douban synopsis fallback stays sequential in this bulk path because burst requests to the suggestion endpoint can silently omit valid titles. Single-anime, local-library, and download scopes keep bounded concurrency.
 
 ## Douban Catalog Classification
 

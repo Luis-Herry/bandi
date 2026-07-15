@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { ArrowRight, HardDrive } from "lucide-react";
 import { AnimeCard } from "@/components/features/AnimeCard";
+import { AnimeDataRefreshButton } from "@/components/features/AnimeDataRefreshButton";
 import { AnimeLocalScanButton } from "@/components/features/CinemaScanButton";
 import { Button, GlassPanel } from "@/components/ui";
 import { useCardGlow } from "@/hooks/useCardGlow";
@@ -29,7 +30,13 @@ export function LocalLibraryClient({ items }: { items: LocalAnimeItem[] }) {
             你保存在本地的动漫 · 可直接播放 · 共 {items.length} 部
           </p>
         </div>
-        {items.length > 0 && <AnimeLocalScanButton />}
+        <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+          <AnimeDataRefreshButton
+            scope="local-library"
+            label="刷新资料"
+          />
+          {items.length > 0 && <AnimeLocalScanButton />}
+        </div>
       </header>
 
       {items.length > 0 ? (

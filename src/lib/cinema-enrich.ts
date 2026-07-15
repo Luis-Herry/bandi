@@ -41,6 +41,7 @@ import {
 import { getBangumiTitleAliases } from "@/lib/anime-title-aliases";
 import { extractJavCode, getJavInfo } from "@/lib/jav";
 import { cacheCover } from "@/lib/cover-cache";
+import { selectPreferredSynopsis } from "@/lib/synopsis-language";
 
 const POSTER_SIZE = "w500";
 type AnimeRow = typeof anime.$inferSelect;
@@ -142,7 +143,7 @@ function applyDoubanAnimationMetadata(
       title: row.title,
       titleJa: row.titleJa ?? detail?.originalTitle,
       coverUrl: row.coverUrl ?? detail?.posterUrl ?? hit.coverUrl,
-      synopsis: row.synopsis ?? detail?.synopsis,
+      synopsis: selectPreferredSynopsis(row.synopsis, detail?.synopsis),
       totalEpisodes,
       year: row.year ?? detail?.year ?? null,
       tags: mergeDoubanGenres(row, detail),

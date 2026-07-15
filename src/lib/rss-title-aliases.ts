@@ -81,6 +81,33 @@ export function removeRssTitleAlias(animeId: number, value: unknown): string[] {
   return next;
 }
 
+export function mergeRssTitleAliasAnimeIds(
+  targetAnimeId: number,
+  sourceAnimeId: number,
+  extraAliases: Array<string | null | undefined> = [],
+): string[] {
+  if (
+    !Number.isFinite(targetAnimeId) ||
+    !Number.isFinite(sourceAnimeId) ||
+    targetAnimeId === sourceAnimeId
+  ) {
+    return getRssTitleAliases(targetAnimeId);
+  }
+
+  const store = readStore();
+  const targetKey = String(targetAnimeId);
+  const sourceKey = String(sourceAnimeId);
+  const next = mergeRssTitleAliases(
+    extraAliases.filter((value): value is string => Boolean(value?.trim())),
+    store.aliasesByAnimeId[targetKey] ?? [],
+    store.aliasesByAnimeId[sourceKey] ?? [],
+  ).slice(0, MAX_ALIASES_PER_ANIME);
+  if (next.length > 0) store.aliasesByAnimeId[targetKey] = next;
+  delete store.aliasesByAnimeId[sourceKey];
+  writeStore(store);
+  return next;
+}
+
 function readStore(): RssTitleAliasStore {
   const row = db
     .select({ value: appSettings.value })

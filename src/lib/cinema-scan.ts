@@ -9,6 +9,7 @@
  */
 
 import path from "node:path";
+import { toSimp } from "@/lib/zh-convert";
 
 // "skip"：识别为字幕组动画，跳过不进 cinema（动漫走动漫侧 /library/local）。
 export type ScannedKind = "movie" | "tv" | "skip";
@@ -230,7 +231,13 @@ function cleanTvTitle(raw: string): string {
 }
 
 export function normalizeMediaTitleKey(raw: string | null | undefined): string {
-  return cleanTitle(raw ?? "").toLowerCase();
+  return toSimp(cleanTitle(raw ?? ""))
+    .normalize("NFKC")
+    .toLocaleLowerCase("zh-CN")
+    .replace(
+      /第([一二三四五六七八九十百\d]+)(?:季|期)/gu,
+      (_, value: string) => `第${parseSeasonNumber(value)}季`,
+    );
 }
 
 /**
@@ -383,8 +390,8 @@ export function groupScannedFiles(files: ScannedMediaFile[]): ScannedTitle[] {
     if (f.kind === "skip") continue; // 字幕组动画：跳过不进 cinema
     const key =
       f.kind === "tv"
-        ? `tv|${f.title.toLowerCase()}|${f.season}`
-        : `movie|${f.title.toLowerCase()}|${f.year ?? ""}`;
+        ? `tv|${normalizeMediaTitleKey(f.title)}|${f.season}`
+        : `movie|${normalizeMediaTitleKey(f.title)}|${f.year ?? ""}`;
     let group = map.get(key);
     if (!group) {
       group = {

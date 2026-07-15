@@ -13,7 +13,7 @@ const statsChartSource = readFileSync(
 
 test("anime local library empty state offers a real next action", () => {
   assert.match(localLibrarySource, /AnimeLocalScanButton/);
-  assert.match(localLibrarySource, /扫描动漫目录|选择已有动漫目录/);
+  assert.match(localLibrarySource, /扫描本地库|选择已有动漫目录/);
   assert.match(localLibrarySource, /前往下载管理/);
   assert.match(localLibrarySource, /href="\/admin\/downloads"/);
   assert.doesNotMatch(localLibrarySource, /扫描导入仍在准备中/);

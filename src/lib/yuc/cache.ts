@@ -53,6 +53,8 @@ export interface YucCacheRequest<T> {
   upstreamUpdatedAt?: number | null;
   /** Shared wall-clock deadline for a multi-page first-screen request. */
   deadlineAt?: number;
+  /** User-triggered checks bypass the local TTL and perform a conditional request. */
+  forceRefresh?: boolean;
 }
 
 export interface YucCacheOptions {
@@ -104,12 +106,13 @@ export function createYucCache(options: YucCacheOptions = {}) {
     if (
       current &&
       current.parserVersion === request.parserVersion &&
+      !request.forceRefresh &&
       timestamp - current.checkedAt < request.ttlMs &&
       snapshotIncludesUpstreamUpdate(current, request.upstreamUpdatedAt)
     ) {
       return toCachedPage(current, "fresh");
     }
-    if ((retryAfter.get(operationKey) ?? 0) > timestamp) {
+    if (!request.forceRefresh && (retryAfter.get(operationKey) ?? 0) > timestamp) {
       if (fallback) return toCachedPage(fallback, "stale");
       throw new YucUnavailableError(
         `长门番堂 ${request.key} 暂时不可用，稍后重试`,

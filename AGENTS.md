@@ -17,7 +17,7 @@
 ## 项目概况
 
 - **项目类型**：Windows 本地优先桌面应用（Electron + Next.js）
-- **当前阶段**：桌面主产品持续迭代（追番、影视、本地扫描、下载、内置播放器和桌面打包已可用，2026-07-12）
+- **当前阶段**：Windows 桌面主产品与 macOS Local Web 持续迭代；iPhone/iPad 作为配对 Safari 客户端复用共享页面（2026-07-15）
 - **运行环境**：Windows Electron；Next standalone 与受管 qBittorrent 由主进程启动
 
 ## 技术栈
@@ -114,6 +114,7 @@ bandi/
 - `/api/anime/[id]/episodes/[ep]/sources` — 单集即时找资源（并发拉 RSS，按绝对/季内集号 + 番名季别匹配）
 - `/api/anime/[id]/rss-aliases` — 单番 RSS 搜索别名管理
 - `/api/anime/sync` — 从 Bangumi/AniList 同步数据
+- `/api/anime/refresh` — 手动复核单番、季度、本地库或下载关联；补齐 Bangumi/长门身份、剧集、RSS 别名与可信中文简介
 - `/api/browse/season` — 番剧库按季度读取长门番堂数据，缓存与本地资料兜底
 - `/api/browse/add` — 番剧库条目加入想看
 - `/api/library` — 追番列表 CRUD
@@ -129,6 +130,7 @@ bandi/
 - `/api/preferences` — 下载偏好（字幕组 / 关键字 / 画质）
 - `/api/rss` / `/api/rss/[id]` / `/api/rss/[id]/test` — RSS 源管理 + 单源测试
 - `/api/downloads` / `/api/downloads/[id]` / `/api/downloads/bulk-delete` — 下载队列 CRUD 与批量移除本地列表
+- `/api/downloads/open-location` — Windows/macOS 宿主机打开下载根目录或定位单条本地视频；配对设备无权调用
 - `/api/downloads/qbit/status` — qBittorrent 连通性检测
 - `/api/downloads/qbit/external-status` — 桌面端按需只读诊断系统外部 qBittorrent `127.0.0.1:18080`
 - `/api/cron/check-updates` — 定时检查番剧更新
@@ -195,6 +197,7 @@ npm run db:seed  # 填充测试数据
 - 影视条目没有 episode rows / completion episode 时，进度控件必须禁用，`PATCH /api/library/[id]` 对正数进度返回 422；动漫继续保留未知上限的既有行为。
 - 用户显式改 `watchStatus` 优先级最高；`dropped` 不被进度自动改写；如果已是 `completed` 但手动把进度调回 completion episode 之前，状态应回到 `watching`。
 - PlayButton 默认播 `currentEpisode > 0 ? currentEpisode : 1`，**绝不 +1**
+- 首页继续动作统一走 `selectContinueEpisode`：先取未完成且已下载的播放断点，再取 `number > currentEpisode`、已放送且已下载的第一集；没有本地下一集时隐藏播放入口。已放送未下载由 Hero 提供“找资源”，尚未放送只显示下集时间。
 
 **本地扫描 / 影视分类**
 - 动漫本地扫描与影视扫描分开：预览阶段只读，确认后才写库；重复扫描幂等；同一路径已有影视归属时跳过，禁止一份文件同时进入两区。
@@ -221,6 +224,12 @@ npm run db:seed  # 填充测试数据
 - 下载列表单条删除、批量移除和清空列表都只删除本地 `downloadQueue` 记录，不删除 qBittorrent 任务或本地文件；若被删记录是某集最后一条 `completed` 队列背书，要同步清掉 `episodes.isDownloaded`。
 - 页面播放入口和“本集已下载”判重以 `downloadQueue.status = "completed"` 且 `episodeId` 匹配为准；`episodes.isDownloaded` 是完成轮询时写入并由 `applyCompletedDownloadState` 修正的缓存标记。原有“找资源 / RSS 搜索本集”入口必须保留。
 - 同一条目可能存在多个相同 `episodes.number` 行；播放器页面、视频流、字幕、外部播放和进度必须共同使用 `getPreferredPlaybackEpisode`，优先选最新完成下载绑定的集行。未追踪成人/本地内容允许写 `playbackProgress`，但不能因此创建 `userAnime` 或改变观看状态。
+- 下载目录与单条文件定位统一走 `/api/downloads/open-location`，请求体只接受队列 ID，不接受客户端路径。Windows 使用 Explorer，macOS 使用 Finder；macOS 配对设备隐藏入口并由 `requireLocalHostRouteUser` 拒绝宿主文件操作。
+
+**资料刷新 / 简介语言**
+- `selectPreferredSynopsis` 负责中文优先：已有简体或繁体简介继续保留；当前简介为外文时，仅使用标题、年份、季别严格匹配的豆瓣中文简介；没有可靠中文来源时保留原文。当前没有机器翻译链路。
+- 长门番堂的季度与详情模型提供档期、话数、制作、声优、平台、PV 和官网，当前不提供单部剧情简介；Atom `summaryHtml` 只属于情报 Feed，不可当作番剧简介。
+- 番剧库“刷新资料”除了刷新 Bangumi/长门季度缓存，还必须对本季度本地 anime rows 调用 `refreshAnimeMetadata({ scope: "season" })`。豆瓣建议接口在突发并发下会漏结果，季度中文补全保持串行；单番、本地库和下载范围可继续使用有界并发。
 
 **UI / 交互**
 - Radix Dialog / Dropdown 锁滚靠 `globals.css` 里 `html { overflow-y: scroll; scrollbar-gutter: stable }` + body `data-scroll-locked` 清掉 react-remove-scroll 的 padding，缺一不可。右侧黑缝和横向抖动的根因是滚动条槽位消失与 body padding-right 补偿叠加；不要删这组规则，也不要只靠局部 margin/padding 修。
@@ -256,5 +265,6 @@ npm run db:seed  # 填充测试数据
 - 桌面受管 qBit 从 `127.0.0.1:18180` 起动态选端口；系统外部 qBit 诊断固定检查 `127.0.0.1:18080`。两套 profile、端口和任务不得混用。
 - 旧配置里的 `8080`、`18080` 或其他低于 `18180` 的受管端口会自动归零并重新分配；外部诊断只发两个无凭据 GET，拒绝重定向，不读取任务和设置。
 - 番剧库季度目录只等待国内可直连的长门番堂；长门更新失败时显示缓存或本地 fallback，fallback 会从 `anime.year` 和 `tags` 里的 `2026年4月` 这类年月标签推断季度。Bangumi 继续用于详情、人物、制作、关联、评分与评论等专属信息，不阻塞季度目录。
+- Bangumi 简介可能只有日文；手动资料刷新用豆瓣严格匹配做简体中文兜底。长门不提供剧情简介，不能把其 Atom 摘要写入 `anime.synopsis`。
 - AniList 数据中文化方案：用日文名去 Bangumi 交叉匹配
 - RSS 源建议：保留 `https://api.animes.garden/feed.xml`，避免 `dmhy.org/topics/rss/rss.xml`（上游 `<enclosure length="1">` 字段错填，size 显示成 1.0 B；两个源内容大量重叠）

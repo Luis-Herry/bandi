@@ -8,6 +8,9 @@
   after the user enables LAN access, and LAN sessions require pairing.
 - Keep launcher control and qBittorrent ports on loopback. Never expose their
   credentials, tokens, or configuration file contents to browser clients.
+- Finder, native folder selection, and external-player actions are host-only.
+  Hide them from paired iPhone/iPad sessions and keep the server-side
+  `requireLocalHostRouteUser` check even when the client already hides them.
 - qBittorrent remains an unmodified official third-party application. Bundle
   its DMG with a pinned checksum, copy it with macOS `ditto`, and retain license
   notices. Do not remove quarantine attributes or bypass Gatekeeper.

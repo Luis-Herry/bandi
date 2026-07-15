@@ -11,6 +11,7 @@ import { db } from "@/db";
 import { anime, userAnime, type UserAnime } from "@/db/schema";
 import {
   getAnimeById,
+  refreshFromBangumi,
   syncFromBangumi,
 } from "@/db/queries/anime";
 import { requireUser } from "@/lib/session";
@@ -28,7 +29,7 @@ export const dynamic = "force-dynamic";
 type AddBody =
   | { source?: "bangumi"; bangumiId?: number; yucKey?: string }
   | { source: "yuc"; yucKey?: string }
-  | { source: "local"; animeId?: number; yucKey?: string };
+  | { source: "local"; animeId?: number; yucKey?: string; bangumiId?: number };
 
 export async function POST(req: Request) {
   const user = await requireUser().catch((response) => response as Response);
@@ -108,7 +109,14 @@ async function resolveAnimeId(body: AddBody): Promise<number> {
       if (!parseYucSourceKey(body.yucKey)) {
         throw new YucIdentityValidationError("Invalid YUC source key");
       }
-      await bindOptionalYucHint(body.yucKey, local.id);
+      const yucBound = await bindOptionalYucHint(body.yucKey, local.id);
+      const bangumiId = Number("bangumiId" in body ? body.bangumiId : NaN);
+      if (yucBound && Number.isInteger(bangumiId) && bangumiId > 0) {
+        await refreshFromBangumi(bangumiId, {
+          targetAnimeId: local.id,
+          preserveTitle: true,
+        });
+      }
     }
     return local.id;
   }
@@ -119,21 +127,22 @@ async function resolveAnimeId(body: AddBody): Promise<number> {
 async function bindOptionalYucHint(
   sourceKey: string,
   animeId: number,
-): Promise<void> {
+): Promise<boolean> {
   const lookup = await lookupYucEntryBySourceKey(sourceKey);
   if (lookup.status !== "found") {
     // Bangumi is already authoritative enough to complete the add. A stale or
     // unavailable optional YUC hint can be retried on a later detail visit.
-    return;
+    return false;
   }
   try {
     bindYucIdentity(lookup.entry, animeId);
+    return true;
   } catch (error) {
     if (error instanceof YucIdentityConflictError) {
       console.warn(
         `[browse-add] skipped conflicting optional YUC binding for anime ${animeId}`,
       );
-      return;
+      return false;
     }
     throw error;
   }

@@ -97,6 +97,38 @@ test("continue watching uses the missed-reminder playback button style", () => {
   assert.doesNotMatch(homeSource, /currentEpisode \/ denom/);
 });
 
+test("anime continue actions share one episode selection rule", () => {
+  const helperSource = readFileSync("src/lib/db-helpers/library.ts", "utf8");
+  const detailSource = readFileSync(
+    "src/app/(main)/anime/[id]/page.tsx",
+    "utf8",
+  );
+
+  assert.equal(
+    helperSource.match(/selectContinueEpisode\(\{/g)?.length,
+    2,
+  );
+  assert.match(detailSource, /import \{ selectContinueEpisode \}/);
+  assert.match(detailSource, /selectContinueEpisode\(\{/);
+  assert.doesNotMatch(detailSource, /e\.number > watchedThroughEpisode/);
+});
+
+test("home hero distinguishes playback, RSS search, and future airing states", () => {
+  const helperSource = readFileSync("src/lib/db-helpers/library.ts", "utf8");
+  const homeSource = readFileSync("src/app/(main)/page.tsx", "utf8");
+  const heroSource = readFileSync("src/components/features/HomeHero.tsx", "utf8");
+
+  assert.match(helperSource, /selectHeroEpisodeAvailability/);
+  assert.match(helperSource, /sourceEpisodeNumber/);
+  assert.match(helperSource, /nextAiringEpisodeNumber/);
+  assert.match(helperSource, /nextAiringAt/);
+  assert.match(homeSource, /nextAiringAt\.toISOString\(\)/);
+  assert.match(heroSource, /EpisodeSourceDialog/);
+  assert.match(heroSource, /找资源 EP\./);
+  assert.match(heroSource, /下集 EP\./);
+  assert.match(heroSource, /formatHeroAiringTime/);
+});
+
 test("home hero candidates do not admit stale same-year airing rows", () => {
   const helperSource = readFileSync("src/lib/db-helpers/library.ts", "utf8");
   const homeSource = readFileSync("src/app/(main)/page.tsx", "utf8");
@@ -110,17 +142,46 @@ test("home hero candidates do not admit stale same-year airing rows", () => {
   assert.match(homeSource, /getHeroCandidates\(user\.id\)/);
   assert.doesNotMatch(homeSource, /getHeroCandidates\(user\.id,\s*5\)/);
   assert.match(heroSource, /const AUTOPLAY_MS = 6000/);
-  assert.match(heroSource, /const THUMBNAIL_GROUP_SIZE = 5/);
-  assert.match(
-    heroSource,
-    /Math\.floor\(idx \/ THUMBNAIL_GROUP_SIZE\) \* THUMBNAIL_GROUP_SIZE/,
-  );
-  assert.match(
-    heroSource,
-    /slides\.slice\(\s*thumbnailGroupStart,\s*thumbnailGroupStart \+ THUMBNAIL_GROUP_SIZE,\s*\)/,
-  );
-  assert.match(heroSource, /visibleThumbnailSlides\.map/);
   assert.doesNotMatch(helperSource, /return a\.status === "airing"/);
+});
+
+test("home hero keeps a persistent, responsive thumbnail rail", () => {
+  const heroSource = readFileSync("src/components/features/HomeHero.tsx", "utf8");
+
+  assert.match(heroSource, /thumbnailViewportRef/);
+  assert.match(heroSource, /thumbnailRefs/);
+  assert.match(heroSource, /const THUMBNAILS_PER_GROUP = 5/);
+  assert.match(heroSource, /getThumbnailGroupStart\(idx, slides\.length\)/);
+  assert.match(
+    heroSource,
+    /groupStartThumbnail\.offsetLeft - firstThumbnail\.offsetLeft/,
+  );
+  assert.match(heroSource, /viewport\.scrollTo\(\{/);
+  assert.match(heroSource, /behavior: shouldReduceMotion \? "auto" : "smooth"/);
+  assert.match(heroSource, /new ResizeObserver\(alignThumbnailGroup\)/);
+  assert.match(heroSource, /resizeObserver\.observe\(viewport\)/);
+  assert.match(heroSource, /resizeObserver\.disconnect\(\)/);
+  assert.match(heroSource, /onFocusCapture=\{\(\) => setPaused\(true\)\}/);
+  assert.match(heroSource, /event\.currentTarget\.contains\(event\.relatedTarget/);
+  assert.match(heroSource, /slides\.map\(\(s, slideIndex\) =>/);
+  assert.match(heroSource, /<motion\.button/);
+  assert.match(heroSource, /active \? 1\.06 : 1/);
+  assert.match(heroSource, /relative h-12 w-20 shrink-0/);
+  assert.match(heroSource, /min-\[1280px\]:h-\[52px\]/);
+  assert.match(heroSource, /min-\[1440px\]:h-14/);
+  assert.match(
+    heroSource,
+    /<\/motion\.div>\s*<div className="pointer-events-auto mt-6/,
+  );
+  assert.doesNotMatch(heroSource, /THUMBNAIL_GROUP_SIZE/);
+  assert.doesNotMatch(heroSource, /visibleThumbnailSlides/);
+  assert.doesNotMatch(heroSource, /centeredLeft/);
+  assert.doesNotMatch(
+    heroSource,
+    /activeThumbnail\.offsetLeft\s*-\s*\(viewport\.clientWidth/,
+  );
+  assert.doesNotMatch(heroSource, /transition-all/);
+  assert.doesNotMatch(heroSource, /w-\[120px\] h-\[72px\]/);
 });
 
 test("missed update cards search or play the next missed episode", () => {
@@ -177,6 +238,35 @@ test("downloads admin completed rows can open the internal player", () => {
   assert.match(clientSource, /aria-label=\{`播放 \$\{row\.anime\.title\} EP\.\$\{episodeLabel\}`\}/);
   assert.match(clientSource, /episode=\{row\.episodeNumber\}/);
   assert.match(clientSource, /播放 EP/);
+});
+
+test("downloads admin can open the configured root and each local item", () => {
+  const clientSource = readFileSync(
+    "src/app/(main)/admin/downloads/Client.tsx",
+    "utf8",
+  );
+  const pageSource = readFileSync(
+    "src/app/(main)/admin/downloads/page.tsx",
+    "utf8",
+  );
+  const routeSource = readFileSync(
+    "src/app/api/downloads/open-location/route.ts",
+    "utf8",
+  );
+
+  assert.match(clientSource, /打开下载目录/);
+  assert.match(clientSource, /更改保存位置请前往设置中心/);
+  assert.match(clientSource, /aria-label="打开本地目录"/);
+  assert.match(clientSource, /title="打开本地目录"/);
+  assert.match(clientSource, /title="删除"/);
+  assert.match(clientSource, /canOpenLocalDirectory &&/);
+  assert.match(pageSource, /user\?\.isLocalHost === true/);
+  assert.match(pageSource, /canOpenLocalDirectory=\{canOpenLocalDirectory\}/);
+  assert.match(routeSource, /requireLocalHostRouteUser\(\)/);
+  assert.match(routeSource, /resolveDownloadRoot\(\)/);
+  assert.match(routeSource, /parseLocalFileDownloadUrl/);
+  assert.match(routeSource, /getTorrentFiles/);
+  assert.doesNotMatch(routeSource, /body\.(?:path|directory|target)/);
 });
 
 test("downloads refresh prunes completed rows whose backing source disappeared", () => {
