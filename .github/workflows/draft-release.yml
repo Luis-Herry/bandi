@@ -18,7 +18,9 @@ permissions:
 jobs:
   preflight:
     name: Validate tagged source
-    runs-on: ubuntu-24.04
+    # The desktop regression suite intentionally exercises Win32 drive and UNC
+    # semantics, so release gating must run on the primary Windows platform.
+    runs-on: windows-2025
     timeout-minutes: 30
     outputs:
       commit: ${{ steps.tag.outputs.commit }}
