@@ -77,6 +77,11 @@ next-env.d.ts
 # runtime downloads
 /download/
 
+# local qBittorrent runtime state
+/qbit-profile/
+*.torrent
+*.fastresume
+
 # generated local artifacts
 /output/
 /garden-gpt-image-2/
