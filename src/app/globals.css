@@ -772,10 +772,41 @@ select:not([data-no-focus-ring]):focus-visible,
   );
 }
 
+.catalog-page-hero {
+  position: relative;
+  width: 100%;
+  min-height: 13.75rem;
+  overflow: hidden;
+}
+
+.catalog-page-hero-content {
+  position: relative;
+  display: flex;
+  min-height: 13.75rem;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 1.25rem;
+  padding-bottom: 1.5rem;
+}
+
 @media (min-width: 640px) {
   :root {
     --app-page-padding: 1.5rem;
     --app-page-gutter: var(--app-page-padding);
+  }
+
+  .catalog-page-hero {
+    height: 15rem;
+  }
+}
+
+@media (min-width: 900px) {
+  .catalog-page-hero-content {
+    height: 100%;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    padding-bottom: 0;
   }
 }
 

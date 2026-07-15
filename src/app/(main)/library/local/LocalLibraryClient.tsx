@@ -5,6 +5,7 @@ import { ArrowRight, HardDrive } from "lucide-react";
 import { AnimeCard } from "@/components/features/AnimeCard";
 import { AnimeDataRefreshButton } from "@/components/features/AnimeDataRefreshButton";
 import { AnimeLocalScanButton } from "@/components/features/CinemaScanButton";
+import { PageHeader } from "@/components/features/PageHeader";
 import { Button, GlassPanel } from "@/components/ui";
 import { useCardGlow } from "@/hooks/useCardGlow";
 import type { LocalAnimeItem } from "@/lib/db-helpers/library";
@@ -17,27 +18,20 @@ export function LocalLibraryClient({ items }: { items: LocalAnimeItem[] }) {
   const gridRef = useCardGlow<HTMLDivElement>([items]);
 
   return (
-    <div className="app-page-container py-6 space-y-6">
-      <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <HardDrive size={20} className="text-[color:var(--accent)]" />
-            <h1 className="text-[22px] font-semibold tracking-tight text-[color:var(--text-primary)]">
-              本地库
-            </h1>
+    <div className="app-page-container space-y-6 py-6 sm:py-8">
+      <PageHeader
+        title="本地库"
+        description={`你保存在本地的动漫 · 可直接播放 · 共 ${items.length} 部`}
+        actions={
+          <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+            <AnimeDataRefreshButton
+              scope="local-library"
+              label="刷新资料"
+            />
+            {items.length > 0 && <AnimeLocalScanButton />}
           </div>
-          <p className="text-[13px] text-[color:var(--text-secondary)]">
-            你保存在本地的动漫 · 可直接播放 · 共 {items.length} 部
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-          <AnimeDataRefreshButton
-            scope="local-library"
-            label="刷新资料"
-          />
-          {items.length > 0 && <AnimeLocalScanButton />}
-        </div>
-      </header>
+        }
+      />
 
       {items.length > 0 ? (
         <div

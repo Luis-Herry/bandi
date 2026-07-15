@@ -19,7 +19,7 @@ export default auth((req) => {
   );
 
   // 公开图片代理（仅白名单 DMM，非开放代理）：不鉴权、不重定向，供 <img> 直接加载
-  if (pathname === "/api/img") {
+  if (pathname === "/api/img" || pathname === "/api/app-version") {
     return NextResponse.next();
   }
 

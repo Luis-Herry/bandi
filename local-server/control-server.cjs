@@ -89,6 +89,22 @@ function createControlServer({ token, handlers }) {
         sendJson(response, 200, await handlers.retryDownloadService());
         return;
       }
+      if (request.method === "GET" && url.pathname === "/update") {
+        sendJson(response, 200, await handlers.getUpdateState());
+        return;
+      }
+      if (request.method === "POST" && url.pathname === "/update/check") {
+        sendJson(response, 200, await handlers.checkForUpdates());
+        return;
+      }
+      if (request.method === "POST" && url.pathname === "/update/install") {
+        sendJson(response, 200, await handlers.installUpdate());
+        return;
+      }
+      if (request.method === "POST" && url.pathname === "/update/open-release") {
+        sendJson(response, 200, await handlers.openUpdatePage());
+        return;
+      }
       if (request.method === "POST" && url.pathname === "/pairing") {
         sendJson(response, 200, await handlers.createPairing());
         return;

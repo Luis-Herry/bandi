@@ -46,6 +46,24 @@ iPad can join over the same LAN after an explicit pairing step.
 - Default downloads: `~/Movies/Bandi/Downloads`
 - Screenshots: `~/Pictures/Bandi`
 
+## Current update contract
+
+- Current x64 and arm64 builds are unsigned and not notarized. The authenticated
+  Mac host sees a global `下载新版` action that opens the public GitHub Release,
+  then installs the matching DMG manually.
+- `BANDI_MAC_RELEASE=1` enables the signed/notarized packaging path. In-app
+  `重启并更新` remains disabled until a verified build also sets
+  `BANDI_MAC_AUTO_UPDATE=1`.
+- The launcher never forces an update or interrupts playback, scanning, or
+  metadata writes. A downloaded signed update can only restart after an
+  explicit host action.
+- Local Safari and paired iPhone/iPad sessions detect a changed build through
+  `/api/app-version` and show `新版本已就绪，立即刷新`. They can refresh shared
+  pages but cannot download desktop installers or control host updates.
+- Every GitHub Release starts as a Draft. Draft assets stay invisible to update
+  checks and are published only after manual architecture, checksum, and
+  metadata verification.
+
 ## Acceptance
 
 - A fresh x64 or arm64 build starts without a system Node.js or qBittorrent.
@@ -65,6 +83,8 @@ iPad can join over the same LAN after an explicit pairing step.
   cannot create a session after opt-in.
 - Paired-device revocation and disabling LAN prevent future authenticated
   requests after the bounded session recheck interval.
+- Unsigned builds keep the global manual `下载新版` action. A host upgrade makes
+  local and paired Safari sessions offer an explicit page refresh.
 - Windows Electron tests, build, and packaging contracts continue to pass.
 
 ## Verification boundary

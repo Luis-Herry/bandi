@@ -22,6 +22,10 @@ const browseSource = readFileSync(
   "utf8",
 );
 const statsSource = readFileSync("src/app/(main)/stats/page.tsx", "utf8");
+const pageHeaderSource = readFileSync(
+  "src/components/features/PageHeader.tsx",
+  "utf8",
+);
 
 test("transition utilities expose the selected motion recipes", () => {
   assert.match(globalsSource, /--resize-dur/);
@@ -72,6 +76,7 @@ test("page title and empty states use restrained text reveal", () => {
   assert.match(homeSource, /t-stagger-line t-stagger-line--1 flex items-center/);
   assert.match(browseSource, /t-stagger-line t-stagger-line--1 text-\[34px\]/);
   assert.match(browseSource, /GlassPanel className="t-stagger is-shown p-10 text-center"/);
-  assert.match(statsSource, /t-stagger is-shown min-w-0/);
-  assert.match(statsSource, /t-stagger-line t-stagger-line--2 mt-2/);
+  assert.match(statsSource, /<PageHeader/);
+  assert.match(pageHeaderSource, /t-stagger is-shown min-w-0/);
+  assert.match(pageHeaderSource, /t-stagger-line t-stagger-line--2 mt-2/);
 });

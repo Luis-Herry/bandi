@@ -1,6 +1,8 @@
 # macOS Local Web 社区真机验证清单
 
-> 当前状态：Intel x64、Apple Silicon ARM64 以及 iOS/iPadOS Safari 仍待社区真机验证。Windows 上的共享检查不能替代对应 Apple 设备上的安装、Gatekeeper、下载、播放和局域网配对结果。
+> 正式发布包完成 Developer ID 签名与 Apple 公证后，状态统一标记为：**已构建和公证，等待真机验收**。当前仓库已具备条件式签名、公证和双架构更新配置；实际状态仍取决于对应 Release 的签名、公证输出，不能只凭 Windows 共享检查标记完成。
+
+当前 Draft workflow 不设置 `BANDI_MAC_RELEASE` 或 `BANDI_MAC_AUTO_UPDATE`，更新入口只显示“下载新版”并打开 GitHub Release。以后取得 Apple 证书后，维护者先用 `BANDI_MAC_RELEASE=1` 完成签名与公证；只有验收通过的签名产物才同时设置 `BANDI_MAC_AUTO_UPDATE=1`，升级为“重启并更新”。签名构建失败时不得降级成未签名公开包。
 
 这份清单需要在两类 Mac 真机各跑一次：Intel x64 与 Apple Silicon ARM64。每台机器只构建并验收自己的架构；iPhone 和 iPad 的局域网步骤也应分别记录实际设备与系统版本。测试使用空白 Bandi 数据目录、公开测试视频和有权下载的测试资源；不要使用个人媒体库、成人观看记录、真实密码或私人 RSS。
 
@@ -61,6 +63,13 @@ npm run local-server:dist:arm64
 shasum -a 256 release/macos-*/Bandi-Local-Web-*
 ```
 
+面向公开更新的构建还必须生成与架构对应的 channel 清单：
+
+- Intel x64：`latest-x64-mac.yml`
+- Apple Silicon arm64：`latest-arm64-mac.yml`
+
+DMG 是当前用户手动安装入口，ZIP 与架构清单为未来签名更新链路保留。清单、ZIP 和 DMG 必须来自同一 commit、同一版本和同一轮构建；未来开启签名后还必须来自同一轮签名与公证。禁止下载后手工重命名附件，也不能把另一架构 job 生成的清单覆盖到当前架构。
+
 构建失败并提示 SourceForge 返回了 HTML 时，用浏览器从 qBittorrent 官方下载页取得当前架构清单指定的 DMG，再执行：
 
 ```bash
@@ -117,7 +126,30 @@ lsof -nP -iTCP -sTCP:LISTEN | grep -E 'Bandi|node|qbittorrent'
 
 截图应进入 `~/Pictures/Bandi`。SQLite、配置、缓存、日志和受管 qBittorrent 应进入 `~/Library/Application Support/Bandi/`。
 
-## 7. iPhone / iPad 局域网配对
+## 7. 从 Draft 验证当前手动更新
+
+当前 macOS 产物没有 Developer ID 签名与公证，应用内只显示“下载新版”。这一节只使用 GitHub Draft Release 中即将公开的附件，禁止使用构建机器上的 unpacked app 或临时复制文件。Release 公开前先确认附件包括 x64 与 arm64 各自的 DMG、ZIP、channel 清单和 `SHA256SUMS.txt`，且清单中的 URL、size、sha512 与 ZIP 一致。
+
+1. 在 GitHub 的 Draft Release 页面按测试 Mac 架构下载对应 DMG，并用 `SHA256SUMS.txt` 核对文件；Intel 只取 x64，Apple Silicon 只取 arm64。
+2. 在干净测试 Mac 上手动安装 DMG，记录未签名版本触发的 Gatekeeper 提示和实际放行步骤；当前阶段不能标记为“已签名”或“已公证”。
+3. 完成首次引导，记录一个合成追番进度、公开测试下载和测试下载目录；关闭再启动一次，确认数据库、设置和受管 qBittorrent 状态保持。
+4. 人工确认 Draft 后另行公开 Release。上一版本发现该公开版本时，全局提示应显示“下载新版”；点击后打开公开 Release，应用保持运行，不自动退出。
+5. 从公开 Release 下载正确架构的 DMG，用户自行选择退出时机并手动安装。再次启动后确认版本已更新，原数据库、下载目录、追番进度、测试文件和设置保持，受管 qBittorrent 只恢复一份实例。
+6. 已配对 iPhone/iPad 刷新 Mac 提供的 Local Web 页面即可获得新版界面。Safari 不下载 DMG/ZIP，也不显示桌面安装操作。
+7. 未来原生 iOS App 的版本检查与更新只走 TestFlight / App Store，不复用 GitHub Desktop channel。
+
+失败时记录目标版本、当前版本、架构、附件文件名、HTTP 状态和脱敏后的最短日志。禁止公开完整更新 URL 查询参数、token、Cookie、配置文件或数据库。
+
+### 未来：取得 Apple 证书后验证自动更新
+
+只有 Developer ID Application 签名、Hardened Runtime、公证和 stapling 全部通过，并在构建时同时显式设置 `BANDI_MAC_RELEASE=1` 与 `BANDI_MAC_AUTO_UPDATE=1`，才启用这一组验收：
+
+1. 用已签名、公证的 N-1 版本确认 Intel 客户端读取 `latest-x64-mac.yml`，Apple Silicon 客户端读取 `latest-arm64-mac.yml`。
+2. 触发更新检查，确认版本、下载进度和错误反馈准确；下载完成后只显示“重启并更新”，不强制退出。
+3. 用户点击后确认 Bandi 依次停止 Next、受管 qBittorrent、控制服务和 parent lease，再退出并安装。
+4. 重启后复验版本与本地数据，并在断网状态检查已 staple 的 Gatekeeper 结果。
+
+## 8. iPhone / iPad 局域网配对
 
 使用与 Mac 同一 Wi-Fi 的 iPhone 或 iPad：
 
@@ -132,7 +164,7 @@ lsof -nP -iTCP -sTCP:LISTEN | grep -E 'Bandi|node|qbittorrent'
 9. 再次配对，然后关闭局域网访问；全部设备会被清空，手机会话最迟 30 秒后失效，Next 恢复只监听 `127.0.0.1`。
 10. 连续输入八次错误配对码，原配对码必须失效。
 
-## 8. 隐私与日志复核
+## 9. 隐私与日志复核
 
 验收只查看测试数据目录：
 
@@ -143,7 +175,7 @@ grep -RniE 'token=|BANDI_CONTROL_TOKEN|qbitPassword|authSecret' "$HOME/Library/A
 
 预期：配置文件只允许当前用户读取，日志中没有启动令牌、内部控制令牌、qBittorrent 密码或认证 secret。检查完成后在 Finder 中移除本轮测试生成的公开测试视频和 Bandi 测试数据；不要把该目录打包、提交或发送给维护者。
 
-## 9. 提交 GitHub Issue
+## 10. 提交 GitHub Issue
 
 完成清单后，通过 [macOS / iOS 社区真机验证 Issue Form](https://github.com/Luis-Herry/bandi/issues/new?template=macos-community-verification.yml) 提交结果。Intel x64、Apple Silicon ARM64、iPhone 和 iPad 可以分别提交，失败项优先回传，便于维护者按设备与系统版本定位。
 
@@ -168,6 +200,10 @@ Commit:
 Build: PASS | FAIL
 Shared tests: PASS | FAIL
 Gatekeeper: PASS | FAIL + exact prompt
+Code signing: PASS | FAIL + Developer ID subject (no certificate export)
+Notarization and staple: PASS | FAIL
+Update from N-1: PASS | FAIL
+Update channel: latest-x64 | latest-arm64
 Silent local session: PASS | FAIL
 Managed qBittorrent: PASS | FAIL + version
 Download lifecycle: PASS | FAIL

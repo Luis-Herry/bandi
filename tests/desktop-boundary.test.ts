@@ -667,7 +667,10 @@ test("desktop login establishes a local session without showing credentials", ()
     assert.match(sessionGateSource, new RegExp(className));
   }
   assert.match(authSource, /const isDesktopApp = process\.env\.ANIME_DESKTOP_APP === "1"/);
-  assert.match(authSource, /\.\.\.\(!isManagedLocalApp/);
+  assert.match(authSource, /const isLoopbackSessionApp = process\.env\.ANIME_LOOPBACK_SESSION === "1"/);
+  assert.match(authSource, /id: "loopback-session"/);
+  assert.match(authSource, /isLoopbackSessionRequest\(request\)/);
+  assert.doesNotMatch(authSource, /bcrypt\.compare/);
   assert.match(authSource, /\.\.\.\(isDesktopApp/);
   assert.match(authSource, /id: "desktop-session"/);
   assert.match(authSource, /x-bandi-desktop-token/);
@@ -973,4 +976,59 @@ test("desktop page viewports stay inside the titlebar and navigation shell", () 
     globalsSource,
     /html\[data-desktop-app="true"\] \.desktop-player-stage\s*\{[^}]*min-height: calc\(100vh - var\(--desktop-titlebar-shell-height\) - 104px\);/s,
   );
+});
+
+test("Windows desktop update flow keeps package identity and renderer privileges narrow", () => {
+  const pkg = JSON.parse(readFileSync("package.json", "utf8")) as any;
+  const mainSource = readFileSync("desktop/main.cjs", "utf8");
+  const preloadSource = readFileSync("desktop/preload.cjs", "utf8");
+  const controllerSource = readFileSync("runtime/app-update.cjs", "utf8");
+  const helperSource = readFileSync(
+    "runtime/launch-portable-update.ps1",
+    "utf8",
+  );
+
+  assert.ok(pkg.dependencies?.["electron-updater"]);
+  assert.ok(pkg.build?.files?.includes("runtime/**/*"));
+  assert.equal(pkg.build?.electronUpdaterCompatibility, ">=2.16");
+  assert.equal(pkg.build?.nsis?.artifactName, "Bandi-Setup-${version}-${arch}.${ext}");
+  assert.equal(pkg.build?.portable?.artifactName, "Bandi-${version}-${arch}-portable.${ext}");
+  assert.deepEqual(pkg.build?.publish?.[0], {
+    provider: "github",
+    owner: "Luis-Herry",
+    repo: "bandi",
+    channel: "latest",
+    releaseType: "draft",
+  });
+
+  assert.match(mainSource, /createAppUpdateController/);
+  assert.match(mainSource, /beforeInstall:[\s\S]*shutdownServices\(\)/);
+  assert.match(mainSource, /BANDI_BUILD_ID: getStandaloneBuildId\(\)/);
+  assert.match(mainSource, /bandi:get-update-state/);
+  assert.match(mainSource, /bandi:install-update/);
+  assert.match(mainSource, /function isTrustedMainWindowSender\(event\)/);
+  assert.match(mainSource, /trustedAppOrigins\.has\(new URL\(senderUrl\)\.origin\)/);
+  assert.match(mainSource, /`http:\/\/localhost:\$\{appOrigin\.port\}`/);
+  assert.match(
+    mainSource,
+    /ipcMain\.handle\("bandi:install-update", \(event\) =>[\s\S]*?isTrustedMainWindowSender\(event\)/,
+  );
+  assert.match(mainSource, /preparePortableUpdateOnExit\(\)/);
+  assert.match(mainSource, /let portableUpdateHelperPromise = null/);
+  assert.match(mainSource, /"WindowsPowerShell",\s*"v1\.0",\s*"powershell\.exe"/s);
+  assert.doesNotMatch(mainSource, /spawn\(\s*"powershell\.exe"/);
+  assert.match(preloadSource, /bandi:update-state-changed/);
+  assert.match(preloadSource, /bandi:open-update-page/);
+
+  assert.match(
+    controllerSource,
+    /https:\/\/github\.com\/\$\{GITHUB_OWNER\}\/\$\{GITHUB_REPO\}\/releases\/latest/,
+  );
+  assert.match(controllerSource, /asset_integrity_mismatch/);
+  assert.match(controllerSource, /pathImpl\.relative\(directory, candidate\)/);
+  assert.doesNotMatch(controllerSource, /GH_TOKEN|GITHUB_TOKEN|Authorization:/);
+  assert.match(helperSource, /Resolve-Path -LiteralPath \$ExecutablePath/);
+  assert.match(helperSource, /Get-FileHash -LiteralPath \$resolvedExecutable -Algorithm SHA256/);
+  assert.match(helperSource, /\$file\.Length -ne \$ExpectedSize/);
+  assert.match(helperSource, /Start-Process -FilePath \$resolvedExecutable/);
 });

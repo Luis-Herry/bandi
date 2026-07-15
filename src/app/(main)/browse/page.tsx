@@ -4,6 +4,7 @@ import {
   type BgmSeason,
 } from "@/lib/bangumi";
 import { getSeasonalBrowseResult } from "@/lib/db-helpers/browse";
+import { getLibrary } from "@/lib/db-helpers/library";
 import { getCurrentUser } from "@/lib/session";
 import { BrowseClient } from "./BrowseClient";
 
@@ -43,6 +44,10 @@ export default async function BrowsePage({ searchParams }: PageProps) {
     season,
     year,
   );
+  const fallbackHeroCovers = getLibrary(user.id)
+    .filter((item) => item.anime.coverUrl)
+    .slice(0, 4)
+    .map((item) => item.anime.coverUrl as string);
 
   return (
     <BrowseClient
@@ -52,6 +57,7 @@ export default async function BrowsePage({ searchParams }: PageProps) {
       quarters={quarters}
       yearOptions={yearOptions}
       dataStatus={dataStatus}
+      fallbackHeroCovers={fallbackHeroCovers}
     />
   );
 }

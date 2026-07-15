@@ -1,16 +1,12 @@
 import { redirect } from "next/navigation";
-import {
-  BarChart3,
-  CheckCircle2,
-  Clock3,
-  Library,
-  PlayCircle,
-} from "lucide-react";
+import { CheckCircle2, Clock3, Library, PlayCircle } from "lucide-react";
 import { AnimeCover } from "@/components/features/AnimeCover";
 import { BackButton } from "@/components/features/BackButton";
+import { ProfileHeader } from "@/components/features/ProfileHeader";
 import { GlassPanel, StatusBadge } from "@/components/ui";
 import { getContinueWatching, getLibrary, getLibraryStats } from "@/lib/db-helpers/library";
 import { getStatsReport } from "@/lib/db-helpers/stats";
+import { getProfileDisplayName } from "@/lib/profile";
 import { getCurrentUser } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -35,6 +31,7 @@ export default async function ProfilePage() {
   ];
   const ratedCount = libraryItems.filter((item) => item.userAnime.rating).length;
   const recentItems = libraryItems.slice(0, 5);
+  const displayName = getProfileDisplayName(user.id, user.username);
 
   return (
     <>
@@ -43,23 +40,7 @@ export default async function ProfilePage() {
       </div>
 
       <div className="app-page-container space-y-6 py-6 sm:py-8">
-      <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div className="min-w-0">
-          <p className="text-[12px] text-[color:var(--text-muted)]">
-            个人中心
-          </p>
-          <h1 className="mt-2 text-[28px] font-extrabold tracking-tight text-[color:var(--text-primary)] sm:text-[34px]">
-            {user.username} 的追番概览
-          </h1>
-        </div>
-        <a
-          href="/stats"
-          className="inline-flex h-9 w-fit items-center gap-2 rounded-[6px] border border-[color:var(--border-default)] px-3 text-[12px] text-[color:var(--text-primary)] transition-colors hover:bg-[color:var(--bg-surface-hover)]"
-        >
-          <BarChart3 size={14} />
-          查看完整统计
-        </a>
-      </header>
+      <ProfileHeader initialDisplayName={displayName} />
 
       <section className="grid grid-cols-1 gap-4 min-[520px]:grid-cols-2 xl:grid-cols-4">
         <MetricCard

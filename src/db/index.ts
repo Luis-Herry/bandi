@@ -18,7 +18,8 @@ sqlite.pragma("foreign_keys = ON");
 ensureDatabaseSchema(sqlite);
 if (
   process.env.ANIME_DESKTOP_APP === "1" ||
-  process.env.ANIME_LOCAL_SERVER_APP === "1"
+  process.env.ANIME_LOCAL_SERVER_APP === "1" ||
+  process.env.ANIME_LOOPBACK_SESSION === "1"
 ) {
   ensureDesktopDefaults(sqlite);
 }

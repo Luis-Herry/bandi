@@ -11,6 +11,10 @@ const ROUTES = new Map([
   ["POST:choose-media-directory", "/choose-media-directory"],
   ["GET:download-service", "/download-service"],
   ["POST:download-service/retry", "/download-service/retry"],
+  ["GET:update", "/update"],
+  ["POST:update/check", "/update/check"],
+  ["POST:update/install", "/update/install"],
+  ["POST:update/open-release", "/update/open-release"],
   ["POST:pairing", "/pairing"],
 ]);
 

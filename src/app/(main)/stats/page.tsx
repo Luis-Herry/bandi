@@ -3,6 +3,7 @@ import { BarChart3, CalendarDays, CheckCircle2, Clock } from "lucide-react";
 import { GlassPanel, NumberPop } from "@/components/ui";
 import { AnimeCover } from "@/components/features/AnimeCover";
 import { StatsBarChart } from "@/components/features/StatsBarChart";
+import { PageHeader } from "@/components/features/PageHeader";
 import { getStatsReport } from "@/lib/db-helpers/stats";
 import { formatStarRatingLabel } from "@/lib/rating";
 import { getCurrentUser } from "@/lib/session";
@@ -13,31 +14,28 @@ export default async function StatsPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
-  const report = getStatsReport(user.id);
+  const reportYear = new Date().getFullYear();
+  const report = getStatsReport(user.id, { year: reportYear });
 
   return (
     <div className="app-page-container space-y-6 py-6 sm:py-8">
-      <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div className="t-stagger is-shown min-w-0">
-          <p className="t-stagger-line t-stagger-line--1 text-[12px] text-[color:var(--text-muted)]">
-            {report.year} 年度报告
-          </p>
-          <h1 className="t-stagger-line t-stagger-line--2 mt-2 text-[34px] font-extrabold tracking-tight text-[color:var(--text-primary)]">
-            统计
-          </h1>
-        </div>
-        <div className="rounded-[8px] border border-[color:var(--border-subtle)] bg-[color:var(--bg-surface)] px-3 py-2 sm:border-0 sm:bg-transparent sm:p-0 sm:text-right">
-          <p className="text-[12px] text-[color:var(--text-muted)]">
-            活跃观看日
-          </p>
-          <p
-            data-tabular
-            className="mt-1 text-[24px] font-bold text-[color:var(--text-primary)]"
-          >
-            <NumberPop value={report.overview.activeDays} dirY={-1} />
-          </p>
-        </div>
-      </header>
+      <PageHeader
+        title="统计"
+        description={`${report.year} 年度报告`}
+        actions={
+          <div className="rounded-[8px] border border-[color:var(--border-subtle)] bg-[color:var(--bg-surface)] px-3 py-2 sm:border-0 sm:bg-transparent sm:p-0 sm:text-right">
+            <p className="text-[12px] text-[color:var(--text-muted)]">
+              活跃观看日
+            </p>
+            <p
+              data-tabular
+              className="mt-1 text-[24px] font-bold text-[color:var(--text-primary)]"
+            >
+              <NumberPop value={report.overview.activeDays} dirY={-1} />
+            </p>
+          </div>
+        }
+      />
 
       <section className="grid grid-cols-1 gap-4 min-[520px]:grid-cols-2 xl:grid-cols-4">
         <MetricCard

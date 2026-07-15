@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import {
   Archive,
   CheckCircle2,
+  DownloadCloud,
   HardDrive,
   Rss,
   SlidersHorizontal,
@@ -9,6 +10,7 @@ import {
 import { sql } from "drizzle-orm";
 import { AutomationSettingsClient } from "@/components/features/AutomationSettingsClient";
 import { BackButton } from "@/components/features/BackButton";
+import { DesktopUpdateSettings } from "@/components/features/DesktopUpdateSettings";
 import { GlassPanel } from "@/components/ui";
 import { db } from "@/db";
 import { downloadQueue } from "@/db/schema";
@@ -21,6 +23,12 @@ export default async function SettingsPage() {
   if (!user) redirect("/login");
 
   const downloadSummary = getDownloadSummary();
+  const isDesktop = process.env.ANIME_DESKTOP_APP === "1";
+  const isLocalServer = process.env.ANIME_LOCAL_SERVER_APP === "1";
+  const canManageUpdates = isDesktop || (isLocalServer && user.isLocalHost);
+  const settingNav = canManageUpdates
+    ? [...SETTING_NAV_BASE, UPDATE_NAV_ITEM, DATA_NAV_ITEM]
+    : [...SETTING_NAV_BASE, DATA_NAV_ITEM];
 
   return (
     <>
@@ -34,7 +42,7 @@ export default async function SettingsPage() {
           设置中心
         </p>
         <nav className="no-scrollbar flex max-w-full gap-1 overflow-x-auto rounded-[8px] border border-[color:var(--border-subtle)] bg-[color:var(--bg-surface)] p-1 touch-pan-x lg:block lg:space-y-1 lg:overflow-visible lg:border-0 lg:bg-transparent lg:p-0">
-          {SETTING_NAV.map((item) => (
+          {settingNav.map((item) => (
             <a
               key={item.href}
               href={item.href}
@@ -58,6 +66,12 @@ export default async function SettingsPage() {
         </header>
 
         <AutomationSettingsClient />
+
+        {canManageUpdates && (
+          <section id="app-update" className="scroll-mt-20">
+            <DesktopUpdateSettings />
+          </section>
+        )}
 
         <section id="data-maintenance" className="scroll-mt-20">
           <SettingsSection
@@ -96,7 +110,7 @@ export default async function SettingsPage() {
   );
 }
 
-const SETTING_NAV = [
+const SETTING_NAV_BASE = [
   {
     href: "#download-preferences",
     label: "下载偏好",
@@ -104,8 +118,19 @@ const SETTING_NAV = [
   },
   { href: "#rss", label: "RSS 源", icon: <Rss size={14} /> },
   { href: "#qbit", label: "下载服务", icon: <HardDrive size={14} /> },
-  { href: "#data-maintenance", label: "数据与维护", icon: <Archive size={14} /> },
 ];
+
+const UPDATE_NAV_ITEM = {
+  href: "#app-update",
+  label: "应用更新",
+  icon: <DownloadCloud size={14} />,
+};
+
+const DATA_NAV_ITEM = {
+  href: "#data-maintenance",
+  label: "数据与维护",
+  icon: <Archive size={14} />,
+};
 
 function SettingsSection({
   icon,

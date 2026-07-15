@@ -23,6 +23,7 @@ export function CinemaEnrichButton({
   const [msg, setMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const stopRef = useRef(false);
+  const isLocalRefresh = scope === "local";
 
   const enrich = async () => {
     setBusy(true);
@@ -39,15 +40,18 @@ export function CinemaEnrichButton({
       );
       const data = await res.json().catch(() => null);
       if (!res.ok || !Array.isArray(data?.pending)) {
-        setError(data?.error ?? "获取待刮列表失败");
+        setError(
+          data?.error ??
+            (isLocalRefresh ? "获取待刷新列表失败" : "获取待刮列表失败"),
+        );
         setBusy(false);
         return;
       }
       ids = data.pending as number[];
       if (ids.length === 0 && data.sourceCount === 0) {
         setMsg(
-          scope === "local"
-            ? "本地库还没有可刮削的条目，请先扫描文件。"
+          isLocalRefresh
+            ? "本地库还没有可刷新的条目，请先扫描文件。"
             : "当前没有可刮削的影视条目。",
         );
         setBusy(false);
@@ -87,7 +91,9 @@ export function CinemaEnrichButton({
           noMatch += 1;
         }
         done += 1;
-        setMsg(`刮削中… ${done}/${total} · 成功 ${ok} · 未匹配 ${noMatch}`);
+        setMsg(
+          `${isLocalRefresh ? "刷新" : "刮削"}中… ${done}/${total} · 成功 ${ok} · 未匹配 ${noMatch}`,
+        );
         if (done % 12 === 0) router.refresh(); // 边刮边让封面浮现
       }
     };
@@ -99,7 +105,7 @@ export function CinemaEnrichButton({
     setMsg(
       stopRef.current
         ? `已停止：处理 ${done}/${total} · 成功 ${ok} · 未匹配 ${noMatch}。`
-        : `刮削完成：处理 ${done} 条 · 成功 ${ok} · 未匹配 ${noMatch}（未匹配多为没有公开元数据源的条目）。`,
+        : `${isLocalRefresh ? "刷新" : "刮削"}完成：处理 ${done} 条 · 成功 ${ok} · 未匹配 ${noMatch}（未匹配多为没有公开元数据源的条目）。`,
     );
     router.refresh();
     setBusy(false);
@@ -133,7 +139,13 @@ export function CinemaEnrichButton({
             )
           }
         >
-          {busy ? "刮削中" : "刮削元数据"}
+          {busy
+            ? isLocalRefresh
+              ? "刷新中"
+              : "刮削中"
+            : isLocalRefresh
+              ? "刷新资料"
+              : "刮削元数据"}
         </Button>
       </div>
       {msg && (

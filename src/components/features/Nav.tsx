@@ -112,6 +112,7 @@ export function Nav({
   const searchParams = useSearchParams();
   const router = useRouter();
   const [theme, setTheme] = useState<UserTheme>(currentTheme);
+  const [displayName, setDisplayName] = useState(username ?? TEXT.user);
   const [savingTheme, setSavingTheme] = useState(false);
   const [isTrackedAnimeDetail, setIsTrackedAnimeDetail] = useState(false);
   const [, startTransition] = useTransition();
@@ -127,6 +128,30 @@ export function Nav({
   useEffect(() => {
     setTheme(currentTheme);
   }, [currentTheme]);
+
+  useEffect(() => {
+    setDisplayName(username ?? TEXT.user);
+  }, [username]);
+
+  useEffect(() => {
+    const handleDisplayNameChange = (event: Event) => {
+      const nextName = (
+        event as CustomEvent<{ displayName?: string }>
+      ).detail?.displayName?.trim();
+      if (nextName) setDisplayName(nextName);
+    };
+
+    window.addEventListener(
+      "bandi:profile-display-name-change",
+      handleDisplayNameChange,
+    );
+    return () => {
+      window.removeEventListener(
+        "bandi:profile-display-name-change",
+        handleDisplayNameChange,
+      );
+    };
+  }, []);
 
   useEffect(() => {
     if (!detailAnimeId) {
@@ -236,7 +261,7 @@ export function Nav({
     <>
       <div className="px-2 py-2">
         <div className="text-[12px] font-medium text-[color:var(--text-primary)]">
-          {username ?? TEXT.user}
+          {displayName}
         </div>
         <div className="mt-0.5 text-[10px] text-[color:var(--text-muted)]">
           {isManagedLocal ? "本机资料" : TEXT.account}
@@ -418,9 +443,9 @@ export function Nav({
                   )}
                 >
                   <Avatar
-                    name={username ?? "U"}
+                    name={displayName}
                     size="md"
-                    title={username ?? TEXT.user}
+                    title={displayName}
                   />
                 </button>
               </DropdownMenu.Trigger>

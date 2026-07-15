@@ -12,6 +12,10 @@ contextBridge.exposeInMainWorld("bandiDesktop", {
     ipcRenderer.invoke("bandi:get-download-service-state"),
   retryDownloadService: () =>
     ipcRenderer.invoke("bandi:retry-download-service"),
+  getUpdateState: () => ipcRenderer.invoke("bandi:get-update-state"),
+  checkForUpdates: () => ipcRenderer.invoke("bandi:check-for-updates"),
+  installUpdate: () => ipcRenderer.invoke("bandi:install-update"),
+  openUpdatePage: () => ipcRenderer.invoke("bandi:open-update-page"),
   getWindowState: () => ipcRenderer.invoke("bandi:get-window-state"),
   minimizeWindow: () => ipcRenderer.invoke("bandi:minimize-window"),
   toggleMaximizeWindow: () =>
@@ -30,5 +34,10 @@ contextBridge.exposeInMainWorld("bandiDesktop", {
         "bandi:download-service-state-changed",
         listener,
       );
+  },
+  onUpdateStateChange: (callback) => {
+    const listener = (_event, state) => callback(state);
+    ipcRenderer.on("bandi:update-state-changed", listener);
+    return () => ipcRenderer.removeListener("bandi:update-state-changed", listener);
   },
 });

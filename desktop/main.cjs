@@ -5,6 +5,7 @@ const {
   Tray,
   dialog,
   ipcMain,
+  net: electronNet,
   shell,
 } = require("electron");
 const { spawn, spawnSync } = require("node:child_process");
@@ -26,6 +27,10 @@ const {
   getDesktopSessionOrigins,
   withDesktopSessionHeader,
 } = require("./session-header.cjs");
+const { autoUpdater } = require("electron-updater");
+const {
+  createAppUpdateController,
+} = require("../runtime/app-update.cjs");
 
 const APP_PORT_START = 31245;
 const QBIT_PORT_START = 18180;
@@ -63,6 +68,9 @@ let bootStage = "storage";
 let parentLeasePath = null;
 let parentLeaseToken = null;
 let parentLeaseTimer = null;
+let updateController = null;
+let portableUpdateHelperPromise = null;
+let trustedAppOrigins = new Set();
 
 function getDownloadServiceState() {
   return {
@@ -458,6 +466,147 @@ function getAppRoot() {
 
 function getStandaloneDir() {
   return path.join(getAppRoot(), ".next", "standalone");
+}
+
+function getStandaloneBuildId() {
+  try {
+    const value = fs
+      .readFileSync(path.join(getStandaloneDir(), ".next", "BUILD_ID"), "utf8")
+      .trim();
+    return /^[A-Za-z0-9._-]{1,128}$/.test(value) ? value : "";
+  } catch {
+    return "";
+  }
+}
+
+function publishUpdateState(state) {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  mainWindow.webContents.send("bandi:update-state-changed", state);
+}
+
+function isTrustedMainWindowSender(event) {
+  if (!event?.sender) return false;
+  const senderWindow = BrowserWindow.fromWebContents(event.sender);
+  if (!senderWindow || senderWindow !== mainWindow) return false;
+  const senderUrl = event.senderFrame?.url || event.sender.getURL();
+  try {
+    return trustedAppOrigins.has(new URL(senderUrl).origin);
+  } catch {
+    return false;
+  }
+}
+
+function initializeUpdateController() {
+  updateController = createAppUpdateController({
+    app,
+    updater: autoUpdater,
+    fetchImpl: (input, init) => electronNet.fetch(input, init),
+    openExternal: () => shell.openExternal(
+      "https://github.com/Luis-Herry/bandi/releases/latest",
+    ),
+    beforeInstall: async () => {
+      isQuitting = true;
+      if (!shutdownPromise) shutdownPromise = shutdownServices();
+      await shutdownPromise;
+      shutdownComplete = true;
+    },
+    log: (entry) => appendLog("update.log", `${JSON.stringify(entry)}\n`),
+  });
+  updateController.subscribe(publishUpdateState);
+}
+
+function startPortableUpdateHelper(launch) {
+  if (portableUpdateHelperPromise) return portableUpdateHelperPromise;
+  const helper = path.join(getAppRoot(), "runtime", "launch-portable-update.ps1");
+  if (!fs.existsSync(helper)) return Promise.reject(new Error("portable_helper_missing"));
+  const systemRoot = process.env.SystemRoot || process.env.WINDIR;
+  if (!systemRoot || !path.isAbsolute(systemRoot)) {
+    return Promise.reject(new Error("windows_system_root_missing"));
+  }
+  const powershell = path.join(
+    systemRoot,
+    "System32",
+    "WindowsPowerShell",
+    "v1.0",
+    "powershell.exe",
+  );
+  if (!fs.existsSync(powershell)) {
+    return Promise.reject(new Error("windows_powershell_missing"));
+  }
+  const attempt = new Promise((resolve, reject) => {
+    const child = spawn(
+      powershell,
+      [
+        "-NoLogo",
+        "-NoProfile",
+        "-NonInteractive",
+        "-WindowStyle",
+        "Hidden",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        helper,
+        "-WaitForPid",
+        String(process.pid),
+        "-ExecutablePath",
+        launch.executablePath,
+        "-ExpectedSha256",
+        launch.expectedSha256,
+        "-ExpectedSize",
+        String(launch.expectedSize),
+      ],
+      { detached: true, stdio: "ignore", windowsHide: true },
+    );
+    child.once("error", reject);
+    child.once("spawn", () => {
+      child.unref();
+      resolve();
+    });
+  });
+  portableUpdateHelperPromise = attempt.catch((error) => {
+    portableUpdateHelperPromise = null;
+    throw error;
+  });
+  return portableUpdateHelperPromise;
+}
+
+async function installAvailableUpdate() {
+  if (!updateController) return { ok: false, error: "update_unavailable" };
+  const result = await updateController.installUpdate();
+  if (!result.ok) {
+    return { ok: false, error: result.error, state: updateController.getState() };
+  }
+  if (result.launch) {
+    try {
+      await startPortableUpdateHelper(result.launch);
+    } catch {
+      appendLog(
+        "update.log",
+        `${JSON.stringify({ event: "portable_helper_failed", code: "launch_failed" })}\n`,
+      );
+      return {
+        ok: false,
+        error: "portable_launch_failed",
+        state: updateController.getState(),
+      };
+    }
+    setTimeout(() => app.quit(), 100);
+  }
+  return { ok: true, state: updateController.getState() };
+}
+
+async function preparePortableUpdateOnExit() {
+  if (!updateController || portableUpdateHelperPromise) return;
+  const result = await updateController.preparePortableLaunch();
+  if (!result.ok) return;
+  try {
+    await startPortableUpdateHelper(result.launch);
+  } catch {
+    appendLog(
+      "update.log",
+      `${JSON.stringify({ event: "portable_helper_failed", code: "launch_failed" })}\n`,
+    );
+  }
 }
 
 function getAppIconPath() {
@@ -1022,6 +1171,8 @@ async function startNextServer(runtimePathEnv) {
       ...proxyEnv,
       ...runtimePathEnv,
       NODE_ENV: "production",
+      BANDI_BUILD_ID: getStandaloneBuildId(),
+      BANDI_APP_VERSION: app.getVersion(),
       HOSTNAME: "127.0.0.1",
       PORT: String(port),
       DATABASE_URL: dbPath,
@@ -1181,6 +1332,53 @@ function registerDesktopIpc() {
   ipcMain.handle("bandi:retry-download-service", () =>
     retryDownloadService(),
   );
+  ipcMain.handle("bandi:get-update-state", (event) => {
+    if (!isTrustedMainWindowSender(event)) {
+      return {
+        mode: "development",
+        status: "unsupported",
+        action: "none",
+        currentVersion: app.getVersion(),
+        availableVersion: null,
+        progressPercent: null,
+        message: null,
+        lastCheckedAt: null,
+      };
+    }
+    return updateController?.getState() || {
+      mode: "development",
+      status: "unsupported",
+      action: "none",
+      currentVersion: app.getVersion(),
+      availableVersion: null,
+      progressPercent: null,
+      message: null,
+      lastCheckedAt: null,
+    };
+  });
+  ipcMain.handle("bandi:check-for-updates", (event) => {
+    if (!isTrustedMainWindowSender(event)) {
+      return { ok: false, error: "forbidden" };
+    }
+    return updateController?.checkForUpdates() || {
+      ok: false,
+      error: "update_unavailable",
+    };
+  });
+  ipcMain.handle("bandi:install-update", (event) =>
+    isTrustedMainWindowSender(event)
+      ? installAvailableUpdate()
+      : { ok: false, error: "forbidden" },
+  );
+  ipcMain.handle("bandi:open-update-page", (event) => {
+    if (!isTrustedMainWindowSender(event)) {
+      return { ok: false, error: "forbidden" };
+    }
+    return updateController?.openUpdatePage() || {
+      ok: false,
+      error: "update_unavailable",
+    };
+  });
   ipcMain.handle("bandi:get-window-state", (event) =>
     getDesktopWindowState(BrowserWindow.fromWebContents(event.sender)),
   );
@@ -1397,6 +1595,7 @@ async function boot() {
   desktopSessionToken = randomSecret(32);
   desktopConfig = loadDesktopConfig(userData);
   startParentLease();
+  initializeUpdateController();
 
   bootStage = "window";
   registerDesktopIpc();
@@ -1428,6 +1627,11 @@ async function boot() {
 
   bootStage = "app-service";
   const appUrl = await startNextServer(runtimePathEnv);
+  const appOrigin = new URL(appUrl);
+  trustedAppOrigins = new Set([
+    appOrigin.origin,
+    `http://localhost:${appOrigin.port}`,
+  ]);
   attachDesktopSessionHeader(appUrl);
   qbitAutoRestartEnabled = true;
   void initialQbitStart.finally(() => {
@@ -1439,6 +1643,7 @@ async function boot() {
       : "/onboarding";
   bootStage = "interface";
   await mainWindow.loadURL(new URL(initialPath, appUrl).toString());
+  updateController.start();
   bootStage = "ready";
 }
 
@@ -1485,6 +1690,7 @@ async function waitForQbitExit(timeoutMs = 5000) {
 }
 
 async function shutdownServices() {
+  updateController?.stop();
   qbitAutoRestartEnabled = false;
   if (qbitRestartTimer) {
     clearTimeout(qbitRestartTimer);
@@ -1544,7 +1750,10 @@ app.on("before-quit", (event) => {
   if (shutdownComplete) return;
   event.preventDefault();
   if (!shutdownPromise) {
-    shutdownPromise = shutdownServices().finally(() => {
+    shutdownPromise = (async () => {
+      await preparePortableUpdateOnExit();
+      await shutdownServices();
+    })().finally(() => {
       shutdownComplete = true;
       app.quit();
     });

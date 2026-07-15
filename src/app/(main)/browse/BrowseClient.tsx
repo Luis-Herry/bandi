@@ -10,6 +10,7 @@ import {
 } from "react";
 import { AlertCircle, Loader2, Search } from "lucide-react";
 import { ClearableInput, GlassPanel } from "@/components/ui";
+import { AnimeCover } from "@/components/features/AnimeCover";
 import { BrowseCard } from "@/components/features/BrowseCard";
 import { AnimeDataRefreshButton } from "@/components/features/AnimeDataRefreshButton";
 import { showToast } from "@/components/features/ToastHost";
@@ -87,6 +88,7 @@ interface BrowseClientProps {
   quarters: QuarterTab[];
   yearOptions: number[];
   dataStatus: "fresh" | "fallback" | "unavailable";
+  fallbackHeroCovers: string[];
 }
 
 type ScoreLoadStatus = "loading" | "ready" | "unavailable";
@@ -107,6 +109,7 @@ export function BrowseClient({
   quarters,
   yearOptions,
   dataStatus,
+  fallbackHeroCovers,
 }: BrowseClientProps) {
   const router = useRouter();
   const sp = useSearchParams();
@@ -382,12 +385,16 @@ export function BrowseClient({
   }
 
   const heroCovers = useMemo(
-    () =>
-      items
+    () => {
+      const seasonalCovers = items
         .filter((it) => it.coverUrl)
         .slice(0, 4)
-        .map((it) => it.coverUrl as string),
-    [items],
+        .map((it) => it.coverUrl as string);
+      return seasonalCovers.length > 0
+        ? seasonalCovers
+        : fallbackHeroCovers;
+    },
+    [fallbackHeroCovers, items],
   );
 
   const seasonLabel = formatQuarterLabel(initialYear, initialSeason);
@@ -434,18 +441,25 @@ export function BrowseClient({
   return (
     <div className="relative">
       {/* ========== Hero ========== */}
-      <section className="relative min-h-[220px] w-full overflow-hidden sm:h-[240px]">
-        <div className="absolute inset-0 flex">
+      <section className="catalog-page-hero">
+        <div
+          aria-hidden
+          className="absolute -inset-5 flex scale-[1.04]"
+          style={{ filter: "blur(18px) saturate(0.85)" }}
+        >
           {heroCovers.length > 0 ? (
             heroCovers.map((url, i) => (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                key={`${url}-${i}`}
-                src={url}
-                alt=""
-                className="flex-1 object-cover h-full"
-                style={{ filter: "blur(22px) saturate(0.85)" }}
-              />
+              <div key={`${url}-${i}`} className="relative min-w-0 flex-1">
+                <AnimeCover
+                  src={url}
+                  alt=""
+                  ratio="1/1"
+                  priority
+                  imageRole="hero"
+                  sizes="(min-width: 1024px) 25vw, 50vw"
+                  className="!absolute inset-0 h-full w-full"
+                />
+              </div>
             ))
           ) : (
             <div className="flex-1 bg-[color:var(--bg-elevated)]" />
@@ -467,7 +481,7 @@ export function BrowseClient({
               "radial-gradient(ellipse at 30% 50%, rgb(var(--accent-rgb) / 0.10) 0%, transparent 60%)",
           }}
         />
-        <div className="app-page-container relative flex min-h-[220px] items-end pb-6 sm:h-full">
+        <div className="app-page-container catalog-page-hero-content">
           <div className="t-stagger is-shown">
             <h1
               className="t-stagger-line t-stagger-line--1 text-[34px] font-extrabold leading-none tracking-[-0.025em] text-[color:var(--text-primary)] sm:text-[44px] sm:tracking-[-0.03em]"
@@ -614,47 +628,44 @@ export function BrowseClient({
               })}
 
               {/* 搜索框 + 评分排序：独立一行，放筛选区底部 */}
-              <div className="mt-1 flex flex-col gap-3 border-t border-[color:var(--border-subtle)] pt-3 md:flex-row md:items-center">
-                <div className="flex min-w-0 flex-col gap-2 min-[520px]:flex-row min-[520px]:items-center min-[520px]:gap-3 md:flex-1">
-                  <div className="shrink-0 text-[12px] text-[color:var(--text-muted)] min-[520px]:w-12">
-                    搜索
-                  </div>
-                  <div className="w-full min-w-0 md:max-w-[360px]">
-                    <ClearableInput
-                      value={query}
-                      onValueChange={setQuery}
-                      placeholder="搜索番剧标题（中文或日文）"
-                      prefixIcon={<Search size={14} />}
-                    />
-                  </div>
+              <div className="mt-1 flex flex-wrap items-center gap-3 border-t border-[color:var(--border-subtle)] pt-3">
+                <div className="min-w-12 shrink-0 text-[12px] text-[color:var(--text-muted)]">
+                  搜索
                 </div>
-                <div className="flex min-w-0 flex-wrap items-center gap-2 md:ml-auto">
-                  <span className="shrink-0 text-[12px] text-[color:var(--text-muted)]">
-                    评分
-                  </span>
-                  <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-                    <FilterChip
-                      active={hasScores && scoreOrder === "desc"}
-                      disabled={!hasScores}
-                      onClick={() => setScoreOrder("desc")}
-                    >
-                      高在前
-                    </FilterChip>
-                    <FilterChip
-                      active={hasScores && scoreOrder === "asc"}
-                      disabled={!hasScores}
-                      onClick={() => setScoreOrder("asc")}
-                    >
-                      低在前
-                    </FilterChip>
-                  </div>
-                  <span
-                    role="status"
-                    className="min-w-[84px] whitespace-nowrap text-[11px] text-[color:var(--text-muted)] md:text-right"
-                  >
-                    {scoreHint}
-                  </span>
+                <div className="min-w-[200px] flex-1">
+                  <ClearableInput
+                    value={query}
+                    onValueChange={setQuery}
+                    placeholder="搜索番剧标题（中文或日文）"
+                    prefixIcon={<Search size={14} />}
+                    spellCheck={false}
+                    className="h-8 rounded-[6px] bg-[color:var(--bg-surface-hover)]"
+                    inputClassName="text-[12px]"
+                  />
                 </div>
+                <span className="ml-auto text-[12px] text-[color:var(--text-muted)]">
+                  评分
+                </span>
+                <FilterChip
+                  active={hasScores && scoreOrder === "desc"}
+                  disabled={!hasScores}
+                  onClick={() => setScoreOrder("desc")}
+                >
+                  高在前
+                </FilterChip>
+                <FilterChip
+                  active={hasScores && scoreOrder === "asc"}
+                  disabled={!hasScores}
+                  onClick={() => setScoreOrder("asc")}
+                >
+                  低在前
+                </FilterChip>
+                <span
+                  role="status"
+                  className="whitespace-nowrap text-[11px] text-[color:var(--text-muted)]"
+                >
+                  {scoreHint}
+                </span>
               </div>
             </div>
           </div>

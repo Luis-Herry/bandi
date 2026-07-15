@@ -59,7 +59,7 @@ function CardSkel() {
 export default function BrowseLoading() {
   return (
     <div className="relative">
-      <section className="relative min-h-[220px] w-full overflow-hidden bg-[color:var(--bg-elevated)] sm:h-[240px]">
+      <section className="catalog-page-hero bg-[color:var(--bg-elevated)]">
         <div
           aria-hidden
           className="absolute inset-0"
@@ -68,7 +68,7 @@ export default function BrowseLoading() {
               "linear-gradient(180deg, rgba(10,10,11,0.55) 0%, rgba(10,10,11,0.75) 60%, rgba(10,10,11,1) 100%)",
           }}
         />
-        <div className="app-page-container relative flex min-h-[220px] items-end pb-6 sm:h-full">
+        <div className="app-page-container catalog-page-hero-content">
           <div className="space-y-3 w-full max-w-md">
             <ShimmerInline className="h-8 w-32 sm:h-9 sm:w-1/3" />
             <ShimmerInline className="h-3 w-2/3" />

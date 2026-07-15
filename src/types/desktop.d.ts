@@ -79,6 +79,48 @@ declare global {
     state: DesktopDownloadServiceState;
   }
 
+  type DesktopUpdateMode =
+    | "development"
+    | "nsis"
+    | "portable"
+    | "mac-installed"
+    | "mac-manual";
+
+  type DesktopUpdateStatus =
+    | "idle"
+    | "checking"
+    | "up-to-date"
+    | "available"
+    | "downloading"
+    | "ready"
+    | "installing"
+    | "error"
+    | "unsupported";
+
+  type DesktopUpdateAction =
+    | "none"
+    | "check"
+    | "restart-to-install"
+    | "install-portable"
+    | "open-release";
+
+  interface DesktopUpdateState {
+    mode: DesktopUpdateMode;
+    status: DesktopUpdateStatus;
+    action: DesktopUpdateAction;
+    currentVersion: string;
+    availableVersion: string | null;
+    progressPercent: number | null;
+    message: string | null;
+    lastCheckedAt: number | null;
+  }
+
+  interface DesktopUpdateResult {
+    ok: boolean;
+    error?: string;
+    state?: DesktopUpdateState;
+  }
+
   interface Window {
     bandiDesktop?: {
       getSettings(): Promise<DesktopSettingsState>;
@@ -91,6 +133,10 @@ declare global {
       ): Promise<DesktopSettingsSaveResult>;
       getDownloadServiceState(): Promise<DesktopDownloadServiceState>;
       retryDownloadService(): Promise<DesktopDownloadServiceRetryResult>;
+      getUpdateState(): Promise<DesktopUpdateState>;
+      checkForUpdates(): Promise<DesktopUpdateResult>;
+      installUpdate(): Promise<DesktopUpdateResult>;
+      openUpdatePage(): Promise<DesktopUpdateResult>;
       getWindowState(): Promise<DesktopWindowState>;
       minimizeWindow(): Promise<DesktopWindowActionResult>;
       toggleMaximizeWindow(): Promise<DesktopWindowState>;
@@ -100,6 +146,9 @@ declare global {
       ): () => void;
       onDownloadServiceStateChange(
         callback: (state: DesktopDownloadServiceState) => void,
+      ): () => void;
+      onUpdateStateChange(
+        callback: (state: DesktopUpdateState) => void,
       ): () => void;
       createPairing?(): Promise<{
         ok: boolean;

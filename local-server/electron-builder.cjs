@@ -14,6 +14,9 @@ if (process.platform !== "darwin" || process.arch !== arch) {
   );
 }
 const includeLocalFfmpeg = process.env.BANDI_LOCAL_ONLY_FFMPEG === "1";
+const releaseSigning = process.env.BANDI_MAC_RELEASE === "1";
+const macAutoUpdateEnabled =
+  releaseSigning && process.env.BANDI_MAC_AUTO_UPDATE === "1";
 const localFfmpegResources = [];
 if (includeLocalFfmpeg) {
   const ffmpegPath = require("ffmpeg-static");
@@ -53,6 +56,7 @@ module.exports = {
   npmRebuild: false,
   extraMetadata: {
     main: "local-server/main.cjs",
+    bandiMacAutoUpdate: macAutoUpdateEnabled,
   },
   directories: {
     output: includeLocalFfmpeg
@@ -61,12 +65,24 @@ module.exports = {
   },
   files: [
     "local-server/**/*",
+    "runtime/**/*",
     ".next/standalone/**/*",
     "LICENSE",
     "THIRD_PARTY_NOTICES.md",
     "THIRD_PARTY_LICENSES.txt",
     "ASSETS.md",
     "package.json",
+  ],
+  electronUpdaterCompatibility: ">=2.16",
+  forceCodeSigning: releaseSigning,
+  publish: [
+    {
+      provider: "github",
+      owner: "Luis-Herry",
+      repo: "bandi",
+      channel: `latest-${arch}`,
+      releaseType: "draft",
+    },
   ],
   extraResources: [
     {
@@ -101,6 +117,13 @@ module.exports = {
       : `Bandi-Local-Web-${pkg.version}-macOS-${arch}.\${ext}`,
     hardenedRuntime: true,
     gatekeeperAssess: false,
+    entitlements: releaseSigning
+      ? "local-server/entitlements.mac.plist"
+      : undefined,
+    entitlementsInherit: releaseSigning
+      ? "local-server/entitlements.mac.plist"
+      : undefined,
+    notarize: releaseSigning,
   },
   dmg: {
     title: `Bandi Local Web ${pkg.version}`,

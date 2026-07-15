@@ -2,17 +2,16 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { DesktopSessionGate } from "@/components/features/DesktopSessionGate";
 import { LocalServerSessionGate } from "@/components/features/LocalServerSessionGate";
-import { LoginShell } from "./LoginShell";
 
-export const metadata = { title: "登录" };
+export const metadata = { title: "正在打开" };
 
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ from?: string; error?: string }>;
+  searchParams: Promise<{ from?: string }>;
 }) {
   const session = await auth();
-  const { from, error } = await searchParams;
+  const { from } = await searchParams;
   const isLocalServer = process.env.ANIME_LOCAL_SERVER_APP === "1";
   const hasActiveSession = Boolean(
     session?.user?.id && session.user.localSessionValid !== false,
@@ -38,9 +37,9 @@ export default async function LoginPage({
   }
 
   return (
-    <LoginShell
+    <DesktopSessionGate
       from={from ?? "/"}
-      initialError={error ?? null}
+      provider="loopback-session"
     />
   );
 }

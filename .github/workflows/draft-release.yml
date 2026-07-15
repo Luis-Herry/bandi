@@ -1,0 +1,373 @@
+name: Build draft release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag, for example v0.1.6
+        required: true
+        type: string
+
+concurrency:
+  group: bandi-draft-release-${{ inputs.tag }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  preflight:
+    name: Validate tagged source
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    outputs:
+      commit: ${{ steps.tag.outputs.commit }}
+      version: ${{ steps.package.outputs.version }}
+    steps:
+      - name: Check out workflow source
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Resolve existing version tag
+        id: tag
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_REPOSITORY" != "Luis-Herry/bandi" ]]; then
+            echo "This workflow only releases Luis-Herry/bandi." >&2
+            exit 1
+          fi
+          if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+            echo "The release tag must be a version such as v0.1.6." >&2
+            exit 1
+          fi
+          commit="$(git rev-parse --verify "refs/tags/${RELEASE_TAG}^{commit}")"
+          if [[ ! "$commit" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "The release tag does not resolve to a commit." >&2
+            exit 1
+          fi
+          echo "commit=$commit" >> "$GITHUB_OUTPUT"
+
+      - name: Check out tagged commit
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: ${{ steps.tag.outputs.commit }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24.14.1
+          cache: npm
+
+      - name: Validate package version
+        id: package
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          version="$(node -p "require('./package.json').version")"
+          if [[ "$RELEASE_TAG" != "v${version}" ]]; then
+            echo "Tag ${RELEASE_TAG} does not match package version ${version}." >&2
+            exit 1
+          fi
+          if [[ "$(git rev-parse HEAD)" != "${{ steps.tag.outputs.commit }}" ]]; then
+            echo "Checked out commit does not match the tag." >&2
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run source checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm test
+          npx tsc --noEmit
+          git diff --check
+
+  windows:
+    name: Windows x64 unsigned draft artifacts
+    needs: preflight
+    runs-on: windows-2025
+    timeout-minutes: 90
+    steps:
+      - name: Check out tagged commit
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: ${{ needs.preflight.outputs.commit }}
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24.14.1
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Setup and portable packages without publishing
+        shell: pwsh
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: |
+          $ErrorActionPreference = "Stop"
+          npm run build
+          npm run desktop:prepare
+          node node_modules/electron-builder/out/cli/cli.js --win --x64 --publish never
+
+      - name: Verify unsigned Windows artifacts
+        shell: pwsh
+        env:
+          APP_VERSION: ${{ needs.preflight.outputs.version }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          $setup = "release/Bandi-Setup-$env:APP_VERSION-x64.exe"
+          $portable = "release/Bandi-$env:APP_VERSION-x64-portable.exe"
+          foreach ($file in @($setup, $portable)) {
+            if (-not (Test-Path -LiteralPath $file -PathType Leaf)) {
+              throw "Missing Windows artifact: $file"
+            }
+            $signature = Get-AuthenticodeSignature -LiteralPath $file
+            if ($signature.Status -ne "NotSigned") {
+              throw "This draft workflow must remain unsigned until Authenticode is configured."
+            }
+          }
+
+      - name: Stage Windows release assets
+        shell: pwsh
+        env:
+          APP_VERSION: ${{ needs.preflight.outputs.version }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          $target = Join-Path $env:RUNNER_TEMP "bandi-release-assets"
+          New-Item -ItemType Directory -Path $target -Force | Out-Null
+          @(
+            "release/Bandi-Setup-$env:APP_VERSION-x64.exe",
+            "release/Bandi-Setup-$env:APP_VERSION-x64.exe.blockmap",
+            "release/Bandi-$env:APP_VERSION-x64-portable.exe",
+            "release/latest.yml"
+          ) | ForEach-Object {
+            if (-not (Test-Path -LiteralPath $_ -PathType Leaf)) {
+              throw "Missing Windows release asset: $_"
+            }
+            Copy-Item -LiteralPath $_ -Destination $target
+          }
+
+      - name: Upload Windows build artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-windows-x64
+          path: ${{ runner.temp }}/bandi-release-assets/*
+          if-no-files-found: error
+          retention-days: 7
+
+  macos:
+    name: macOS ${{ matrix.arch }} unsigned draft artifacts
+    needs: preflight
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            runner: macos-15-intel
+          - arch: arm64
+            runner: macos-15
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 120
+    steps:
+      - name: Check out tagged commit
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: ${{ needs.preflight.outputs.commit }}
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24.14.1
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build unsigned DMG and ZIP without publishing
+        shell: bash
+        env:
+          BANDI_MAC_ARCH: ${{ matrix.arch }}
+          BANDI_MAC_RELEASE: "0"
+          BANDI_MAC_AUTO_UPDATE: "0"
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: |
+          set -euo pipefail
+          npm run "local-server:dist:${BANDI_MAC_ARCH}"
+
+      - name: Verify macOS package remains outside the signed release channel
+        shell: bash
+        env:
+          BANDI_MAC_ARCH: ${{ matrix.arch }}
+        run: |
+          set -euo pipefail
+          mapfile -d '' apps < <(find "release/macos-${BANDI_MAC_ARCH}" -type d -name '*.app' -print0)
+          if [[ "${#apps[@]}" -ne 1 ]]; then
+            echo "Expected exactly one app bundle." >&2
+            exit 1
+          fi
+          if /usr/bin/codesign -dv --verbose=4 "${apps[0]}" 2>&1 | grep -q '^Authority='; then
+            echo "This workflow must not create a Developer ID signed package." >&2
+            exit 1
+          fi
+
+      - name: Stage macOS release assets
+        shell: bash
+        env:
+          APP_VERSION: ${{ needs.preflight.outputs.version }}
+          BANDI_MAC_ARCH: ${{ matrix.arch }}
+        run: |
+          set -euo pipefail
+          target="$RUNNER_TEMP/bandi-release-assets"
+          mkdir -p "$target"
+          base="Bandi-Local-Web-${APP_VERSION}-macOS-${BANDI_MAC_ARCH}"
+          manifest="latest-${BANDI_MAC_ARCH}-mac.yml"
+          for file in \
+            "release/macos-${BANDI_MAC_ARCH}/${base}.dmg" \
+            "release/macos-${BANDI_MAC_ARCH}/${base}.zip" \
+            "release/macos-${BANDI_MAC_ARCH}/${manifest}"; do
+            test -s "$file"
+            cp "$file" "$target/"
+          done
+          blockmap="release/macos-${BANDI_MAC_ARCH}/${base}.zip.blockmap"
+          if [[ -s "$blockmap" ]]; then cp "$blockmap" "$target/"; fi
+
+      - name: Upload macOS build artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-macos-${{ matrix.arch }}
+          path: ${{ runner.temp }}/bandi-release-assets/*
+          if-no-files-found: error
+          retention-days: 7
+
+  draft-release:
+    name: Assemble draft Release
+    needs: [preflight, windows, macos]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    steps:
+      - name: Check out tagged commit
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: ${{ needs.preflight.outputs.commit }}
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24.14.1
+          cache: npm
+
+      - name: Install verification dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Download platform artifacts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: release-*
+          path: release-assets
+          merge-multiple: true
+
+      - name: Verify update metadata and generate checksums
+        env:
+          APP_VERSION: ${{ needs.preflight.outputs.version }}
+        run: node scripts/verify-release-artifacts.mjs release-assets "$APP_VERSION"
+
+      - name: Create new Draft Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+          RELEASE_COMMIT: ${{ needs.preflight.outputs.commit }}
+          APP_VERSION: ${{ needs.preflight.outputs.version }}
+        run: |
+          set -euo pipefail
+          release_json="$RUNNER_TEMP/release.json"
+          if gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${RELEASE_TAG}" > "$release_json" 2>/dev/null; then
+            echo "A Release already exists for ${RELEASE_TAG}; refusing to replace any existing assets." >&2
+            exit 1
+          fi
+
+          cat > "$RUNNER_TEMP/release-notes.md" <<EOF
+          ## Bandi ${APP_VERSION}
+
+          Commit: \`${RELEASE_COMMIT}\`
+
+          - Windows Setup + portable：未签名，仅供人工验收；应用内更新附件已生成。
+          - macOS Intel x64：未签名，仅供人工验收；当前使用“下载新版”手动更新。
+          - macOS Apple Silicon arm64：未签名，仅供人工验收；当前使用“下载新版”手动更新。
+          - Web 与配对 Safari：部署版本变化后提示刷新。
+
+          此 Release 保持 Draft。人工完成安装、更新、真机和校验和验收后，另行决定是否公开。
+          EOF
+
+          git fetch --force --tags origin
+          current_tag_commit="$(git rev-parse --verify "refs/tags/${RELEASE_TAG}^{commit}")"
+          if [[ "$current_tag_commit" != "$RELEASE_COMMIT" ]]; then
+            echo "The remote tag moved after the build started; refusing to create a Release." >&2
+            exit 1
+          fi
+
+          gh release create "$RELEASE_TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --verify-tag \
+            --target "$RELEASE_COMMIT" \
+            --draft \
+            --title "Bandi ${RELEASE_TAG}" \
+            --notes-file "$RUNNER_TEMP/release-notes.md"
+
+          mapfile -d '' assets < <(find release-assets -maxdepth 1 -type f -print0 | sort -z)
+          if [[ "${#assets[@]}" -eq 0 ]]; then
+            echo "No verified assets are available to upload." >&2
+            exit 1
+          fi
+          if [[ "$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${RELEASE_TAG}" --jq '.draft')" != "true" ]]; then
+            echo "Draft state changed before upload; refusing to upload assets." >&2
+            exit 1
+          fi
+          gh release upload "$RELEASE_TAG" "${assets[@]}" --repo "$GITHUB_REPOSITORY"
+
+      - name: Confirm Release remains draft and assets are exact
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          release_json="$RUNNER_TEMP/final-release.json"
+          gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${RELEASE_TAG}" > "$release_json"
+          if [[ "$(jq -r '.draft' "$release_json")" != "true" ]]; then
+            echo "Release unexpectedly left draft state." >&2
+            exit 1
+          fi
+          if [[ "$(jq -r '.prerelease' "$release_json")" != "false" ]]; then
+            echo "Draft Release unexpectedly became a prerelease." >&2
+            exit 1
+          fi
+          find release-assets -maxdepth 1 -type f -printf '%f\n' | sort > "$RUNNER_TEMP/expected-assets.txt"
+          jq -r '.assets[].name' "$release_json" | sort > "$RUNNER_TEMP/actual-assets.txt"
+          diff -u "$RUNNER_TEMP/expected-assets.txt" "$RUNNER_TEMP/actual-assets.txt"
+          git fetch --force --tags origin
+          if [[ "$(git rev-parse --verify "refs/tags/${RELEASE_TAG}^{commit}")" != "${{ needs.preflight.outputs.commit }}" ]]; then
+            echo "The remote tag moved while the Draft Release was assembled." >&2
+            exit 1
+          fi
+          node scripts/verify-release-artifacts.mjs release-assets "${{ needs.preflight.outputs.version }}" "$release_json"

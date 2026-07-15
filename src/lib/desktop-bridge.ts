@@ -41,6 +41,19 @@ function createLocalServerBridge(): NonNullable<Window["bandiDesktop"]> {
       "/download-service/retry",
       { method: "POST", body: "{}" },
     ),
+    getUpdateState: () => localRequest<DesktopUpdateState>("/update"),
+    checkForUpdates: () => localRequest<DesktopUpdateResult>("/update/check", {
+      method: "POST",
+      body: "{}",
+    }),
+    installUpdate: () => localRequest<DesktopUpdateResult>("/update/install", {
+      method: "POST",
+      body: "{}",
+    }),
+    openUpdatePage: () => localRequest<DesktopUpdateResult>(
+      "/update/open-release",
+      { method: "POST", body: "{}" },
+    ),
     getWindowState: async () => ({ isMaximized: false }),
     minimizeWindow: async () => ({ ok: false }),
     toggleMaximizeWindow: async () => ({ isMaximized: false }),
@@ -57,6 +70,23 @@ function createLocalServerBridge(): NonNullable<Window["bandiDesktop"]> {
             callback(await localRequest<DesktopDownloadServiceState>("/download-service"));
           } catch {
             // The launcher may be restarting the local service after a LAN change.
+          }
+        }
+      };
+      void poll();
+      return () => { active = false; };
+    },
+    onUpdateStateChange: (callback) => {
+      let active = true;
+      const poll = async () => {
+        while (active) {
+          await new Promise((resolve) => window.setTimeout(resolve, 2500));
+          if (!active) break;
+          if (document.hidden) continue;
+          try {
+            callback(await localRequest<DesktopUpdateState>("/update"));
+          } catch {
+            // The launcher may be restarting after applying an update.
           }
         }
       };

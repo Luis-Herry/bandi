@@ -42,7 +42,7 @@ export default async function LibraryPage() {
   return (
     <div className="relative">
       {/* ============ Hero 横幅 ============ */}
-      <section className="relative min-h-[220px] w-full overflow-hidden sm:h-[240px]">
+      <section className="catalog-page-hero">
         {/* 背景：4 张封面横排拼 + 强模糊 + 暗罩 */}
         <div className="absolute inset-0 flex">
           {heroCovers.length > 0 ? (
@@ -77,7 +77,7 @@ export default async function LibraryPage() {
           }}
         />
 
-        <div className="app-page-container relative flex min-h-[220px] flex-col justify-end gap-5 pb-6 sm:h-full min-[900px]:flex-row min-[900px]:items-center min-[900px]:justify-between min-[900px]:pb-0">
+        <div className="app-page-container catalog-page-hero-content">
           <div className="min-w-0">
             <h1
               className="text-[34px] font-extrabold leading-none tracking-[-0.025em] text-[color:var(--text-primary)] sm:text-[44px] sm:tracking-[-0.03em]"

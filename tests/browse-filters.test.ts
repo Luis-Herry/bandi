@@ -86,7 +86,11 @@ test("browse keeps rating controls visible and progressively enriches Bangumi sc
   assert.match(browseSource, /需连接 Bangumi/);
   assert.match(browseSource, /当前结果暂无评分/);
   assert.match(browseSource, /部有评分/);
-  assert.match(browseSource, /min-w-\[84px\] whitespace-nowrap[^\n]*md:text-right/);
+  assert.match(
+    browseSource,
+    /role="status"[\s\S]*?className="whitespace-nowrap text-\[11px\]/,
+  );
+  assert.doesNotMatch(browseSource, /min-w-\[84px\]/);
   assert.match(browseSource, /bangumiId: scorePatch\?\.bangumiId \?\? it\.bangumiId/);
   assert.match(browseSource, /disabled=\{!hasScores\}/);
   assert.match(browseSeasonRouteSource, /getSubjectsBySeason\(season, yearRaw\)/);

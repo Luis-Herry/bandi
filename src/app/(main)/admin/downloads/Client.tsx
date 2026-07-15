@@ -28,6 +28,7 @@ import { PlayButton } from "@/components/features/PlayButton";
 import { QbitSetupGuideDialog } from "@/components/features/QbitSetupGuideDialog";
 import { showToast } from "@/components/features/ToastHost";
 import { AnimeDataRefreshButton } from "@/components/features/AnimeDataRefreshButton";
+import { PageHeader } from "@/components/features/PageHeader";
 import { cn } from "@/lib/cn";
 import { formatDataSize, formatTransferSpeed } from "@/lib/transfer-format";
 import type { DownloadStatus } from "@/components/ui";
@@ -359,40 +360,37 @@ export function DownloadsAdminClient({
   return (
     <div className="app-page-container py-6 sm:py-8">
       {/* ── 页头 ── */}
-      <header className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div className="min-w-0">
-          <h1 className="text-[28px] font-bold tracking-[-0.02em] text-[color:var(--text-primary)]">
-            下载管理
-          </h1>
-          <p className="mt-1 text-[12px] text-[color:var(--text-muted)]">
-            查看下载队列与实时传输状态
-          </p>
-        </div>
-        <div className="flex flex-col items-start gap-1.5 sm:items-end">
-          <div className="flex items-center gap-2">
+      <PageHeader
+        className="mb-6"
+        title="下载管理"
+        description="查看下载队列与实时传输状态"
+        actions={
+          <div className="flex flex-col items-start gap-1.5 sm:items-end">
+            <div className="flex items-center gap-2">
+              {canOpenLocalDirectory && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  leftIcon={<FolderOpen size={12} />}
+                  onClick={() => void handleOpenLocation()}
+                >
+                  打开下载目录
+                </Button>
+              )}
+              <AnimeDataRefreshButton
+                scope="downloads"
+                label="刷新下载与资料"
+                onRefreshed={refresh}
+              />
+            </div>
             {canOpenLocalDirectory && (
-              <Button
-                variant="secondary"
-                size="sm"
-                leftIcon={<FolderOpen size={12} />}
-                onClick={() => void handleOpenLocation()}
-              >
-                打开下载目录
-              </Button>
+              <p className="text-[10px] text-[color:var(--text-muted)]">
+                更改保存位置请前往设置中心
+              </p>
             )}
-            <AnimeDataRefreshButton
-              scope="downloads"
-              label="刷新下载与资料"
-              onRefreshed={refresh}
-            />
           </div>
-          {canOpenLocalDirectory && (
-            <p className="text-[10px] text-[color:var(--text-muted)]">
-              更改保存位置请前往设置中心
-            </p>
-          )}
-        </div>
-      </header>
+        }
+      />
 
       {/* ── qBit 状态卡片 ── */}
       <QbitStatusCard qbit={qbit} hasActiveDownload={hasActiveDownload} />

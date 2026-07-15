@@ -3,6 +3,7 @@ const {
   clipboard,
   dialog,
   Menu,
+  net: electronNet,
   nativeImage,
   shell,
   Tray,
@@ -13,7 +14,7 @@ const http = require("node:http");
 const net = require("node:net");
 const os = require("node:os");
 const path = require("node:path");
-const { spawn } = require("node:child_process");
+const { spawn, spawnSync } = require("node:child_process");
 const {
   ONBOARDING_VERSION,
   configFile,
@@ -29,6 +30,11 @@ const {
 const { createControlServer } = require("./control-server.cjs");
 const { createQbitManager, findOpenPort } = require("./qbit.cjs");
 const { inspectWritableDirectory } = require("./runtime-paths.cjs");
+const { autoUpdater } = require("electron-updater");
+const {
+  createAppUpdateController,
+} = require("../runtime/app-update.cjs");
+const pkg = require("../package.json");
 
 const APP_PORT_START = 31245;
 const CONTROL_RECHECK_MS = 30000;
@@ -55,6 +61,9 @@ let restartTimer = null;
 let parentLeasePath = null;
 let parentLeaseToken = null;
 let parentLeaseTimer = null;
+let updateController = null;
+let shutdownComplete = false;
+let shutdownPromise = null;
 
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -164,6 +173,90 @@ function waitForHttp(url, timeoutMs = 30000) {
 
 function standaloneDir() {
   return path.join(app.getAppPath(), ".next", "standalone");
+}
+
+function standaloneBuildId() {
+  try {
+    const value = fs
+      .readFileSync(path.join(standaloneDir(), ".next", "BUILD_ID"), "utf8")
+      .trim();
+    return /^[A-Za-z0-9._-]{1,128}$/.test(value) ? value : "";
+  } catch {
+    return "";
+  }
+}
+
+function appBundlePath() {
+  return path.dirname(path.dirname(path.dirname(app.getPath("exe"))));
+}
+
+function hasDeveloperIdSignature() {
+  if (!app.isPackaged || pkg.bandiMacAutoUpdate !== true) return false;
+  const bundle = appBundlePath();
+  const verify = spawnSync(
+    "/usr/bin/codesign",
+    ["--verify", "--deep", "--strict", bundle],
+    { encoding: "utf8" },
+  );
+  if (verify.status !== 0) return false;
+  const details = spawnSync(
+    "/usr/bin/codesign",
+    ["-dv", "--verbose=4", bundle],
+    { encoding: "utf8" },
+  );
+  return (
+    details.status === 0 &&
+    /(?:^|\n)Authority=Developer ID Application:/m.test(
+      `${details.stdout || ""}\n${details.stderr || ""}`,
+    )
+  );
+}
+
+function initializeUpdateController() {
+  const isMacSigned = hasDeveloperIdSignature();
+  if (isMacSigned) {
+    autoUpdater.channel = `latest-${process.arch}`;
+    autoUpdater.allowDowngrade = false;
+  }
+  updateController = createAppUpdateController({
+    app,
+    updater: autoUpdater,
+    isMacSigned,
+    fetchImpl: (input, init) => electronNet.fetch(input, init),
+    openExternal: () => shell.openExternal(
+      "https://github.com/Luis-Herry/bandi/releases/latest",
+    ),
+    beforeInstall: async () => {
+      quitting = true;
+      if (!shutdownPromise) shutdownPromise = shutdown();
+      await shutdownPromise;
+      shutdownComplete = true;
+    },
+    log: (entry) => appendLog("update.log", `${JSON.stringify(entry)}\n`),
+  });
+  updateController.subscribe(() => rebuildTrayMenu());
+}
+
+function requestUpdateInstall() {
+  if (!updateController || updateController.getState().status !== "ready") {
+    return {
+      ok: false,
+      error: "update_not_ready",
+      state: updateController?.getState(),
+    };
+  }
+  const state = updateController.getState();
+  setTimeout(() => {
+    void updateController.installUpdate().then((result) => {
+      if (!result.ok) {
+        appendLog(
+          "update.log",
+          `${JSON.stringify({ event: "install_failed", code: result.error || "install_failed" })}\n`,
+        );
+      }
+    });
+  }, 120);
+  return { ok: true, state };
 }
 
 function nodeExecutable() {
@@ -360,6 +453,10 @@ function controlHandlers() {
     }),
     getDownloadServiceState: () => qbit.getState(),
     retryDownloadService: () => qbit.retry(),
+    getUpdateState: () => updateController.getState(),
+    checkForUpdates: () => updateController.checkForUpdates(),
+    installUpdate: () => requestUpdateInstall(),
+    openUpdatePage: () => updateController.openUpdatePage(),
     authorizeHost: (input) => ({ ok: consumeHostBootstrap(input?.token) }),
     createPairing: () => {
       if (!config.lanAccess) return { ok: false, error: "lan_disabled" };
@@ -421,6 +518,8 @@ async function startNext() {
       ...nextBaseEnvironment(),
       ...prepareRuntimePaths(),
       NODE_ENV: "production",
+      BANDI_BUILD_ID: standaloneBuildId(),
+      BANDI_APP_VERSION: app.getVersion(),
       HOSTNAME: config.lanAccess ? "0.0.0.0" : "127.0.0.1",
       PORT: String(appPort),
       DATABASE_URL: path.join(dataDirectory, "anime.db"),
@@ -488,9 +587,24 @@ function rebuildTrayMenu() {
   if (!tray) return;
   const urls = localNetworkUrls();
   const qbitState = qbit?.getState();
+  const updateState = updateController?.getState();
   const downloadLabel = qbitState?.status === "ready"
     ? "下载服务：已连接"
     : "下载服务：后台恢复中";
+  const updateItem = updateState?.status === "ready"
+    ? { label: "重启并更新", click: () => requestUpdateInstall() }
+    : updateState?.action === "open-release"
+      ? { label: "下载新版", click: () => void updateController.openUpdatePage() }
+      : updateState?.status === "downloading"
+        ? {
+            label: `正在下载更新${updateState.progressPercent == null ? "" : `：${updateState.progressPercent}%`}`,
+            enabled: false,
+          }
+        : {
+            label: updateState?.status === "checking" ? "正在检查更新" : "检查更新",
+            enabled: updateState?.status !== "checking",
+            click: () => void updateController?.checkForUpdates(),
+          };
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: "打开 Bandi", click: () => void openBandi() },
     { label: downloadLabel, enabled: false },
@@ -502,6 +616,7 @@ function rebuildTrayMenu() {
         }]
       : []),
     { label: "打开设置", click: () => void openBandi("/settings") },
+    updateItem,
     { type: "separator" },
     { label: "退出 Bandi", click: () => app.quit() },
   ]));
@@ -522,6 +637,7 @@ async function boot() {
     moviesDir: app.getPath("videos"),
   });
   startParentLease();
+  initializeUpdateController();
   if (!config.qbitPort) {
     config.qbitPort = await findOpenPort();
     saveConfig();
@@ -541,11 +657,13 @@ async function boot() {
   });
   await startNext();
   await openBandi();
+  updateController.start();
   void qbitStart;
 }
 
 async function shutdown() {
   quitting = true;
+  updateController?.stop();
   if (restartTimer) clearTimeout(restartTimer);
   await stopNext();
   await qbit?.stop();
@@ -573,9 +691,14 @@ if (process.platform !== "darwin") {
       );
     });
     app.on("before-quit", (event) => {
-      if (quitting) return;
+      if (shutdownComplete) return;
       event.preventDefault();
-      void shutdown().finally(() => app.exit(0));
+      if (!shutdownPromise) {
+        shutdownPromise = shutdown().finally(() => {
+          shutdownComplete = true;
+          app.quit();
+        });
+      }
     });
   }
 }

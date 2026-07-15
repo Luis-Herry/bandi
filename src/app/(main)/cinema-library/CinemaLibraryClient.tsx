@@ -3,6 +3,7 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { Clapperboard, Search } from "lucide-react";
 import { ClearableInput, GlassPanel } from "@/components/ui";
+import { AnimeCover } from "@/components/features/AnimeCover";
 import { CinemaCard } from "@/components/features/CinemaCard";
 import { CinemaCatalogImportButton } from "@/components/features/CinemaCatalogImportButton";
 import { cn } from "@/lib/cn";
@@ -124,57 +125,107 @@ export function CinemaLibraryClient({ items }: { items: CinemaItem[] }) {
     return [...scored, ...unscored];
   }, [items, tab, mediaType, year, genre, query, scoreOrder]);
   const gridRef = useCardGlow<HTMLDivElement>([filtered]);
+  const heroPosters = useMemo(
+    () => items.filter((item) => item.posterUrl).slice(0, 4),
+    [items],
+  );
   const statusTabsRef = useSlidingTabs<HTMLDivElement>([
     tab,
     items.length,
   ]);
 
   return (
-    <div className="app-page-container py-6 space-y-6">
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex flex-col gap-1">
-          <div className="flex items-center gap-2">
-            <Clapperboard size={20} className="text-[color:var(--accent)]" />
-            <h1 className="text-[22px] font-semibold tracking-tight text-[color:var(--text-primary)]">
+    <div className="relative">
+      <section className="catalog-page-hero">
+        <div
+          aria-hidden
+          className="absolute -inset-5 flex scale-[1.04]"
+          style={{ filter: "blur(18px) saturate(0.85)" }}
+        >
+          {heroPosters.length > 0 ? (
+            heroPosters.map((item) => (
+              <div key={item.id} className="relative min-w-0 flex-1">
+                <AnimeCover
+                  src={item.posterUrl}
+                  alt=""
+                  ratio="1/1"
+                  priority
+                  imageRole="hero"
+                  sizes="(min-width: 1024px) 25vw, 50vw"
+                  className="!absolute inset-0 h-full w-full"
+                />
+              </div>
+            ))
+          ) : (
+            <div className="flex-1 bg-[color:var(--bg-elevated)]" />
+          )}
+        </div>
+        <div
+          aria-hidden
+          className="absolute inset-0"
+          style={{
+            background:
+              "linear-gradient(180deg, rgba(10,10,11,0.60) 0%, rgba(10,10,11,0.78) 60%, rgba(10,10,11,1) 100%)",
+          }}
+        />
+        <div
+          aria-hidden
+          className="absolute inset-0"
+          style={{
+            background:
+              "radial-gradient(ellipse at 30% 50%, rgb(var(--accent-rgb) / 0.10) 0%, transparent 60%)",
+          }}
+        />
+
+        <div className="app-page-container catalog-page-hero-content">
+          <div className="min-w-0">
+            <h1
+              className="text-[34px] font-extrabold leading-none tracking-[-0.025em] text-[color:var(--text-primary)] sm:text-[44px] sm:tracking-[-0.03em]"
+              style={{ textShadow: "0 2px 16px rgba(0,0,0,0.5)" }}
+            >
               影视库
             </h1>
+            <p className="mt-3 max-w-[42rem] text-[13px] leading-relaxed text-[color:var(--text-secondary)]">
+              热播、高分、上映中的电视剧和电影 · 详情页内查看正版观看入口 · 共 {items.length} 部
+            </p>
           </div>
-          <p className="text-[13px] text-[color:var(--text-secondary)]">
-            热播、高分、上映中的电视剧和电影 · 详情页内查看正版观看入口 · 共 {items.length} 部
-          </p>
         </div>
-        <CinemaCatalogImportButton />
-      </header>
+      </section>
+
+      <section className="app-page-container space-y-6 py-6 sm:py-8">
 
       {/* 追踪状态 tab */}
-      <div
-        ref={statusTabsRef}
-        role="tablist"
-        aria-label="追踪状态"
-        className="t-tabs t-tabs-segmented flex w-fit max-w-full flex-wrap items-center gap-1 rounded-[8px] border border-[color:var(--border-subtle)] p-1"
-      >
-        <span className="t-tabs-pill" aria-hidden="true" />
-        {TABS.map((t) => {
-          const on = t.value === tab;
-          return (
-            <button
-              key={t.value}
-              type="button"
-              role="tab"
-              aria-selected={on}
-              onClick={() => setTab(t.value)}
-              className={cn(
-                "t-tab h-8 shrink-0 rounded-[6px] px-3 text-[12px] font-medium",
-                on && "text-[color:var(--accent)]",
-              )}
-            >
-              {t.label}
-              <span data-tabular className="ml-1.5 text-[10px] opacity-70">
-                {counts[t.value]}
-              </span>
-            </button>
-          );
-        })}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div
+          ref={statusTabsRef}
+          role="tablist"
+          aria-label="追踪状态"
+          className="t-tabs t-tabs-segmented flex w-fit max-w-full flex-wrap items-center gap-1 rounded-[8px] border border-[color:var(--border-subtle)] p-1"
+        >
+          <span className="t-tabs-pill" aria-hidden="true" />
+          {TABS.map((t) => {
+            const on = t.value === tab;
+            return (
+              <button
+                key={t.value}
+                type="button"
+                role="tab"
+                aria-selected={on}
+                onClick={() => setTab(t.value)}
+                className={cn(
+                  "t-tab h-8 shrink-0 rounded-[6px] px-3 text-[12px] font-medium",
+                  on && "text-[color:var(--accent)]",
+                )}
+              >
+                {t.label}
+                <span data-tabular className="ml-1.5 text-[10px] opacity-70">
+                  {counts[t.value]}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+        <CinemaCatalogImportButton />
       </div>
 
       {/* 筛选区：分类 / 年份 / 题材（动态）/ 搜索 + 评分排序 */}
@@ -258,31 +309,32 @@ export function CinemaLibraryClient({ items }: { items: CinemaItem[] }) {
         </div>
       </div>
 
-      {filtered.length > 0 ? (
-        <div
-          ref={gridRef}
-          className="grid grid-cols-2 gap-4 min-[640px]:grid-cols-3 md:grid-cols-4 xl:grid-cols-5"
-        >
-          {filtered.map((item, i) => (
-            <CinemaCard
-              key={item.id}
-              item={item}
-              priority={i < 6}
-              detailSource="library"
-            />
-          ))}
-        </div>
-      ) : (
-        <GlassPanel className="flex flex-col items-center justify-center gap-2 px-6 py-16 text-center">
-          <Clapperboard size={28} className="text-[color:var(--text-muted)]" />
-          <p className="text-[14px] font-medium text-[color:var(--text-primary)]">
-            {items.length === 0 ? "影视库还是空的" : "没有符合筛选的影视"}
-          </p>
-          <p className="max-w-[420px] text-[12px] leading-relaxed text-[color:var(--text-muted)]">
-            点「更新影视库」从 TMDb 公开榜单拉取热播、高分、上映中的影视资料；有了本地文件会归到「本地库」。
-          </p>
-        </GlassPanel>
-      )}
+        {filtered.length > 0 ? (
+          <div
+            ref={gridRef}
+            className="grid grid-cols-2 gap-4 min-[640px]:grid-cols-3 md:grid-cols-4 xl:grid-cols-5"
+          >
+            {filtered.map((item, i) => (
+              <CinemaCard
+                key={item.id}
+                item={item}
+                priority={i < 6}
+                detailSource="library"
+              />
+            ))}
+          </div>
+        ) : (
+          <GlassPanel className="flex flex-col items-center justify-center gap-2 px-6 py-16 text-center">
+            <Clapperboard size={28} className="text-[color:var(--text-muted)]" />
+            <p className="text-[14px] font-medium text-[color:var(--text-primary)]">
+              {items.length === 0 ? "影视库还是空的" : "没有符合筛选的影视"}
+            </p>
+            <p className="max-w-[420px] text-[12px] leading-relaxed text-[color:var(--text-muted)]">
+              点「更新影视库」从 TMDb 公开榜单拉取热播、高分、上映中的影视资料；有了本地文件会归到「本地库」。
+            </p>
+          </GlassPanel>
+        )}
+      </section>
     </div>
   );
 }

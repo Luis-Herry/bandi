@@ -11,6 +11,7 @@ import {
 const apiRoot = path.resolve("src/app/api");
 const publicRoutes = new Set([
   path.normalize("auth/[...nextauth]/route.ts"),
+  path.normalize("app-version/route.ts"),
   path.normalize("img/route.ts"),
 ]);
 

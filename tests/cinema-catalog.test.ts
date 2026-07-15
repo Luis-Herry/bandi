@@ -109,6 +109,11 @@ test("cinema catalog can refresh from public TMDb discovery lists", () => {
   assert.match(routeSource, /importDoubanCatalog\(\{ limit/);
   assert.match(routeSource, /revalidatePath\("\/cinema-library"\)/);
   assert.match(clientSource, /CinemaCatalogImportButton/);
+  assert.ok(
+    clientSource.indexOf("<CinemaCatalogImportButton />") >
+      clientSource.indexOf('role="tablist"'),
+    "the catalog refresh action should share the status-filter row",
+  );
   assert.match(importButtonSource, /router\.refresh\(\)/);
   assert.doesNotMatch(importButtonSource, /useTransition|startRefresh/);
   assert.match(importButtonSource, /当前可展示/);

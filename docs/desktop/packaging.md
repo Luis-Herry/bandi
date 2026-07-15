@@ -8,13 +8,13 @@ This is the canonical Bandi repository for the Windows Electron product and macO
 - Visibility: public
 - Latest GitHub release: https://github.com/Luis-Herry/bandi/releases/tag/v0.1.5
 - Latest release title: `Bandi 0.1.5`
-- Current release version: `0.1.5`
-- Local installer: `release/追番中心-Setup-0.1.5-x64.exe`
-- Local portable build: `release/追番中心-0.1.5-x64-portable.exe`
+- Release candidate version: `0.1.6`
+- Local installer: `release/Bandi-Setup-0.1.6-x64.exe`
+- Local portable build: `release/Bandi-0.1.6-x64-portable.exe`
 - Latest release installer asset: `Bandi-Setup-0.1.5-x64.exe`
 - Latest release portable asset: `Bandi-0.1.5-x64-portable.exe`
 
-`electron-builder` 在本地 `release/` 目录生成带中文产品名的文件；发布到 GitHub Release 时使用上面的 ASCII 附件名，避免托管平台净化文件名后与校验清单不一致。
+`electron-builder` 在本地 `release/` 目录直接生成最终 ASCII 附件名，避免托管平台净化文件名后与校验清单不一致。
 
 ## Runtime Layout
 
@@ -87,9 +87,64 @@ The portable exe self-extracts on launch, so its first launch can be noticeably 
 - Bandi 默认把 Next 绑定到 `127.0.0.1`。用户在设置中开启局域网访问后，启动器重启 Next 并绑定 `0.0.0.0`；iPhone/iPad 仍需六位配对码，连续八次失败会让当前配对码失效。
 - Windows Electron、macOS Local Web 和 iPhone/iPad Safari 共用 `src/` 页面与资料刷新逻辑。打开 Explorer/Finder、选择目录和外部播放器属于宿主机操作；配对设备不显示这些入口，服务端仍通过 `requireLocalHostRouteUser` 拒绝调用。
 - 本机浏览器通过 URL fragment 中的单次令牌建立会话。fragment 不会进入 HTTP 请求或服务日志，客户端提交后立即从地址栏清除。qBittorrent 凭据和内部控制令牌只存在于启动器配置或子进程环境中。
-- Apple 签名凭据不写入仓库。开发包可用于社区真机验证；公开发布前需要用维护者的 Developer ID Application 完成签名和 notarization，并复查 stapled ticket。
+- Apple 签名凭据不写入仓库。当前未签名、未公证的社区验证包可以在 Draft 人工核验后公开，但 Release notes 与 README 必须如实标明手动安装和待真机验收。启用 macOS 应用内自动安装或声明可信正式分发前，必须用维护者的 Developer ID Application 完成签名、notarization 与 stapling 复查。
+- 当前 macOS Draft 构建不启用 `BANDI_MAC_RELEASE` 或 `BANDI_MAC_AUTO_UPDATE`，所有页面只显示“下载新版”并走手动安装。以后取得 Apple Developer ID 证书时，`BANDI_MAC_RELEASE=1` 负责强制签名与公证，另由 `BANDI_MAC_AUTO_UPDATE=1` 显式开启“重启并更新”；两个条件缺一时继续保持手动下载。
 
 社区真机验证步骤见 `docs/desktop/macos-community-verification.md`。macOS Intel x64、Apple Silicon ARM64 与 iOS/iPadOS Safari 仍待社区真机验证。Windows 能完成的共享验证包括 `npm test`、TypeScript、Next build、资产哈希、配置生成、鉴权边界和包结构静态检查；Mach-O 架构、Gatekeeper、原生目录选择、qBittorrent 启动和 Safari 播放必须分别在两种 Mac 真机确认，iOS/iPadOS Safari 也要单独回传局域网配对与播放结果。
+
+## Hot Update Release Contract
+
+公开的 `0.1.5` 继续作为 N-1 手动分发基线；`0.1.6` 是第一版按新合同生成的候选。仓库已接入更新运行时、最终 ASCII artifact 命名、Web 构建版本提示和发布元数据配置；`.github/workflows/draft-release.yml` 只接受手动触发和已存在的 `vX.Y.Z` tag，tag 必须与 `package.json` version 一致。
+
+GitHub Release 是 Windows Desktop 与 macOS Local Web 的唯一公开二进制来源。每个版本必须先建立 draft Release，等 Windows、macOS Intel、macOS Apple Silicon 和元数据校验全部通过后再一次性公开。draft 中的半成品不能被客户端当作可用更新。
+
+### Distribution Surfaces
+
+| 入口 | 安装与更新语义 | Release 附件 |
+|------|----------------|--------------|
+| Windows NSIS 安装版 | 后台下载 `latest.yml` 指向的安装包；完成后所有页面右下角显示“重启并更新”，只有用户主动点击或自行正常退出才进入安装流程 | NSIS `.exe`、同名 `.exe.blockmap`、`latest.yml` |
+| Windows portable | 后台下载同架构新版 portable 并核对 size 与 SHA-256；完成后所有页面右下角显示“退出并运行新版”，不覆盖运行中的 exe，也不运行 NSIS installer | `-portable.exe`、`SHA256SUMS.txt` |
+| macOS Intel x64 | 当前由全局提示显示“下载新版”，用户从 Release 获取 DMG 后手动安装；ZIP 与架构清单作为未来签名更新链路的预备产物 | x64 `.dmg`、x64 `.zip`、`latest-x64-mac.yml` |
+| macOS Apple Silicon arm64 | 当前由全局提示显示“下载新版”，用户从 Release 获取 DMG 后手动安装；ZIP 与架构清单作为未来签名更新链路的预备产物 | arm64 `.dmg`、arm64 `.zip`、`latest-arm64-mac.yml` |
+| macOS 本机浏览器与 iPhone/iPad Safari | 页面由 Mac 上的 Local Web 主机提供；主机更新并重启服务后显示“新版本已就绪，立即刷新”，Safari 刷新即可获得新页面，不向 Safari 下发桌面安装包 | 不新增浏览器二进制附件 |
+| 未来原生 iOS App | 仅通过 App Store / TestFlight 分发和更新；不读取 GitHub Desktop 更新清单 | 不属于当前 Release |
+
+macOS 两个原生架构不能共用一份由独立 job 生成的 `latest-mac.yml`。两个 job 都写同名文件会让后上传者覆盖前者，导致另一架构下载错误 ZIP。当前约定使用 `latest-x64` 与 `latest-arm64` 两个 channel，客户端按 `process.arch` 选择对应 channel；若将来改为 universal app，必须先解决 bundled Node、`better-sqlite3` 和 qBittorrent 的双架构资源，再单独评审合并 channel。
+
+### Artifact Identity
+
+- 更新清单、安装包、ZIP 和 blockmap 必须来自同一 commit、同一 `package.json` version 和同一轮构建。
+- 发布附件名必须由 `electron-builder` 直接生成最终 ASCII 名称。禁止打包后手工重命名、复制成另一个名称，或让清单 URL 与实际附件名分离。
+- Windows `latest.yml` 只能指向 NSIS installer；portable 不能进入自动安装路径。
+- macOS channel 清单只能指向同架构 ZIP；DMG 保留为用户可见的手动安装入口。
+- macOS 设置架构 channel 后必须显式保持 `allowDowngrade = false`；任何更新路径都只接受高于当前版本的 semver，禁止用旧清单回退应用与数据库运行时。
+- Draft 组装 job 上传附件前必须逐项确认清单中的 URL、size 和 sha512 与附件一致，并生成面向用户复核的 `SHA256SUMS.txt`；人工公开前再复核一次草稿状态与附件摘要。
+- 已公开的同版本附件和 channel 清单不可覆盖。撤回有问题的版本时发布更高 semver 修复版，避免已下载旧版的客户端停留在损坏版本。
+
+### Signing And Notarization Gate
+
+当前 Draft workflow 明确生成未签名产物：Windows Setup 与 portable 保留应用内下载链路，但附件标记为“未签名，仅供人工验收”；macOS x64 与 arm64 不设置 `BANDI_MAC_RELEASE=1`，应用继续显示“下载新版”并由用户手动安装。工作流会拒绝意外签名的 Windows 附件和带 Developer ID Authority 的 macOS app，防止草稿状态与实际产物不一致。
+
+未来接入正式签名时另开变更：Windows 证书签发后再把准确 Common Name 配置为 electron-builder `win.publisherName`；macOS 再设置 `BANDI_MAC_RELEASE=1` 完成 Developer ID Application 签名、Hardened Runtime 与 Apple notarization，确认产物可信后才设置 `BANDI_MAC_AUTO_UPDATE=1`。只有真实签名、公证和 stapling 全部通过，两种 Mac 架构才能标记为 **已构建和公证，等待真机验收**。
+
+当前 workflow 不读取 Windows 或 Apple 签名 Secret。只有最终组装 Draft Release 的 job 使用 GitHub Actions 自动提供的 `GITHUB_TOKEN`，并映射为 `GH_TOKEN`；其余 job 统一保持 `contents: read`。证书、密码和 `.p8` 私钥不得进入仓库、日志、Release notes 或文档示例。
+
+`preflight`、Windows、macOS x64、macOS arm64 全部成功后，最终 job 才获得 `contents: write`：它会校验 update manifest 的 URL、size 与 sha512，生成 `SHA256SUMS.txt`，创建全新的 Draft Release，并在上传后再次确认 `draft=true` 及远端附件 name、size、SHA-256 与本地产物完全一致。同 tag 已存在任何 Release 时直接失败，既有草稿和已公开附件都不会被修改。workflow 没有 push/tag 自动触发，也没有公开 Release 的步骤。
+
+GitHub 公共标准 runner 固定为 `windows-2025`、Intel `macos-15-intel` 与 Apple Silicon `macos-15`；两个 Mac job 都在对应原生架构构建，避免交叉构建原生模块。
+
+### Release Acceptance
+
+每次更新发布至少验证：
+
+1. tag `vX.Y.Z` 与 `package.json` version 完全一致。
+2. `npm test`、`npx tsc --noEmit`、`npm run build`、`npm run desktop:prepare` 和 `git diff --check` 全部通过。
+3. Windows 安装版从 N-1 检查、下载、停止后台服务、安装、重启到 N；portable 下载并校验同架构新版，退出旧进程后启动新文件，原文件保持可回退。当前未签名草稿只用于人工验收，安装时如实记录系统警告。
+4. macOS x64 与 arm64 分别验证 DMG、ZIP 和各自 channel 清单；当前版本只验收“下载新版”手动流程，不宣称自动安装或公证状态。
+5. bundled Node 与 `better-sqlite3` 架构正确。未来正式签名工作流接入后，再把 `codesign --verify --deep --strict`、`spctl --assess` 和 `xcrun stapler validate` 加回发布硬门槛。
+6. 更新前后的数据库、下载目录、追番进度、配对设备撤销状态和受管 qBittorrent 配置保持一致。
+7. Mac 更新并重启 Local Web 后，本机 Safari 与已配对 iPhone/iPad 刷新可恢复页面；宿主文件操作继续只对本机会话开放。
+8. Release notes 只记录版本、commit、测试、签名、公证、架构和校验和，不包含本地路径、媒体名、数据库内容、RSS、magnet、token 或凭据。
 
 ## App Icon Assets
 

@@ -73,7 +73,15 @@ const abiProbe = [
 run(bundledNode, ["-e", abiProbe]);
 
 const builder = path.join("node_modules", "electron-builder", "out", "cli", "cli.js");
-run(process.execPath, [builder, "--config", "local-server/electron-builder.cjs", "--mac", `--${arch}`], {
+run(process.execPath, [
+  builder,
+  "--config",
+  "local-server/electron-builder.cjs",
+  "--mac",
+  `--${arch}`,
+  "--publish",
+  "never",
+], {
   BANDI_MAC_ARCH: arch,
   BANDI_LOCAL_ONLY_FFMPEG: includeLocalFfmpeg ? "1" : "0",
 });

@@ -2,6 +2,9 @@ import type { Metadata } from "next";
 import { Inter, Noto_Sans_SC } from "next/font/google";
 import { ThemeSync } from "@/components/features/ThemeSync";
 import { DesktopTitlebar } from "@/components/features/DesktopTitlebar";
+import { AppVersionNotice } from "@/components/features/AppVersionNotice";
+import { DesktopUpdateNotice } from "@/components/features/DesktopUpdateNotice";
+import { getAppBuildIdentity } from "@/lib/app-build";
 import { getUserTheme } from "@/lib/theme";
 import "./globals.css";
 
@@ -41,6 +44,7 @@ export default async function RootLayout({
   children: React.ReactNode;
 }) {
   const theme = await getUserTheme();
+  const buildIdentity = getAppBuildIdentity();
   const isDesktop = process.env.ANIME_DESKTOP_APP === "1";
   const isLocalServer = process.env.ANIME_LOCAL_SERVER_APP === "1";
 
@@ -58,6 +62,8 @@ export default async function RootLayout({
     >
       <body className="noise antialiased" suppressHydrationWarning>
         <ThemeSync initialTheme={theme} />
+        <AppVersionNotice initialBuildId={buildIdentity.buildId} />
+        {isDesktop && <DesktopUpdateNotice />}
         {isDesktop && <DesktopTitlebar />}
         <div className={isDesktop ? "desktop-app-content" : undefined}>
           {children}

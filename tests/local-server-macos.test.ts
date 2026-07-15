@@ -201,6 +201,63 @@ test("private control server rejects requests without its bearer token", async (
   }
 });
 
+test("macOS update controls stay on the authenticated private control server", async () => {
+  const token = "test-update-control-token";
+  const calls: string[] = [];
+  const state = {
+    mode: "mac-manual",
+    status: "available",
+    action: "open-release",
+    currentVersion: "0.1.5",
+    availableVersion: "0.1.6",
+    progressPercent: null,
+    message: null,
+    lastCheckedAt: 1,
+  };
+  const server = createControlServer({
+    token,
+    handlers: {
+      getUpdateState: () => state,
+      checkForUpdates: () => {
+        calls.push("check");
+        return { ok: true, state };
+      },
+      installUpdate: () => {
+        calls.push("install");
+        return { ok: true, state };
+      },
+      openUpdatePage: () => {
+        calls.push("open-release");
+        return { ok: true, state };
+      },
+    },
+  });
+  const url = await server.listen();
+  const headers = { Authorization: `Bearer ${token}` };
+  try {
+    const stateResponse = await fetch(`${url}/update`, { headers });
+    assert.equal(stateResponse.status, 200);
+    assert.deepEqual(await stateResponse.json(), state);
+    for (const [route, expected] of [
+      ["check", "check"],
+      ["install", "install"],
+      ["open-release", "open-release"],
+    ] as const) {
+      const response = await fetch(`${url}/update/${route}`, {
+        method: "POST",
+        headers,
+      });
+      assert.equal(response.status, 200);
+      assert.equal((await response.json()).ok, true);
+      assert.equal(calls.at(-1), expected);
+    }
+    const denied = await fetch(`${url}/update/check`, { method: "POST" });
+    assert.equal(denied.status, 401);
+  } finally {
+    await server.close();
+  }
+});
+
 test("macOS packaging covers Intel and Apple Silicon with pinned assets", () => {
   const manifest = JSON.parse(readFileSync("local-server/macos-assets.json", "utf8"));
   const packageJson = JSON.parse(readFileSync("package.json", "utf8"));
@@ -254,4 +311,38 @@ test("macOS packaging covers Intel and Apple Silicon with pinned assets", () => 
   assert.match(instrumentation, /\/api\/v2\/app\/shutdown/);
   assert.match(playRoute, /"\/usr\/bin\/open"/);
   assert.match(playRoute, /user\.isLocalHost !== true/);
+});
+
+test("macOS updates require an explicit signed auto-update build and host auth", () => {
+  const builder = readFileSync("local-server/electron-builder.cjs", "utf8");
+  const launcher = readFileSync("local-server/main.cjs", "utf8");
+  const control = readFileSync("local-server/control-server.cjs", "utf8");
+  const proxy = readFileSync(
+    "src/app/api/local-server/[...path]/route.ts",
+    "utf8",
+  );
+  const layout = readFileSync("src/app/(main)/layout.tsx", "utf8");
+
+  assert.match(builder, /"runtime\/\*\*\/\*"/);
+  assert.match(builder, /channel: `latest-\$\{arch\}`/);
+  assert.match(
+    builder,
+    /macAutoUpdateEnabled =\s*releaseSigning && process\.env\.BANDI_MAC_AUTO_UPDATE === "1"/,
+  );
+  assert.match(builder, /bandiMacAutoUpdate: macAutoUpdateEnabled/);
+  assert.match(builder, /forceCodeSigning: releaseSigning/);
+  assert.match(builder, /notarize: releaseSigning/);
+  assert.match(builder, /entitlements\.mac\.plist/);
+  assert.match(launcher, /Authority=Developer ID Application:/);
+  assert.match(launcher, /autoUpdater\.channel = `latest-\$\{process\.arch\}`/);
+  assert.match(
+    launcher,
+    /autoUpdater\.channel = `latest-\$\{process\.arch\}`;\s*autoUpdater\.allowDowngrade = false;/,
+  );
+  assert.match(launcher, /BANDI_BUILD_ID: standaloneBuildId\(\)/);
+  assert.match(launcher, /shutdownComplete = true;[\s\S]*app\.quit\(\)/);
+  assert.match(control, /url\.pathname === "\/update\/install"/);
+  assert.match(proxy, /\["POST:update\/install", "\/update\/install"\]/);
+  assert.match(proxy, /requireLocalHostRouteUser\(\)/);
+  assert.match(layout, /isLocalServer && session\.user\.isLocalHost === true/);
 });

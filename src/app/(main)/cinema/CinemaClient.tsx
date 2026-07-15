@@ -12,6 +12,7 @@ import {
 } from "@/components/features/CinemaFollowUpSection";
 import { CinemaScanButton } from "@/components/features/CinemaScanButton";
 import { CinemaEnrichButton } from "@/components/features/CinemaEnrichButton";
+import { PageHeader } from "@/components/features/PageHeader";
 import { cn } from "@/lib/cn";
 import { useCardGlow } from "@/hooks/useCardGlow";
 import { useSlidingTabs } from "@/hooks/useSlidingTabs";
@@ -189,7 +190,8 @@ export function CinemaClient({
           : movie.filter((m) => m.tags.includes(genre)),
     [adultItems, genre, isRRated, movie],
   );
-  const hasLocalItems = drama.length + movie.length + jav.length + ova.length > 0;
+  const totalLocalItems = drama.length + movie.length + jav.length + ova.length;
+  const hasLocalItems = totalLocalItems > 0;
   const dramaGridRef = useCardGlow<HTMLDivElement>([drama, tab]);
   const movieGridRef = useCardGlow<HTMLDivElement>([
     movieItems,
@@ -207,25 +209,17 @@ export function CinemaClient({
   ]);
 
   return (
-    <div className="app-page-container py-6 space-y-6">
-      {/* 空间标题 */}
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex flex-col gap-1">
-          <div className="flex items-center gap-2">
-            <Clapperboard size={20} className="text-[color:var(--accent)]" />
-            <h1 className="text-[22px] font-semibold tracking-tight text-[color:var(--text-primary)]">
-              本地库
-            </h1>
+    <div className="app-page-container space-y-6 py-6 sm:py-8">
+      <PageHeader
+        title="本地库"
+        description={`你保存在本地的电视剧和电影 · 可直接播放 · 共 ${totalLocalItems} 部`}
+        actions={
+          <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+            {hasLocalItems && <CinemaEnrichButton scope="local" />}
+            <CinemaScanButton />
           </div>
-          <p className="text-[13px] text-[color:var(--text-secondary)]">
-            你扫描入库、有本地文件的电视剧和电影 · 可直接播放
-          </p>
-        </div>
-        <div className="flex flex-wrap items-start justify-end gap-2">
-          {hasLocalItems && <CinemaEnrichButton scope="local" />}
-          <CinemaScanButton />
-        </div>
-      </header>
+        }
+      />
 
       {/* 电视剧 / 电影 子 tab */}
       <div

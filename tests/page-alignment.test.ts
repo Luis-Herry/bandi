@@ -20,6 +20,26 @@ const cinemaDetailSource = readFileSync(
   "src/app/(main)/anime/[id]/CinemaDetail.tsx",
   "utf8",
 );
+const libraryPageSource = readFileSync(
+  "src/app/(main)/library/page.tsx",
+  "utf8",
+);
+const browseClientSource = readFileSync(
+  "src/app/(main)/browse/BrowseClient.tsx",
+  "utf8",
+);
+const browsePageSource = readFileSync(
+  "src/app/(main)/browse/page.tsx",
+  "utf8",
+);
+const browseLoadingSource = readFileSync(
+  "src/app/(main)/browse/loading.tsx",
+  "utf8",
+);
+const cinemaLibrarySource = readFileSync(
+  "src/app/(main)/cinema-library/CinemaLibraryClient.tsx",
+  "utf8",
+);
 
 const alignedPageFiles = [
   "src/app/(main)/page.tsx",
@@ -79,6 +99,63 @@ test("main pages keep the content gutter while the space switcher owns the windo
   assert.equal(homeHeroSource.match(/app-page-container/g)?.length, 1);
   assert.equal(animeDetailSource.match(/app-page-container/g)?.length, 2);
   assert.equal(cinemaDetailSource.match(/app-page-container/g)?.length, 2);
+});
+
+test("catalog page heroes share one height, content rail, and proxied poster art", () => {
+  for (const source of [
+    libraryPageSource,
+    browseClientSource,
+    browseLoadingSource,
+    cinemaLibrarySource,
+  ]) {
+    assert.match(source, /className="catalog-page-hero(?: [^"]*)?"/);
+    assert.match(source, /catalog-page-hero-content/);
+  }
+
+  assert.match(
+    globalsSource,
+    /\.catalog-page-hero\s*\{[\s\S]*?min-height:\s*13\.75rem/,
+  );
+  assert.match(
+    globalsSource,
+    /@media \(min-width: 640px\)[\s\S]*?\.catalog-page-hero\s*\{[\s\S]*?height:\s*15rem/,
+  );
+  assert.match(
+    globalsSource,
+    /@media \(min-width: 900px\)[\s\S]*?\.catalog-page-hero-content\s*\{[\s\S]*?align-items:\s*center/,
+  );
+  assert.match(
+    browseClientSource,
+    /<AnimeCover[\s\S]*?src=\{url\}[\s\S]*?imageRole="hero"[\s\S]*?className="!absolute inset-0 h-full w-full"/,
+  );
+  assert.match(browsePageSource, /const fallbackHeroCovers = getLibrary\(user\.id\)/);
+  assert.match(browsePageSource, /fallbackHeroCovers=\{fallbackHeroCovers\}/);
+  assert.match(
+    browseClientSource,
+    /seasonalCovers\.length > 0[\s\S]*?: fallbackHeroCovers/,
+  );
+  assert.match(
+    cinemaLibrarySource,
+    /items\.filter\(\(item\) => item\.posterUrl\)\.slice\(0, 4\)/,
+  );
+  assert.match(
+    cinemaLibrarySource,
+    /<AnimeCover[\s\S]*?src=\{item\.posterUrl\}[\s\S]*?imageRole="hero"[\s\S]*?className="!absolute inset-0 h-full w-full"/,
+  );
+});
+
+test("anime and cinema catalog search rows share the same responsive layout", () => {
+  const sharedRowClass =
+    /flex flex-wrap items-center gap-3 border-t border-\[color:var\(--border-subtle\)\] pt-3/;
+
+  assert.match(browseClientSource, sharedRowClass);
+  assert.match(cinemaLibrarySource, sharedRowClass);
+  assert.match(
+    browseClientSource,
+    /min-w-\[200px\] flex-1[\s\S]*?h-8 rounded-\[6px\] bg-\[color:var\(--bg-surface-hover\)\]/,
+  );
+  assert.doesNotMatch(browseClientSource, /md:max-w-\[360px\]/);
+  assert.doesNotMatch(browseClientSource, /min-w-\[84px\]/);
 });
 
 test("desktop navigation tabs, search, and page content share both grid rails", () => {

@@ -1,10 +1,10 @@
 /**
  * NextAuth v5 configuration.
  *
- * - Web mode: Credentials provider (username + password against `users` table).
- * - Desktop mode: one-time local session token only; password login is omitted.
+ * - Windows Desktop: one-time local session token.
+ * - macOS/iOS: local host bootstrap or explicit device pairing.
+ * - Local web preview: loopback-only silent session; no password form.
  * - JWT session strategy (keeps everything in a signed cookie, no extra table).
- * - `signIn('credentials', ...)` returns `{ error, ok }`; the form catches that.
  */
 
 /**
@@ -12,13 +12,12 @@
  * and adds the DB-backed providers for the active runtime.
  *
  * The middleware imports `auth.config.ts` directly so it doesn't drag
- * better-sqlite3 / bcryptjs into the Edge bundle.
+ * better-sqlite3 into the Edge bundle.
  */
 import NextAuth, { type DefaultSession, type User } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import "next-auth/jwt";
 import { timingSafeEqual } from "node:crypto";
-import bcrypt from "bcryptjs";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { users } from "@/db/schema";
@@ -32,6 +31,7 @@ import {
   isLocalDeviceActive,
   pairLocalDevice,
 } from "@/lib/local-server-control";
+import { isLoopbackSessionRequest } from "@/lib/loopback-session";
 
 declare module "next-auth" {
   interface Session {
@@ -68,7 +68,6 @@ function findUser(username: string) {
     .select({
       id: users.id,
       username: users.username,
-      passwordHash: users.passwordHash,
     })
     .from(users)
     .where(eq(users.username, username))
@@ -77,7 +76,7 @@ function findUser(username: string) {
 
 const isDesktopApp = process.env.ANIME_DESKTOP_APP === "1";
 const isLocalServerApp = process.env.ANIME_LOCAL_SERVER_APP === "1";
-const isManagedLocalApp = isDesktopApp || isLocalServerApp;
+const isLoopbackSessionApp = process.env.ANIME_LOOPBACK_SESSION === "1";
 const localRecheckMs = Math.max(
   5000,
   Number(process.env.LOCAL_SESSION_RECHECK_MS || 30000),
@@ -99,30 +98,28 @@ export const {
 } = NextAuth({
   ...authConfig,
   providers: [
-    ...(!isManagedLocalApp
+    ...(isLoopbackSessionApp
       ? [
           Credentials({
-            name: "credentials",
-            credentials: {
-              username: { label: "用户名", type: "text" },
-              password: { label: "密码", type: "password" },
-            },
-            async authorize(raw) {
-              const username =
-                typeof raw?.username === "string" ? raw.username.trim() : "";
-              const password =
-                typeof raw?.password === "string" ? raw.password : "";
-              if (!username || !password) return null;
-
-              const row = findUser(username);
+            id: "loopback-session",
+            name: "Bandi Local Preview",
+            credentials: {},
+            async authorize(_raw, request) {
+              if (!isLoopbackSessionRequest(request)) return null;
+              const preferredUsername =
+                process.env.DESKTOP_BOOTSTRAP_USER?.trim() || "admin";
+              const row =
+                findUser(preferredUsername) ??
+                db
+                  .select({ id: users.id, username: users.username })
+                  .from(users)
+                  .limit(1)
+                  .get();
               if (!row) return null;
-
-              const ok = await bcrypt.compare(password, row.passwordHash);
-              if (!ok) return null;
-
               return {
                 id: row.id,
                 name: row.username,
+                localHost: true,
               };
             },
           }),
