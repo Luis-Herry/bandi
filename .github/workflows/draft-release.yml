@@ -220,20 +220,15 @@ jobs:
 
           curl --fail --silent --show-error --location \
             --proto '=https' --tlsv1.2 \
-            https://www.gnu.org/licenses/gpl-3.0.txt \
-            --output "$license_dir/GPL-3.0.txt"
-          curl --fail --silent --show-error --location \
-            --proto '=https' --tlsv1.2 \
-            https://www.gnu.org/licenses/lgpl-3.0.txt \
+            https://raw.githubusercontent.com/spdx/license-list-data/98f5c2939d624d338d9fbc159d97f0994c7cfaf3/text/LGPL-3.0-only.txt \
             --output "$license_dir/LGPL-3.0.txt"
-          echo "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986  $license_dir/GPL-3.0.txt" | shasum -a 256 --check
-          echo "e3a994d82e644b03a792a930f574002658412f62407f5fee083f2555c5f23118  $license_dir/LGPL-3.0.txt" | shasum -a 256 --check
+          echo "996af0513df21f7496288951c41428a03c174e9e4a9d63665c57d670f845ccb1  $license_dir/LGPL-3.0.txt" | shasum -a 256 --check
 
           {
             printf '@img/sharp-libvips-darwin-%s redistributes libvips under LGPL-3.0-or-later.\n' "$BANDI_MAC_ARCH"
             printf 'Source: https://github.com/lovell/sharp-libvips\n'
           } > "$package_dir/NOTICE"
-          cat "$license_dir/GPL-3.0.txt" "$license_dir/LGPL-3.0.txt" > "$package_dir/LICENSE"
+          cp "$license_dir/LGPL-3.0.txt" "$package_dir/LICENSE"
 
       - name: Build unsigned DMG and ZIP without publishing
         shell: bash

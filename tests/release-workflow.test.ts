@@ -32,10 +32,8 @@ test("draft release workflow stays manual, draft-only, and architecture-native",
   ]);
   assert.match(source, /BANDI_MAC_RELEASE:\s*"0"/);
   assert.match(source, /BANDI_MAC_AUTO_UPDATE:\s*"0"/);
-  assert.match(source, /https:\/\/www\.gnu\.org\/licenses\/gpl-3\.0\.txt/);
-  assert.match(source, /https:\/\/www\.gnu\.org\/licenses\/lgpl-3\.0\.txt/);
-  assert.match(source, /3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986/);
-  assert.match(source, /e3a994d82e644b03a792a930f574002658412f62407f5fee083f2555c5f23118/);
+  assert.match(source, /raw\.githubusercontent\.com\/spdx\/license-list-data\/98f5c2939d624d338d9fbc159d97f0994c7cfaf3\/text\/LGPL-3\.0-only\.txt/);
+  assert.match(source, /996af0513df21f7496288951c41428a03c174e9e4a9d63665c57d670f845ccb1/);
   assert.match(source, /@img\/sharp-libvips-darwin-\$\{BANDI_MAC_ARCH\}/);
   assert.match(source, /--publish never/);
   assert.match(source, /A Release already exists[\s\S]*refusing to replace any existing assets/);
