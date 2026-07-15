@@ -22,11 +22,6 @@ jobs:
     # semantics, so release gating must run on the primary Windows platform.
     runs-on: windows-2025
     timeout-minutes: 30
-    env:
-      # Avoid the runner account's 8.3 TEMP alias (RUNNER~1), which makes a
-      # single fixture path appear different before and after realpath().
-      TEMP: ${{ runner.temp }}
-      TMP: ${{ runner.temp }}
     outputs:
       commit: ${{ steps.tag.outputs.commit }}
       version: ${{ steps.package.outputs.version }}
@@ -95,6 +90,11 @@ jobs:
 
       - name: Run source checks
         shell: bash
+        env:
+          # Avoid the runner account's 8.3 TEMP alias (RUNNER~1), which makes a
+          # single fixture path appear different before and after realpath().
+          TEMP: ${{ runner.temp }}
+          TMP: ${{ runner.temp }}
         run: |
           set -euo pipefail
           npm test
