@@ -207,6 +207,34 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Restore pinned libvips license texts
+        shell: bash
+        env:
+          BANDI_MAC_ARCH: ${{ matrix.arch }}
+        run: |
+          set -euo pipefail
+          package_dir="node_modules/@img/sharp-libvips-darwin-${BANDI_MAC_ARCH}"
+          test -d "$package_dir"
+          license_dir="$(mktemp -d)"
+          trap 'rm -rf "$license_dir"' EXIT
+
+          curl --fail --silent --show-error --location \
+            --proto '=https' --tlsv1.2 \
+            https://www.gnu.org/licenses/gpl-3.0.txt \
+            --output "$license_dir/GPL-3.0.txt"
+          curl --fail --silent --show-error --location \
+            --proto '=https' --tlsv1.2 \
+            https://www.gnu.org/licenses/lgpl-3.0.txt \
+            --output "$license_dir/LGPL-3.0.txt"
+          echo "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986  $license_dir/GPL-3.0.txt" | shasum -a 256 --check
+          echo "e3a994d82e644b03a792a930f574002658412f62407f5fee083f2555c5f23118  $license_dir/LGPL-3.0.txt" | shasum -a 256 --check
+
+          {
+            printf '@img/sharp-libvips-darwin-%s redistributes libvips under LGPL-3.0-or-later.\n' "$BANDI_MAC_ARCH"
+            printf 'Source: https://github.com/lovell/sharp-libvips\n'
+          } > "$package_dir/NOTICE"
+          cat "$license_dir/GPL-3.0.txt" "$license_dir/LGPL-3.0.txt" > "$package_dir/LICENSE"
+
       - name: Build unsigned DMG and ZIP without publishing
         shell: bash
         env:

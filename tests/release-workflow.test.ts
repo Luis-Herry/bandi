@@ -24,6 +24,7 @@ test("draft release workflow stays manual, draft-only, and architecture-native",
   assert.equal(workflow.on?.push, undefined);
   assert.equal(workflow.permissions?.contents, "read");
   assert.equal(workflow.jobs?.["draft-release"]?.permissions?.contents, "write");
+  assert.equal(workflow.jobs?.preflight?.["runs-on"], "windows-2025");
   assert.equal(workflow.jobs?.windows?.["runs-on"], "windows-2025");
   assert.deepEqual(workflow.jobs?.macos?.strategy?.matrix?.include, [
     { arch: "x64", runner: "macos-15-intel" },
@@ -31,6 +32,11 @@ test("draft release workflow stays manual, draft-only, and architecture-native",
   ]);
   assert.match(source, /BANDI_MAC_RELEASE:\s*"0"/);
   assert.match(source, /BANDI_MAC_AUTO_UPDATE:\s*"0"/);
+  assert.match(source, /https:\/\/www\.gnu\.org\/licenses\/gpl-3\.0\.txt/);
+  assert.match(source, /https:\/\/www\.gnu\.org\/licenses\/lgpl-3\.0\.txt/);
+  assert.match(source, /3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986/);
+  assert.match(source, /e3a994d82e644b03a792a930f574002658412f62407f5fee083f2555c5f23118/);
+  assert.match(source, /@img\/sharp-libvips-darwin-\$\{BANDI_MAC_ARCH\}/);
   assert.match(source, /--publish never/);
   assert.match(source, /A Release already exists[\s\S]*refusing to replace any existing assets/);
   assert.match(source, /The remote tag moved after the build started/);
