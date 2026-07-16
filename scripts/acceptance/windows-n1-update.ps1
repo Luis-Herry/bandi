@@ -206,6 +206,8 @@ try {
   $pinnedBaseChecksums = @{
     "setup:v0.1.6" = "8dc6d7ec4e3e2793b3af3a4879623b1413523d45c3f6581744998fa8a273079f"
     "portable:v0.1.6" = "64f7b4f93475cfa776d520b270c0ce96cb98a29ee59c3e36aa10338c819fc3e9"
+    "setup:v0.1.8" = "3725a4a033b00f7a346a477cc9504272dddfa7d8108a51585d496f7c6d3dc55c"
+    "portable:v0.1.8" = "c66b295f78ab0bcdc9ec0f4f905dcc4ab7653d7a920f422962d69865b35bca1e"
   }
   $baseKey = "$Mode`:$BaseTag"
   Assert-True ($pinnedBaseChecksums.ContainsKey($baseKey)) "The requested N-1 baseline is not pinned"

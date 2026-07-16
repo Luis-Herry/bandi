@@ -8,12 +8,12 @@ on:
       base_tag:
         description: Public pinned baseline Release tag
         required: true
-        default: v0.1.6
+        default: v0.1.8
         type: string
       target_tag:
         description: Public latest Release tag
         required: true
-        default: v0.1.7
+        default: v0.1.9
         type: string
 
 permissions:

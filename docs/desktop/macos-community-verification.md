@@ -4,7 +4,7 @@
 
 当前 Draft workflow 的 `signed_macos` 默认关闭，更新入口只显示“下载新版”并打开 GitHub Release。取得 Apple 证书后，维护者显式开启该输入；workflow 会同时设置 `BANDI_MAC_RELEASE=1` 与 `BANDI_MAC_AUTO_UPDATE=1`，要求 Developer ID 签名、公证、Gatekeeper、stapling 和包内更新标记全部通过。Apple Secret 缺失或签名构建失败时整轮停止，不会降级成未签名公开包。
 
-公开的 `v0.1.8` 使用 `signed_macos=false` 构建，x64 与 arm64 均未进行 Developer ID 签名或 Apple 公证，只验收“下载新版”与同架构 DMG 手动安装流程。
+公开的 `v0.1.9` 使用 `signed_macos=false` 构建，x64 与 arm64 均未进行 Developer ID 签名或 Apple 公证，只验收“下载新版”与同架构 DMG 手动安装流程。
 
 这份清单需要在两类 Mac 真机各跑一次：Intel x64 与 Apple Silicon ARM64。每台机器只构建并验收自己的架构；iPhone 和 iPad 的局域网步骤也应分别记录实际设备与系统版本。测试使用空白 Bandi 数据目录、公开测试视频和有权下载的测试资源；不要使用个人媒体库、成人观看记录、真实密码或私人 RSS。
 
@@ -130,7 +130,7 @@ lsof -nP -iTCP -sTCP:LISTEN | grep -E 'Bandi|node|qbittorrent'
 
 ## 7. 从 Draft 验证当前手动更新
 
-当前公开的 `v0.1.8` macOS 产物没有 Developer ID 签名与公证，应用内只显示“下载新版”。这一节只使用 GitHub Draft Release 中即将公开的附件，禁止使用构建机器上的 unpacked app 或临时复制文件。Release 公开前先确认附件包括 x64 与 arm64 各自的 DMG、ZIP、channel 清单和 `SHA256SUMS.txt`，且清单中的 URL、size、sha512 与 ZIP 一致。
+当前公开的 `v0.1.9` macOS 产物没有 Developer ID 签名与公证，应用内只显示“下载新版”。这一节只使用 GitHub Draft Release 中即将公开的附件，禁止使用构建机器上的 unpacked app 或临时复制文件。Release 公开前先确认附件包括 x64 与 arm64 各自的 DMG、ZIP、channel 清单和 `SHA256SUMS.txt`，且清单中的 URL、size、sha512 与 ZIP 一致。
 
 1. 在 GitHub 的 Draft Release 页面按测试 Mac 架构下载对应 DMG，并用 `SHA256SUMS.txt` 核对文件；Intel 只取 x64，Apple Silicon 只取 arm64。
 2. 在干净测试 Mac 上手动安装 DMG，记录未签名版本触发的 Gatekeeper 提示和实际放行步骤；当前阶段不能标记为“已签名”或“已公证”。
