@@ -37,6 +37,8 @@ test("draft release workflow stays manual, draft-only, and architecture-native",
   assert.match(source, /@img\/sharp-libvips-darwin-\$\{BANDI_MAC_ARCH\}/);
   assert.match(source, /while IFS= read -r -d '' candidate/);
   assert.match(source, /-name '\*\.app' -prune -print0/);
+  assert.match(source, /parsed\.files = matches/);
+  assert.match(source, /parsed\.path !== primaryPayload/);
   assert.doesNotMatch(source, /Verify macOS package remains outside[\s\S]*?mapfile[\s\S]*?Stage macOS release assets/);
   assert.match(source, /--publish never/);
   assert.match(source, /A Release already exists[\s\S]*refusing to replace any existing assets/);
@@ -53,6 +55,52 @@ test("draft release workflow stays manual, draft-only, and architecture-native",
   assert.match(macBuild, /"--publish",\s*\n\s*"never"/);
   const packageJson = JSON.parse(readFileSync("package.json", "utf8"));
   assert.ok(packageJson.devDependencies?.["js-yaml"]);
+});
+
+test("draft release workflow stages a ZIP-only macOS update manifest", () => {
+  const source = readFileSync(".github/workflows/draft-release.yml", "utf8");
+  const inlineScript = source.match(
+    /node --input-type=module <<'NODE'\r?\n([\s\S]*?)\r?\n\s+NODE/,
+  )?.[1]?.replace(/^ {10}/gm, "");
+  assert.ok(inlineScript);
+
+  const root = mkdtempSync(join(tmpdir(), "bandi-mac-manifest-"));
+  const manifestPath = join(root, "latest-x64-mac.yml");
+  const zip = "Bandi-Local-Web-9.8.7-macOS-x64.zip";
+  const dmg = "Bandi-Local-Web-9.8.7-macOS-x64.dmg";
+  try {
+    writeFileSync(
+      manifestPath,
+      [
+        "version: 9.8.7",
+        "files:",
+        `  - url: ${zip}`,
+        "    sha512: zip-hash",
+        "    size: 10",
+        `  - url: ${dmg}`,
+        "    sha512: dmg-hash",
+        "    size: 20",
+        `path: ${zip}`,
+        "sha512: zip-hash",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+    execFileSync(process.execPath, ["--input-type=module", "-e", inlineScript], {
+      env: {
+        ...process.env,
+        MANIFEST_PATH: manifestPath,
+        PRIMARY_PAYLOAD: zip,
+      },
+      stdio: "pipe",
+    });
+    const staged = yaml.load(readFileSync(manifestPath, "utf8")) as any;
+    assert.equal(staged.path, zip);
+    assert.equal(staged.sha512, "zip-hash");
+    assert.deepEqual(staged.files, [{ url: zip, sha512: "zip-hash", size: 10 }]);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test("release artifact verifier binds manifests to exact payload bytes", () => {

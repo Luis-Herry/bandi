@@ -280,6 +280,23 @@ jobs:
             test -s "$file"
             cp "$file" "$target/"
           done
+          MANIFEST_PATH="$target/$manifest" PRIMARY_PAYLOAD="${base}.zip" node --input-type=module <<'NODE'
+          import fs from "node:fs";
+          import yaml from "js-yaml";
+
+          const manifestPath = process.env.MANIFEST_PATH;
+          const primaryPayload = process.env.PRIMARY_PAYLOAD;
+          const parsed = yaml.load(fs.readFileSync(manifestPath, "utf8"));
+          if (!parsed || typeof parsed !== "object" || Array.isArray(parsed) || !Array.isArray(parsed.files)) {
+            throw new Error("macOS update manifest is invalid");
+          }
+          const matches = parsed.files.filter((entry) => entry?.url === primaryPayload);
+          if (matches.length !== 1 || parsed.path !== primaryPayload || parsed.sha512 !== matches[0].sha512) {
+            throw new Error("macOS update manifest does not have one valid ZIP primary payload");
+          }
+          parsed.files = matches;
+          fs.writeFileSync(manifestPath, yaml.dump(parsed, { lineWidth: -1, noRefs: true }), "utf8");
+          NODE
           blockmap="release/macos-${BANDI_MAC_ARCH}/${base}.zip.blockmap"
           if [[ -s "$blockmap" ]]; then cp "$blockmap" "$target/"; fi
 
