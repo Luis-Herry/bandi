@@ -263,6 +263,8 @@ try {
     "--remote-debugging-address=127.0.0.1",
     "--remote-debugging-port=$port",
     "--user-data-dir=$debugProfile",
+    "--headless",
+    "--no-sandbox",
     "--disable-gpu"
   )
   $launcher = Start-Process -FilePath $appPath -ArgumentList $launchArguments -PassThru
@@ -356,6 +358,8 @@ try {
     "--remote-debugging-address=127.0.0.1",
     "--remote-debugging-port=$verifyPort",
     "--user-data-dir=$verifyDebugProfile",
+    "--headless",
+    "--no-sandbox",
     "--disable-gpu"
   ) -PassThru
   [void]$recordedPids.Add([int]$verifyLauncher.Id)

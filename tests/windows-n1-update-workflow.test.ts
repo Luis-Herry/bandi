@@ -42,6 +42,8 @@ test("Windows N-1 acceptance is manual, read-only, isolated, and fail-closed", (
   assert.match(acceptance, /PORTABLE_EXECUTABLE_FILE = \$downloadedPackage/);
   assert.match(acceptance, /--user-data-dir=\$debugProfile/);
   assert.match(acceptance, /--user-data-dir=\$verifyDebugProfile/);
+  assert.equal((acceptance.match(/"--headless"/g) ?? []).length, 2);
+  assert.equal((acceptance.match(/"--no-sandbox"/g) ?? []).length, 2);
   assert.match(acceptance, /launcherAlive=\$launcherAlive; leaseHealthy=\$leaseHealthy/);
   assert.match(acceptance, /configHashAfter -eq \$configHashBefore/);
   assert.match(acceptance, /SetEnvironmentVariable\(\$name, \$null, "Process"\)/);
