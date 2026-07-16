@@ -321,7 +321,7 @@ jobs:
             fi
             /usr/sbin/spctl --assess --type execute --verbose=2 "$app_path"
             /usr/bin/xcrun stapler validate "$app_path"
-            if [[ "$(APP_PATH="$app_path" node -p "require(process.env.APP_PATH + '/Contents/Resources/app/package.json').bandiMacAutoUpdate")" != "true" ]]; then
+            if [[ "$(APP_PATH="$app_path" node -p "require(require('node:path').resolve(process.env.APP_PATH, 'Contents/Resources/app/package.json')).bandiMacAutoUpdate")" != "true" ]]; then
               echo "Signed macOS release did not enable the in-app update channel." >&2
               exit 1
             fi
@@ -330,7 +330,7 @@ jobs:
               echo "Unsigned macOS release unexpectedly contains a signing authority." >&2
               exit 1
             fi
-            if [[ "$(APP_PATH="$app_path" node -p "require(process.env.APP_PATH + '/Contents/Resources/app/package.json').bandiMacAutoUpdate")" != "false" ]]; then
+            if [[ "$(APP_PATH="$app_path" node -p "require(require('node:path').resolve(process.env.APP_PATH, 'Contents/Resources/app/package.json')).bandiMacAutoUpdate")" != "false" ]]; then
               echo "Unsigned macOS release unexpectedly enabled the in-app update channel." >&2
               exit 1
             fi

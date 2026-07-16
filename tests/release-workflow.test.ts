@@ -65,6 +65,14 @@ test("draft release workflow stays manual, draft-only, and architecture-native",
   assert.match(source, /spctl --assess --type execute/);
   assert.match(source, /xcrun stapler validate/);
   assert.match(source, /bandiMacAutoUpdate/);
+  assert.match(
+    source,
+    /require\('node:path'\)\.resolve\(process\.env\.APP_PATH, 'Contents\/Resources\/app\/package\.json'\)/,
+  );
+  assert.doesNotMatch(
+    source,
+    /require\(process\.env\.APP_PATH \+ '\/Contents\/Resources\/app\/package\.json'\)/,
+  );
   assert.doesNotMatch(source, /--publish\s+(always|onTagOrDraft)/);
   assert.doesNotMatch(source, /uses:\s+[^\s]+@v\d/);
 
