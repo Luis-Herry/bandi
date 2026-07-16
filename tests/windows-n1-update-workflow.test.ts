@@ -27,6 +27,8 @@ test("Windows N-1 acceptance is manual, read-only, isolated, and fail-closed", (
   assert.doesNotMatch(workflow, /uses:\s+[^\s]+@v\d/);
 
   assert.match(acceptance, /bandi-n1-/);
+  assert.match(acceptance, /\$env:USERPROFILE = Join-Path \$root "Profile"/);
+  assert.match(acceptance, /"Downloads", "Music", "Pictures", "Videos"/);
   assert.match(acceptance, /pinnedBaseChecksums/);
   assert.match(acceptance, /releases\/latest/);
   assert.match(acceptance, /Get-FileHash[^\n]+SHA256/);

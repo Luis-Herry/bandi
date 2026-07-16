@@ -248,7 +248,11 @@ try {
   $env:APPDATA = Join-Path $root "AppData\Roaming"
   $env:LOCALAPPDATA = Join-Path $root "AppData\Local"
   $env:USERPROFILE = Join-Path $root "Profile"
-  New-Item -ItemType Directory -Path $env:APPDATA, $env:LOCALAPPDATA, $env:USERPROFILE -Force | Out-Null
+  $profileDirectories = @($env:APPDATA, $env:LOCALAPPDATA, $env:USERPROFILE)
+  foreach ($knownFolder in @("Desktop", "Documents", "Downloads", "Music", "Pictures", "Videos")) {
+    $profileDirectories += Join-Path $env:USERPROFILE $knownFolder
+  }
+  New-Item -ItemType Directory -Path $profileDirectories -Force | Out-Null
 
   $userData = Join-Path $env:APPDATA "anime-tracker"
   $configFile = Join-Path $userData "config.json"
