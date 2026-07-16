@@ -54,6 +54,12 @@ iPad can join over the same LAN after an explicit pairing step.
 - `BANDI_MAC_RELEASE=1` enables the signed/notarized packaging path. In-app
   `重启并更新` remains disabled until a verified build also sets
   `BANDI_MAC_AUTO_UPDATE=1`.
+- The Draft workflow exposes a `signed_macos` input that defaults to `false`.
+  When enabled it requires the Developer ID certificate, certificate password,
+  App Store Connect API key, issuer, and team ID from GitHub Secrets. Missing
+  credentials, code-signing failure, Gatekeeper rejection, missing stapling,
+  or a disabled package update flag stops the whole Draft without falling back
+  to unsigned artifacts.
 - The launcher never forces an update or interrupts playback, scanning, or
   metadata writes. A downloaded signed update can only restart after an
   explicit host action.
@@ -63,6 +69,9 @@ iPad can join over the same LAN after an explicit pairing step.
 - Every GitHub Release starts as a Draft. Draft assets stay invisible to update
   checks and are published only after manual architecture, checksum, and
   metadata verification.
+- Public `v0.1.6` has macOS auto-update disabled. A future signed `v0.1.7` can
+  establish the signed baseline; the first real signed macOS N-1 update can
+  only be verified from `v0.1.7` to `v0.1.8`.
 
 ## Acceptance
 

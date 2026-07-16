@@ -2,7 +2,7 @@
 
 > 正式发布包完成 Developer ID 签名与 Apple 公证后，状态统一标记为：**已构建和公证，等待真机验收**。当前仓库已具备条件式签名、公证和双架构更新配置；实际状态仍取决于对应 Release 的签名、公证输出，不能只凭 Windows 共享检查标记完成。
 
-当前 Draft workflow 不设置 `BANDI_MAC_RELEASE` 或 `BANDI_MAC_AUTO_UPDATE`，更新入口只显示“下载新版”并打开 GitHub Release。以后取得 Apple 证书后，维护者先用 `BANDI_MAC_RELEASE=1` 完成签名与公证；只有验收通过的签名产物才同时设置 `BANDI_MAC_AUTO_UPDATE=1`，升级为“重启并更新”。签名构建失败时不得降级成未签名公开包。
+当前 Draft workflow 的 `signed_macos` 默认关闭，更新入口只显示“下载新版”并打开 GitHub Release。取得 Apple 证书后，维护者显式开启该输入；workflow 会同时设置 `BANDI_MAC_RELEASE=1` 与 `BANDI_MAC_AUTO_UPDATE=1`，要求 Developer ID 签名、公证、Gatekeeper、stapling 和包内更新标记全部通过。Apple Secret 缺失或签名构建失败时整轮停止，不会降级成未签名公开包。
 
 这份清单需要在两类 Mac 真机各跑一次：Intel x64 与 Apple Silicon ARM64。每台机器只构建并验收自己的架构；iPhone 和 iPad 的局域网步骤也应分别记录实际设备与系统版本。测试使用空白 Bandi 数据目录、公开测试视频和有权下载的测试资源；不要使用个人媒体库、成人观看记录、真实密码或私人 RSS。
 

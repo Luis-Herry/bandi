@@ -331,6 +331,7 @@ test("macOS updates require an explicit signed auto-update build and host auth",
   );
   assert.match(builder, /bandiMacAutoUpdate: macAutoUpdateEnabled/);
   assert.match(builder, /forceCodeSigning: releaseSigning/);
+  assert.match(builder, /hardenedRuntime: releaseSigning/);
   assert.match(builder, /notarize: releaseSigning/);
   assert.match(builder, /entitlements\.mac\.plist/);
   assert.match(launcher, /Authority=Developer ID Application:/);

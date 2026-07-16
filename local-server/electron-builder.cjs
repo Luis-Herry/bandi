@@ -115,7 +115,7 @@ module.exports = {
     artifactName: includeLocalFfmpeg
       ? `Bandi-Local-Web-LOCAL-ONLY-DO-NOT-RELEASE-${pkg.version}-macOS-${arch}.\${ext}`
       : `Bandi-Local-Web-${pkg.version}-macOS-${arch}.\${ext}`,
-    hardenedRuntime: true,
+    hardenedRuntime: releaseSigning,
     gatekeeperAssess: false,
     entitlements: releaseSigning
       ? "local-server/entitlements.mac.plist"

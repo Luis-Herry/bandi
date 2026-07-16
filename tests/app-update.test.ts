@@ -271,35 +271,47 @@ test("controller stop aborts an active release request", async () => {
   assert.equal(controller.getState().status, "error");
 });
 
-test("installed updater waits for host shutdown before quitAndInstall", async () => {
-  const events = new Map<string, (...args: unknown[]) => void>();
-  const order: string[] = [];
-  const updater = {
-    on(name: string, callback: (...args: unknown[]) => void) {
-      events.set(name, callback);
-    },
-    async checkForUpdates() {
-      events.get("update-downloaded")?.({ version: "0.1.6" });
-    },
-    quitAndInstall() {
-      order.push("quitAndInstall");
-    },
-  };
-  const controller = createAppUpdateController({
-    currentVersion: "0.1.5",
-    platform: "win32",
-    isPackaged: true,
-    hasUpdateDescriptor: true,
-    env: {},
-    updater,
-    beforeInstall: async () => {
-      order.push("shutdown");
-    },
+for (const target of [
+  { name: "Windows NSIS", platform: "win32" },
+  {
+    name: "signed macOS",
+    platform: "darwin",
+    isMacSigned: true,
+    isInApplicationsFolder: true,
+  },
+]) {
+  test(`${target.name} updater waits for host shutdown before quitAndInstall`, async () => {
+    const events = new Map<string, (...args: unknown[]) => void>();
+    const order: string[] = [];
+    const updater = {
+      on(name: string, callback: (...args: unknown[]) => void) {
+        events.set(name, callback);
+      },
+      async checkForUpdates() {
+        events.get("update-downloaded")?.({ version: "0.1.7" });
+      },
+      quitAndInstall() {
+        order.push("quitAndInstall");
+      },
+    };
+    const controller = createAppUpdateController({
+      currentVersion: "0.1.6",
+      platform: target.platform,
+      isPackaged: true,
+      hasUpdateDescriptor: true,
+      isMacSigned: target.isMacSigned,
+      isInApplicationsFolder: target.isInApplicationsFolder,
+      env: {},
+      updater,
+      beforeInstall: async () => {
+        order.push("shutdown");
+      },
+    });
+    await controller.checkForUpdates();
+    assert.equal(controller.getState().status, "ready");
+    assert.deepEqual(order, [], "download completion must not force a restart");
+    const installed = await controller.installUpdate();
+    assert.equal(installed.ok, true);
+    assert.deepEqual(order, ["shutdown", "quitAndInstall"]);
   });
-  await controller.checkForUpdates();
-  assert.equal(controller.getState().status, "ready");
-  assert.deepEqual(order, [], "download completion must not force a restart");
-  const installed = await controller.installUpdate();
-  assert.equal(installed.ok, true);
-  assert.deepEqual(order, ["shutdown", "quitAndInstall"]);
-});
+}
