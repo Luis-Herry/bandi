@@ -247,12 +247,17 @@ jobs:
           BANDI_MAC_ARCH: ${{ matrix.arch }}
         run: |
           set -euo pipefail
-          mapfile -d '' apps < <(find "release/macos-${BANDI_MAC_ARCH}" -type d -name '*.app' -print0)
-          if [[ "${#apps[@]}" -ne 1 ]]; then
+          app_count=0
+          app_path=""
+          while IFS= read -r -d '' candidate; do
+            app_count=$((app_count + 1))
+            app_path="$candidate"
+          done < <(find "release/macos-${BANDI_MAC_ARCH}" -type d -name '*.app' -print0)
+          if [[ "$app_count" -ne 1 ]]; then
             echo "Expected exactly one app bundle." >&2
             exit 1
           fi
-          if /usr/bin/codesign -dv --verbose=4 "${apps[0]}" 2>&1 | grep -q '^Authority='; then
+          if /usr/bin/codesign -dv --verbose=4 "$app_path" 2>&1 | grep -q '^Authority='; then
             echo "This workflow must not create a Developer ID signed package." >&2
             exit 1
           fi
