@@ -16,6 +16,10 @@ param(
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
+if ($env:GITHUB_ACTIONS -ne "true" -or [string]::IsNullOrWhiteSpace($env:RUNNER_TEMP)) {
+  throw "Windows N-1 acceptance must run on an ephemeral GitHub Actions runner"
+}
+
 $repository = "Luis-Herry/bandi"
 $baseVersion = $BaseTag.Substring(1)
 $targetVersion = $TargetTag.Substring(1)
@@ -123,10 +127,12 @@ function Get-LeaseState {
   try {
     $lease = Get-Content -LiteralPath $LeaseFile -Raw -Encoding UTF8 | ConvertFrom-Json
     $pidValue = [int]$lease.pid
+    $token = [string]$lease.token
     $updatedAt = [int64]$lease.updatedAt
     $now = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
     if (
       $pidValue -le 0 -or
+      $token -notmatch "^[A-Za-z0-9_-]{32}$" -or
       $updatedAt -le 0 -or
       $updatedAt -lt $NotBeforeMs -or
       $updatedAt -gt ($now + 5000) -or
@@ -134,10 +140,44 @@ function Get-LeaseState {
     ) { return $null }
     $process = Get-Process -Id $pidValue -ErrorAction SilentlyContinue
     if (-not $process) { return $null }
-    return [pscustomobject]@{ pid = $pidValue; updatedAt = $updatedAt }
+    return [pscustomobject]@{ pid = $pidValue; token = $token; updatedAt = $updatedAt }
   } catch {
     return $null
   }
+}
+
+function Get-RelaunchDiagnostics {
+  param(
+    [string]$LeaseFile,
+    [int64]$NotBeforeMs,
+    [string]$PreviousToken,
+    [string]$ExpectedVersion,
+    [string]$InstalledExecutable
+  )
+  $leaseExists = Test-Path -LiteralPath $LeaseFile -PathType Leaf
+  $lease = Get-LeaseState $LeaseFile 0 1200
+  $leaseHealthy = $null -ne $lease
+  $leaseUpdatedAfterConsent = $leaseHealthy -and [int64]$lease.updatedAt -ge $NotBeforeMs
+  $leaseTokenChanged = $leaseHealthy -and [string]$lease.token -ne $PreviousToken
+  $targetProcessCount = 0
+  foreach ($candidate in Get-Process -ErrorAction SilentlyContinue) {
+    try {
+      if ($candidate.Path -and (Test-ProductVersion $candidate.Path $ExpectedVersion)) {
+        $targetProcessCount++
+      }
+    } catch {}
+  }
+  $installedVersionMatches = $false
+  if ($InstalledExecutable -and (Test-Path -LiteralPath $InstalledExecutable -PathType Leaf)) {
+    try { $installedVersionMatches = Test-ProductVersion $InstalledExecutable $ExpectedVersion } catch {}
+  }
+  $desktopErrorLog = Join-Path (Split-Path -Parent (Split-Path -Parent $LeaseFile)) "logs\desktop.err.log"
+  $desktopErrorLogBytes = if (Test-Path -LiteralPath $desktopErrorLog -PathType Leaf) {
+    (Get-Item -LiteralPath $desktopErrorLog).Length
+  } else {
+    0
+  }
+  return "leaseExists=$leaseExists; leaseHealthy=$leaseHealthy; leaseUpdatedAfterConsent=$leaseUpdatedAfterConsent; leaseTokenChanged=$leaseTokenChanged; targetProcessCount=$targetProcessCount; installedVersionMatches=$installedVersionMatches; desktopErrorLogBytes=$desktopErrorLogBytes"
 }
 
 function Get-ConfigProjection {
@@ -229,9 +269,9 @@ try {
 
   Clear-ChildSensitiveEnvironment
 
-  $env:APPDATA = Join-Path $root "AppData\Roaming"
-  $env:LOCALAPPDATA = Join-Path $root "AppData\Local"
-  $env:USERPROFILE = Join-Path $root "Profile"
+  Assert-True (-not [string]::IsNullOrWhiteSpace($env:APPDATA)) "GitHub runner APPDATA is unavailable"
+  Assert-True (-not [string]::IsNullOrWhiteSpace($env:LOCALAPPDATA)) "GitHub runner LOCALAPPDATA is unavailable"
+  Assert-True (-not [string]::IsNullOrWhiteSpace($env:USERPROFILE)) "GitHub runner USERPROFILE is unavailable"
   $profileDirectories = @($env:APPDATA, $env:LOCALAPPDATA, $env:USERPROFILE)
   foreach ($knownFolder in @("Desktop", "Documents", "Downloads", "Music", "Pictures", "Videos")) {
     $profileDirectories += Join-Path $env:USERPROFILE $knownFolder
@@ -241,6 +281,7 @@ try {
   $userData = Join-Path $env:APPDATA "anime-tracker"
   $configFile = Join-Path $userData "config.json"
   $leaseFile = Join-Path $userData "runtime\parent-lease.json"
+  Assert-True (-not (Test-Path -LiteralPath $userData)) "GitHub runner application data was not clean before acceptance"
   New-Item -ItemType Directory -Path $userData -Force | Out-Null
   $sentinelUser = "ci-n1-" + [Guid]::NewGuid().ToString("N")
   $sentinelContent = [Guid]::NewGuid().ToString("N")
@@ -291,6 +332,7 @@ try {
 
   $oldLease = Wait-For { Get-LeaseState $leaseFile $baselineLaunchAfter } 180 "Baseline parent lease did not become healthy"
   $oldPid = [int]$oldLease.pid
+  $oldToken = [string]$oldLease.token
   [void]$recordedPids.Add($oldPid)
   Start-Sleep -Seconds 5
   $configHashBefore = (Get-FileHash -LiteralPath $configFile -Algorithm SHA256).Hash
@@ -333,12 +375,18 @@ try {
   [void](Invoke-CdpJson "trigger-install" $port)
   [void](Wait-For { if (-not (Get-Process -Id $oldPid -ErrorAction SilentlyContinue)) { return $true }; return $null } 180 "Baseline process did not exit after accepting the update")
   $relaunchTimeoutSeconds = if ($Mode -eq "portable") { 900 } else { 300 }
-  $newLease = Wait-For {
-    $candidate = Get-LeaseState $leaseFile $installAcceptedAfter
-    if ($candidate -and [int]$candidate.pid -ne $oldPid) { return $candidate }
-    return $null
-  } $relaunchTimeoutSeconds "Updated app did not create a new healthy parent lease"
+  try {
+    $newLease = Wait-For {
+      $candidate = Get-LeaseState $leaseFile $installAcceptedAfter
+      if ($candidate -and [string]$candidate.token -ne $oldToken) { return $candidate }
+      return $null
+    } $relaunchTimeoutSeconds "Updated app did not create a new healthy parent lease"
+  } catch {
+    $diagnostics = Get-RelaunchDiagnostics $leaseFile $installAcceptedAfter $oldToken $targetVersion $appPath
+    throw "Updated app did not create a new healthy parent lease; $diagnostics"
+  }
   $newPid = [int]$newLease.pid
+  $newToken = [string]$newLease.token
   [void]$recordedPids.Add($newPid)
 
   if ($Mode -eq "setup") {
@@ -351,7 +399,7 @@ try {
   $firstLeaseTimestamp = [int64]$newLease.updatedAt
   Start-Sleep -Seconds 15
   $stableLease = Get-LeaseState $leaseFile
-  Assert-True ($stableLease -and [int]$stableLease.pid -eq $newPid -and [int64]$stableLease.updatedAt -gt $firstLeaseTimestamp) "Automatically started target was not stable"
+  Assert-True ($stableLease -and [int]$stableLease.pid -eq $newPid -and [string]$stableLease.token -eq $newToken -and [int64]$stableLease.updatedAt -gt $firstLeaseTimestamp) "Automatically started target was not stable"
 
   $configHashAfter = (Get-FileHash -LiteralPath $configFile -Algorithm SHA256).Hash
   $projectionAfter = Get-ConfigProjection $configFile
@@ -378,7 +426,7 @@ try {
   $targetState = Invoke-InitialCdpState $verifyPort ([int]$verifyLauncher.Id) $leaseFile $env:APPDATA $configFile $verifyConfigHash $initialPageTimeoutMs
   $verifyLease = Wait-For {
     $candidate = Get-LeaseState $leaseFile $verifyLaunchAfter
-    if ($candidate -and [int]$candidate.pid -ne $newPid) { return $candidate }
+    if ($candidate -and [string]$candidate.token -ne $newToken) { return $candidate }
     return $null
   } 180 "Controlled target restart did not create a healthy parent lease"
   $verifyPid = [int]$verifyLease.pid
