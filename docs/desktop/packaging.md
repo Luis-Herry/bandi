@@ -6,14 +6,14 @@ This is the canonical Bandi repository for the Windows Electron product and macO
 
 - Repository: https://github.com/Luis-Herry/bandi
 - Visibility: public
-- Latest GitHub release: https://github.com/Luis-Herry/bandi/releases/tag/v0.1.9
-- Latest release title: `Bandi v0.1.9`
-- Latest release source commit: `3bd25917c8eecb027bf56526821aec92b595f267`
-- Release candidate version: `0.1.10`
+- Latest GitHub release: https://github.com/Luis-Herry/bandi/releases/tag/v0.1.10
+- Latest release title: `Bandi v0.1.10`
+- Latest release source commit: `239104da559037810ff2c964719f782e9ed71aa1`
+- Release candidate version: none
 - Local installer: `release/Bandi-Setup-0.1.10-x64.exe`
 - Local portable build: `release/Bandi-0.1.10-x64-portable.exe`
-- Latest release installer asset: `Bandi-Setup-0.1.9-x64.exe`
-- Latest release portable asset: `Bandi-0.1.9-x64-portable.exe`
+- Latest release installer asset: `Bandi-Setup-0.1.10-x64.exe`
+- Latest release portable asset: `Bandi-0.1.10-x64-portable.exe`
 
 `electron-builder` 在本地 `release/` 目录直接生成最终 ASCII 附件名，避免托管平台净化文件名后与校验清单不一致。
 
@@ -154,6 +154,18 @@ GitHub 公共标准 runner 固定为 `windows-2025`、Intel `macos-15-intel` 与
 6. 更新前后的数据库、下载目录、追番进度、配对设备撤销状态和受管 qBittorrent 配置保持一致。
 7. Mac 更新并重启 Local Web 后，本机 Safari 与已配对 iPhone/iPad 刷新可恢复页面；宿主文件操作继续只对本机会话开放。
 8. Release notes 只记录版本、commit、测试、签名、公证、架构和校验和，不包含本地路径、媒体名、数据库内容、RSS、magnet、token 或凭据。
+
+### v0.1.10 Release Record
+
+- Published: `2026-07-16`
+- Release: https://github.com/Luis-Herry/bandi/releases/tag/v0.1.10
+- Source commit: `239104da559037810ff2c964719f782e9ed71aa1`
+- Draft workflow: `29518757017`；Windows、macOS x64 与 macOS arm64 原生构建、13 个附件上传及远端摘要反查通过
+- Tests: `471` total，`470` passed，`1` platform-expected skip；TypeScript、Next production build、standalone preparation 与本地 Windows `desktop:dist` 通过
+- Windows: Setup SHA-256 `3a40b42b1ce707a1c66949b9d7049bfb4f2e06255079c39f4ca3b4d4608e8325`；portable SHA-256 `a6d71165b818db77992764ccff5ccec1332d223f581276b17fdf57f21d2a5a65`；两包均未签名
+- N-1 acceptance: Setup `0.1.8 → 0.1.9` 在运行 `29515559280` 完整通过；portable 验收定位到 NSIS wrapper 清理竞态，修复已随 `0.1.10` 发布。`0.1.9 → 0.1.10` 可能需要手动运行已下载文件一次，完整自动更新将在下一正常版本以 `0.1.10` 为基线验收
+- Security review: Release notes、附件和打包目录未包含凭据、个人路径、用户数据库、下载内容、个人媒体或成人用户数据；GitHub secret scanning 保持 `0` 个 open alerts
+- macOS: x64/arm64 均未签名、未公证，当前显示“下载新版”并手动安装；已构建，等待真机验收
 
 ### v0.1.8 Release Record
 
