@@ -69,9 +69,10 @@ iPad can join over the same LAN after an explicit pairing step.
 - Every GitHub Release starts as a Draft. Draft assets stay invisible to update
   checks and are published only after manual architecture, checksum, and
   metadata verification.
-- Public `v0.1.6` has macOS auto-update disabled. A future signed `v0.1.7` can
-  establish the signed baseline; the first real signed macOS N-1 update can
-  only be verified from `v0.1.7` to `v0.1.8`.
+- Public `v0.1.8` also has macOS auto-update disabled and remains an unsigned,
+  manual-download release. The first future public build produced with
+  `signed_macos=true` establishes the signed baseline; its following signed
+  release is the earliest point for a real macOS N-1 auto-update acceptance.
 
 ## Acceptance
 

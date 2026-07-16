@@ -7,7 +7,7 @@
 
 - 本仓库是追番中心唯一现行主仓库；产品迭代、桌面运行、打包与验收都在这里完成
 - GitHub 仓库：`https://github.com/Luis-Herry/bandi`
-- 当前分发版本为 `0.1.6`；发布与打包状态以 `docs/desktop/packaging.md` 为准
+- 当前分发版本为 `0.1.8`；发布与打包状态以 `docs/desktop/packaging.md` 为准
 - 桌面版通过 Electron 打包，内置 `vendor/node/node.exe` 和 `vendor/qbittorrent/qbittorrent.exe`
 - 桌面数据库、配置、受管 qBit profile、日志和服务缓存写入 `%APPDATA%\anime-tracker\`；播放器截图写入 Windows“图片”目录下的 `Bandi` 文件夹。视频下载目录由首次引导或设置中心选择，默认建议为 Windows“视频”目录下的 `Bandi\Downloads`，支持任意可写本地子目录或 UNC 网络共享
 - 桌面版把内置 qBittorrent 作为零配置后台下载服务：主进程自动选择回环端口、生成凭据、做 API 健康检查并在异常退出后恢复；正常界面隐藏 Web UI 地址、端口和账号。`public/qbit-guide/` 只供外部 qBittorrent 兼容模式使用。
@@ -191,6 +191,8 @@ npm run db:seed  # 填充测试数据
 - 当前 macOS 未签名构建只显示“下载新版”并打开公开 Release。只有 `BANDI_MAC_RELEASE=1` 完成 Developer ID 签名、公证，且另行显式设置 `BANDI_MAC_AUTO_UPDATE=1`，才允许显示“重启并更新”。
 - Mac 本机浏览器与配对 Safari 通过 `/api/app-version` 检测构建版本变化，只提示刷新页面，不获得桌面安装权限。
 - `.github/workflows/draft-release.yml` 只能手动触发，并要求已经存在且与 `package.json` 一致的 tag。它只创建全新的 Draft Release；同 tag 已有任何 Release 时失败，不覆盖附件，也不包含自动公开步骤。
+- Draft 创建不得向 `gh release create` 传 `--target`；远端 annotated tag、tag commit 前后复核与 `--verify-tag` 负责锁定发布源码。Draft 状态统一用 `gh release view` 获取，再通过 `databaseId` 查询 Release API，避免 Draft 在 tag REST 入口不可见。
+- `.github/workflows/windows-n1-update-acceptance.yml` 只允许手动触发并保持 `contents: read`。Setup 与 portable 必须在独立 runner 验收；公开基线固定 SHA-256，目标必须是公开 latest，所有 GitHub/Actions 令牌在启动任何分发包前从子进程环境清除。
 - 发布顺序固定为：版本与文档 → 测试/类型/构建 → commit/push → annotated tag/push → Draft workflow → 附件与摘要人工验收 → 单独公开 → GitHub API 反查。证书、密码、Token、Cookie 和签名私钥禁止进入仓库、日志或 Release notes。
 
 ## 运行约定 & 常见陷阱

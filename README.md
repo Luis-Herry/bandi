@@ -137,14 +137,14 @@
 
 ### 选择分发包
 
-当前公开版本是 [`v0.1.6`](https://github.com/Luis-Herry/bandi/releases/tag/v0.1.6)：
+当前公开版本是 [`v0.1.8`](https://github.com/Luis-Herry/bandi/releases/tag/v0.1.8)：
 
 | 文件 | 适合谁 | 使用方式 |
 |---|---|---|
-| `Bandi-Setup-0.1.6-x64.exe` | 日常长期使用 | 可选择安装目录，并创建桌面与开始菜单快捷方式 |
-| `Bandi-0.1.6-x64-portable.exe` | 临时体验或移动硬盘 | 直接运行；首次自解压可能需要等待一会儿 |
-| `Bandi-Local-Web-0.1.6-macOS-x64.dmg` | Intel Mac | 安装后由菜单栏启动本地服务，并在默认浏览器打开 |
-| `Bandi-Local-Web-0.1.6-macOS-arm64.dmg` | Apple Silicon Mac | 安装后由菜单栏启动本地服务，并在默认浏览器打开 |
+| `Bandi-Setup-0.1.8-x64.exe` | 日常长期使用 | 可选择安装目录，并创建桌面与开始菜单快捷方式 |
+| `Bandi-0.1.8-x64-portable.exe` | 临时体验或移动硬盘 | 直接运行；首次自解压可能需要等待一会儿 |
+| `Bandi-Local-Web-0.1.8-macOS-x64.dmg` | Intel Mac | 安装后由菜单栏启动本地服务，并在默认浏览器打开 |
+| `Bandi-Local-Web-0.1.8-macOS-arm64.dmg` | Apple Silicon Mac | 安装后由菜单栏启动本地服务，并在默认浏览器打开 |
 
 当前安装包尚未进行 Authenticode 代码签名，Windows SmartScreen 可能显示未知发布者。请只从本仓库 Releases 下载，并对照 Release 中公布的 SHA-256 校验值。
 
@@ -154,7 +154,7 @@
 
 所有版本先生成 Draft Release。GitHub Actions 负责构建和校验平台附件；Draft 只供维护者核对架构、文件大小、SHA-256 与更新清单，客户端看不到，人工验收通过后才单独公开。
 
-`v0.1.6` 是新更新链路的首个公开基线；从旧版到新版的完整 N-1 自动更新验收会在 `v0.1.7` 发布时进行。
+`v0.1.8` 修复 Windows 更新启动链路。`v0.1.7` portable 无法识别自身分发模式，需要手动下载 `v0.1.8` 一次；`v0.1.7` Setup 更新时可能显示安装器界面。进入 `v0.1.8` 后，Setup 使用静默安装，portable 也能正常检查和下载后续版本。
 
 | 当前入口 | 发现新版后的体验 |
 |---|---|

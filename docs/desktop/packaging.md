@@ -6,14 +6,14 @@ This is the canonical Bandi repository for the Windows Electron product and macO
 
 - Repository: https://github.com/Luis-Herry/bandi
 - Visibility: public
-- Latest GitHub release: https://github.com/Luis-Herry/bandi/releases/tag/v0.1.6
-- Latest release title: `Bandi v0.1.6`
-- Latest release source commit: `375c3087ffb6075bf1c41000969fbe4e8f1305dd`
-- Release candidate version: `0.1.7`
-- Local installer: `release/Bandi-Setup-0.1.7-x64.exe`
-- Local portable build: `release/Bandi-0.1.7-x64-portable.exe`
-- Latest release installer asset: `Bandi-Setup-0.1.6-x64.exe`
-- Latest release portable asset: `Bandi-0.1.6-x64-portable.exe`
+- Latest GitHub release: https://github.com/Luis-Herry/bandi/releases/tag/v0.1.7
+- Latest release title: `Bandi v0.1.7`
+- Latest release source commit: `b79395c4ccaa26b7cabd077234d008847125b291`
+- Release candidate version: `0.1.8`
+- Local installer: `release/Bandi-Setup-0.1.8-x64.exe`
+- Local portable build: `release/Bandi-0.1.8-x64-portable.exe`
+- Latest release installer asset: `Bandi-Setup-0.1.7-x64.exe`
+- Latest release portable asset: `Bandi-0.1.7-x64-portable.exe`
 
 `electron-builder` 在本地 `release/` 目录直接生成最终 ASCII 附件名，避免托管平台净化文件名后与校验清单不一致。
 
@@ -95,7 +95,7 @@ The portable exe self-extracts on launch, so its first launch can be noticeably 
 
 ## Hot Update Release Contract
 
-公开的 `0.1.6` 是第一版按新合同发布的更新基线。仓库已接入更新运行时、最终 ASCII artifact 命名、Web 构建版本提示和发布元数据配置；`.github/workflows/draft-release.yml` 只接受手动触发和已存在的 `vX.Y.Z` tag，tag 必须与 `package.json` version 一致。`0.1.7` 将承担第一次从 N-1 公开版本完整升级到 N 的端到端验收。
+公开的 `0.1.6` 建立了更新基线。`0.1.7` 首次端到端验收发现两项真实缺口：portable 自解压运行时的 `app.isPackaged=false` 让更新模式落入 development，Setup 使用交互式 NSIS 安装。`0.1.8` 把 Electron Builder 的 portable 环境标记放到模式判断首位，并将 Setup 更新改为静默安装；后续公开版本从 `0.1.8` 建立新的自动更新验收基线。
 
 GitHub Release 是 Windows Desktop 与 macOS Local Web 的唯一公开二进制来源。每个版本必须先建立 draft Release，等 Windows、macOS Intel、macOS Apple Silicon 和元数据校验全部通过后再一次性公开。draft 中的半成品不能被客户端当作可用更新。
 
@@ -136,6 +136,8 @@ Windows 证书签发后仍需另开变更，把准确 Common Name 配置为 elec
 
 403 的根因是 `gh release create --target <older-commit>`：tag 对应提交到 workflow HEAD 之间改过 Actions 文件，GitHub 因而要求内置 `GITHUB_TOKEN` 不提供的 Workflows write 权限。`0.1.7` 已删除多余的 `--target`；现有 `--verify-tag`、远端 tag commit 前后复核继续锁定发布源码。Draft 查询也改为 `gh release view` 和 release ID，确保不可见 Draft 同样能触发“已存在即停止”和远端附件复核。
 
+`v0.1.7` 的 Draft workflow 运行 `29491609424` 完成 Windows、macOS x64、macOS arm64 构建，并自动创建、上传和反查 13 个 Draft 附件。人工复核附件名称、大小、SHA-256、更新清单和 Release notes 后单独公开；公开 API 再次确认 `draft=false`、`prerelease=false`、13 个附件与 public latest 指向。
+
 GitHub 公共标准 runner 固定为 `windows-2025`、Intel `macos-15-intel` 与 Apple Silicon `macos-15`；两个 Mac job 都在对应原生架构构建，避免交叉构建原生模块。
 
 ### Release Acceptance
@@ -144,12 +146,23 @@ GitHub 公共标准 runner 固定为 `windows-2025`、Intel `macos-15-intel` 与
 
 1. tag `vX.Y.Z` 与 `package.json` version 完全一致。
 2. `npm test`、`npx tsc --noEmit`、`npm run build`、`npm run desktop:prepare` 和 `git diff --check` 全部通过。
-3. Windows 安装版从 N-1 检查、下载、停止后台服务、安装、重启到 N；portable 下载并校验同架构新版，退出旧进程后启动新文件，原文件保持可回退。`0.1.6` 只建立更新基线，第一次真实 N-1 升级验收安排在 `0.1.7`；当前未签名附件安装时如实记录系统警告。
-4. macOS x64 与 arm64 分别验证 DMG、ZIP 和各自 channel 清单；未提供 Apple 凭据时只验收“下载新版”手动流程。公开 `0.1.6` 已关闭 macOS 自动更新，因此首个签名版本只能建立新基线，第一次真实 macOS N-1 自动更新最早为 `0.1.7 → 0.1.8`。
+3. Windows 安装版从 N-1 检查、下载、停止后台服务、静默安装、重启到 N；portable 下载并校验同架构新版，退出旧进程后启动新文件，原文件保持可回退。当前未签名附件安装时如实记录系统警告。
+4. macOS x64 与 arm64 分别验证 DMG、ZIP 和各自 channel 清单；未提供 Apple 凭据时只验收“下载新版”手动流程。首个签名版本只能建立新基线，其后的签名版本才能完成真实 macOS N-1 自动更新验收。
 5. bundled Node 与 `better-sqlite3` 架构正确；`signed_macos=true` 时另外强制通过 `codesign --verify --deep --strict`、`spctl --assess` 和 `xcrun stapler validate`。
 6. 更新前后的数据库、下载目录、追番进度、配对设备撤销状态和受管 qBittorrent 配置保持一致。
 7. Mac 更新并重启 Local Web 后，本机 Safari 与已配对 iPhone/iPad 刷新可恢复页面；宿主文件操作继续只对本机会话开放。
 8. Release notes 只记录版本、commit、测试、签名、公证、架构和校验和，不包含本地路径、媒体名、数据库内容、RSS、magnet、token 或凭据。
+
+### v0.1.7 Release Record
+
+- Published: `2026-07-16`
+- Release: https://github.com/Luis-Herry/bandi/releases/tag/v0.1.7
+- Source commit: `b79395c4ccaa26b7cabd077234d008847125b291`
+- Draft workflow: `29491609424`；Windows、macOS x64 与 macOS arm64 原生构建、13 个附件上传及远端摘要反查通过
+- Tests: `471` total，`470` passed，`1` platform-expected skip；TypeScript、Next production build 与 standalone preparation 通过
+- Windows N-1 finding: Setup 能检查、下载并触发安装，但调用了交互式 NSIS；portable 真包被误判为 development。两项均在 `0.1.8` 修复，`0.1.7` 不作为自动更新基线
+- Security review: GitHub secret scanning 0 alerts；Release notes、13 个附件名与 Actions 日志未发现凭据、个人路径、数据库、媒体库或成人用户数据
+- macOS: x64/arm64 均未签名、未公证，当前显示“下载新版”并手动安装；已构建，等待真机验收
 
 ### v0.1.6 Release Record
 

@@ -3,6 +3,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { Readable, Transform } = require("node:stream");
 const { pipeline } = require("node:stream/promises");
+const { name: PACKAGE_NAME } = require("../package.json");
 
 const GITHUB_OWNER = "Luis-Herry";
 const GITHUB_REPO = "bandi";
@@ -19,14 +20,53 @@ const MAX_PORTABLE_BYTES = 2 * 1024 * 1024 * 1024;
 const METADATA_REQUEST_TIMEOUT_MS = 15_000;
 const PORTABLE_DOWNLOAD_IDLE_TIMEOUT_MS = 30_000;
 
+function hasTrustedPortableEnvironment(input, env) {
+  const file = env.PORTABLE_EXECUTABLE_FILE;
+  const directory = env.PORTABLE_EXECUTABLE_DIR;
+  const appFilename = env.PORTABLE_EXECUTABLE_APP_FILENAME;
+  const execPath = input.execPath || process.execPath;
+  const expectedAppFilename = input.portableAppFilename || PACKAGE_NAME;
+  if (
+    typeof file !== "string" ||
+    typeof directory !== "string" ||
+    typeof appFilename !== "string" ||
+    typeof execPath !== "string" ||
+    typeof expectedAppFilename !== "string" ||
+    !file ||
+    !directory ||
+    !appFilename ||
+    !execPath ||
+    !expectedAppFilename
+  ) {
+    return false;
+  }
+  const winPath = input.path?.win32 || path.win32;
+  if (
+    !winPath.isAbsolute(file) ||
+    !winPath.isAbsolute(execPath) ||
+    winPath.extname(file).toLowerCase() !== ".exe" ||
+    winPath.resolve(directory).toLowerCase() !==
+      winPath.dirname(winPath.resolve(file)).toLowerCase() ||
+    appFilename.toLowerCase() !== expectedAppFilename.toLowerCase()
+  ) {
+    return false;
+  }
+  try {
+    const fileExists = input.portableFileExists || ((candidate) => (input.fs || fs).existsSync(candidate));
+    return Boolean(fileExists(file));
+  } catch {
+    return false;
+  }
+}
+
 function detectUpdateMode(input = {}) {
   const platform = input.platform || process.platform;
   const env = input.env || {};
+  if (platform === "win32" && hasTrustedPortableEnvironment(input, env)) {
+    return "portable";
+  }
   if (!input.isPackaged) return "development";
   if (platform === "win32") {
-    if (typeof env.PORTABLE_EXECUTABLE_FILE === "string" && env.PORTABLE_EXECUTABLE_FILE) {
-      return "portable";
-    }
     return input.hasUpdateDescriptor ? "nsis" : "development";
   }
   if (platform === "darwin") {
@@ -190,6 +230,10 @@ function createAppUpdateController(options = {}) {
   const mode = detectUpdateMode({
     platform,
     env,
+    execPath: options.execPath || process.execPath,
+    fs: fsImpl,
+    path: pathImpl,
+    portableFileExists: options.portableFileExists,
     isPackaged: options.isPackaged != null ? Boolean(options.isPackaged) : Boolean(app?.isPackaged),
     hasUpdateDescriptor,
     isMacSigned: Boolean(options.isMacSigned),
@@ -620,7 +664,7 @@ function createAppUpdateController(options = {}) {
     try {
       updateState({ status: "installing", action: "none", message: null });
       await beforeInstall();
-      updater.quitAndInstall(false, true);
+      updater.quitAndInstall(true, true);
       return { ok: true, state: publicState(state) };
     } catch {
       safeLog("install_failed", "install_failed");

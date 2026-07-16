@@ -20,8 +20,26 @@ const {
   selectPortableAsset,
 } = require("../runtime/app-update.cjs");
 
+const portableIdentity = {
+  execPath: "D:\\runtime\\追番中心.exe",
+  portableFileExists: (file: string) => file === "D:\\Bandi.exe",
+  env: {
+    PORTABLE_EXECUTABLE_FILE: "D:\\Bandi.exe",
+    PORTABLE_EXECUTABLE_DIR: "D:\\",
+    PORTABLE_EXECUTABLE_APP_FILENAME: "anime-tracker",
+  },
+};
+
 test("detectUpdateMode distinguishes installed, portable, macOS, and development", () => {
   assert.equal(detectUpdateMode({ platform: "win32", isPackaged: false }), "development");
+  assert.equal(
+    detectUpdateMode({
+      platform: "win32",
+      isPackaged: false,
+      env: { PORTABLE_EXECUTABLE_FILE: "D:\\Bandi.exe" },
+    }),
+    "development",
+  );
   assert.equal(
     detectUpdateMode({ platform: "win32", isPackaged: true, hasUpdateDescriptor: true, env: {} }),
     "nsis",
@@ -29,11 +47,23 @@ test("detectUpdateMode distinguishes installed, portable, macOS, and development
   assert.equal(
     detectUpdateMode({
       platform: "win32",
-      isPackaged: true,
+      isPackaged: false,
       hasUpdateDescriptor: true,
-      env: { PORTABLE_EXECUTABLE_FILE: "D:\\Bandi.exe" },
+      ...portableIdentity,
     }),
     "portable",
+  );
+  assert.equal(
+    detectUpdateMode({
+      platform: "win32",
+      isPackaged: false,
+      ...portableIdentity,
+      env: {
+        ...portableIdentity.env,
+        PORTABLE_EXECUTABLE_APP_FILENAME: "追番中心.exe",
+      },
+    }),
+    "development",
   );
   assert.equal(
     detectUpdateMode({
@@ -114,7 +144,7 @@ test("portable controller downloads exact asset, verifies integrity, and returns
       arch: "x64",
       isPackaged: true,
       hasUpdateDescriptor: true,
-      env: { PORTABLE_EXECUTABLE_FILE: "D:\\Bandi.exe" },
+      ...portableIdentity,
       downloadsDir: root,
       now: () => 12345,
       fetchImpl: async (url: string) => {
@@ -182,7 +212,7 @@ test("portable controller rejects a checksum mismatch and never exposes a launch
       platform: "win32",
       arch: "x64",
       isPackaged: true,
-      env: { PORTABLE_EXECUTABLE_FILE: "D:\\Bandi.exe" },
+      ...portableIdentity,
       downloadsDir: root,
       fetchImpl: async (url: string) => url === GITHUB_API_LATEST
         ? new Response(JSON.stringify({
@@ -283,6 +313,7 @@ for (const target of [
   test(`${target.name} updater waits for host shutdown before quitAndInstall`, async () => {
     const events = new Map<string, (...args: unknown[]) => void>();
     const order: string[] = [];
+    let quitAndInstallArgs: unknown[] = [];
     const updater = {
       on(name: string, callback: (...args: unknown[]) => void) {
         events.set(name, callback);
@@ -290,7 +321,8 @@ for (const target of [
       async checkForUpdates() {
         events.get("update-downloaded")?.({ version: "0.1.7" });
       },
-      quitAndInstall() {
+      quitAndInstall(...args: unknown[]) {
+        quitAndInstallArgs = args;
         order.push("quitAndInstall");
       },
     };
@@ -313,5 +345,6 @@ for (const target of [
     const installed = await controller.installUpdate();
     assert.equal(installed.ok, true);
     assert.deepEqual(order, ["shutdown", "quitAndInstall"]);
+    assert.deepEqual(quitAndInstallArgs, [true, true]);
   });
 }

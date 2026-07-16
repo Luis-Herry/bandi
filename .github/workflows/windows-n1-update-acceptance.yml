@@ -23,7 +23,7 @@ jobs:
   windows-n1:
     name: ${{ matrix.mode }} ${{ inputs.base_tag }} to ${{ inputs.target_tag }}
     runs-on: windows-2025
-    timeout-minutes: 45
+    timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:

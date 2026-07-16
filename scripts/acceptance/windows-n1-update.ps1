@@ -56,10 +56,11 @@ function Invoke-InitialCdpState {
     [string]$LeaseFile,
     [string]$AppDataRoot,
     [string]$ConfigFile,
-    [string]$PreparedConfigHash
+    [string]$PreparedConfigHash,
+    [int]$PageTimeoutMs = 180000
   )
   try {
-    return Invoke-CdpJson "state" $Port
+    return Invoke-CdpJson "state" $Port @([string]$PageTimeoutMs)
   } catch {
     $launcherAlive = [bool](Get-Process -Id $LauncherPid -ErrorAction SilentlyContinue)
     $leaseHealthy = [bool](Get-LeaseState $LeaseFile)
@@ -113,13 +114,24 @@ function Wait-For {
 }
 
 function Get-LeaseState {
-  param([string]$LeaseFile)
+  param(
+    [string]$LeaseFile,
+    [int64]$NotBeforeMs = 0,
+    [int]$MaxAgeSeconds = 30
+  )
   if (-not (Test-Path -LiteralPath $LeaseFile)) { return $null }
   try {
     $lease = Get-Content -LiteralPath $LeaseFile -Raw -Encoding UTF8 | ConvertFrom-Json
     $pidValue = [int]$lease.pid
     $updatedAt = [int64]$lease.updatedAt
-    if ($pidValue -le 0 -or $updatedAt -le 0) { return $null }
+    $now = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
+    if (
+      $pidValue -le 0 -or
+      $updatedAt -le 0 -or
+      $updatedAt -lt $NotBeforeMs -or
+      $updatedAt -gt ($now + 5000) -or
+      ($now - $updatedAt) -gt ([int64]$MaxAgeSeconds * 1000)
+    ) { return $null }
     $process = Get-Process -Id $pidValue -ErrorAction SilentlyContinue
     if (-not $process) { return $null }
     return [pscustomobject]@{ pid = $pidValue; updatedAt = $updatedAt }
@@ -149,36 +161,6 @@ function Test-ProductVersion {
     $actual.ProductBuildPart -eq $expected.Build -and
     $actual.ProductPrivatePart -eq 0
   )
-}
-
-function Expand-PortablePackage {
-  param([string]$Package, [string]$Destination)
-  $sevenZipCommand = Get-Command "7z.exe" -ErrorAction SilentlyContinue
-  $sevenZipCandidates = @()
-  if ($sevenZipCommand) { $sevenZipCandidates += $sevenZipCommand.Source }
-  $sevenZipCandidates += (Join-Path $env:ProgramFiles "7-Zip\7z.exe")
-  $sevenZip = $sevenZipCandidates |
-    Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } |
-    Select-Object -Unique -First 1
-  Assert-True ([bool]$sevenZip) "7-Zip is unavailable on the acceptance runner"
-  $outerRoot = Join-Path $Destination "outer"
-  $runtimeRoot = Join-Path $Destination "runtime"
-  New-Item -ItemType Directory -Path $outerRoot, $runtimeRoot -Force | Out-Null
-
-  & $sevenZip x "-o$outerRoot" -y $Package *> $null
-  if ($LASTEXITCODE -ne 0) { throw "Portable package extraction failed" }
-
-  $directExecutables = @(Get-ChildItem -LiteralPath $outerRoot -Recurse -File -Filter "追番中心.exe")
-  if ($directExecutables.Count -eq 1) { return $directExecutables[0].FullName }
-
-  $appArchives = @(Get-ChildItem -LiteralPath $outerRoot -Recurse -File -Filter "app-*.7z")
-  Assert-True ($appArchives.Count -eq 1) "Portable package must contain exactly one application archive"
-  & $sevenZip x "-o$runtimeRoot" -y $appArchives[0].FullName *> $null
-  if ($LASTEXITCODE -ne 0) { throw "Portable application extraction failed" }
-
-  $runtimeExecutables = @(Get-ChildItem -LiteralPath $runtimeRoot -Recurse -File -Filter "追番中心.exe")
-  Assert-True ($runtimeExecutables.Count -eq 1) "Extracted portable application executable is missing or ambiguous"
-  return $runtimeExecutables[0].FullName
 }
 
 function Stop-RecordedProcesses {
@@ -280,10 +262,7 @@ try {
     Assert-True ($installer.ExitCode -eq 0) "Silent baseline installation failed"
     $appPath = Join-Path $installDir "追番中心.exe"
   } else {
-    $appPath = Expand-PortablePackage $basePackage (Join-Path $root "PortableBase")
-    $env:PORTABLE_EXECUTABLE_FILE = $basePackage
-    $env:PORTABLE_EXECUTABLE_DIR = Split-Path -Parent $basePackage
-    $env:PORTABLE_EXECUTABLE_APP_FILENAME = Split-Path -Leaf $appPath
+    $appPath = $basePackage
   }
   Assert-True (Test-Path -LiteralPath $appPath -PathType Leaf) "Baseline executable is missing"
   Assert-True (Test-ProductVersion $appPath $baseVersion) "Baseline ProductVersion is incorrect"
@@ -297,16 +276,18 @@ try {
     "--no-sandbox",
     "--disable-gpu"
   )
+  $baselineLaunchAfter = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
   $launcher = Start-Process -FilePath $appPath -ArgumentList $launchArguments -PassThru
   [void]$recordedPids.Add([int]$launcher.Id)
 
-  $initialState = Invoke-InitialCdpState $port ([int]$launcher.Id) $leaseFile $env:APPDATA $configFile $preparedConfigHash
+  $initialPageTimeoutMs = if ($Mode -eq "portable") { 600000 } else { 180000 }
+  $initialState = Invoke-InitialCdpState $port ([int]$launcher.Id) $leaseFile $env:APPDATA $configFile $preparedConfigHash $initialPageTimeoutMs
   $expectedMode = if ($Mode -eq "setup") { "nsis" } else { "portable" }
   $expectedAction = if ($Mode -eq "setup") { "restart-to-install" } else { "install-portable" }
   Assert-True ([string]$initialState.mode -eq $expectedMode) "Baseline update mode is incorrect"
   Assert-True ([string]$initialState.currentVersion -eq $baseVersion) "Baseline bridge version is incorrect"
 
-  $oldLease = Wait-For { Get-LeaseState $leaseFile } 180 "Baseline parent lease did not become healthy"
+  $oldLease = Wait-For { Get-LeaseState $leaseFile $baselineLaunchAfter } 180 "Baseline parent lease did not become healthy"
   $oldPid = [int]$oldLease.pid
   [void]$recordedPids.Add($oldPid)
   Start-Sleep -Seconds 5
@@ -346,23 +327,22 @@ try {
   $stillReady = Invoke-CdpJson "state" $port
   Assert-True ([string]$stillReady.status -eq "ready" -and [string]$stillReady.action -eq $expectedAction) "Ready update state did not remain stable"
 
+  $installAcceptedAfter = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
   [void](Invoke-CdpJson "trigger-install" $port)
   [void](Wait-For { if (-not (Get-Process -Id $oldPid -ErrorAction SilentlyContinue)) { return $true }; return $null } 180 "Baseline process did not exit after accepting the update")
+  $relaunchTimeoutSeconds = if ($Mode -eq "portable") { 900 } else { 300 }
   $newLease = Wait-For {
-    $candidate = Get-LeaseState $leaseFile
+    $candidate = Get-LeaseState $leaseFile $installAcceptedAfter
     if ($candidate -and [int]$candidate.pid -ne $oldPid) { return $candidate }
     return $null
-  } 300 "Updated app did not create a new healthy parent lease"
+  } $relaunchTimeoutSeconds "Updated app did not create a new healthy parent lease"
   $newPid = [int]$newLease.pid
   [void]$recordedPids.Add($newPid)
 
   if ($Mode -eq "setup") {
     Assert-True (Test-ProductVersion $appPath $targetVersion) "Installed executable was not updated"
   } else {
-    $appPath = Expand-PortablePackage $downloadedPackage (Join-Path $root "PortableTarget")
-    $env:PORTABLE_EXECUTABLE_FILE = $downloadedPackage
-    $env:PORTABLE_EXECUTABLE_DIR = Split-Path -Parent $downloadedPackage
-    $env:PORTABLE_EXECUTABLE_APP_FILENAME = Split-Path -Leaf $appPath
+    $appPath = $downloadedPackage
   }
   $newProcess = Get-Process -Id $newPid -ErrorAction Stop
   Assert-True ([bool]$newProcess.Path -and (Test-ProductVersion $newProcess.Path $targetVersion)) "Automatically started process is not the target version"
@@ -383,6 +363,7 @@ try {
 
   $verifyPort = Get-Random -Minimum 50000 -Maximum 56000
   $verifyConfigHash = (Get-FileHash -LiteralPath $configFile -Algorithm SHA256).Hash
+  $verifyLaunchAfter = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
   $verifyLauncher = Start-Process -FilePath $appPath -ArgumentList @(
     "--remote-debugging-address=127.0.0.1",
     "--remote-debugging-port=$verifyPort",
@@ -392,9 +373,9 @@ try {
     "--disable-gpu"
   ) -PassThru
   [void]$recordedPids.Add([int]$verifyLauncher.Id)
-  $targetState = Invoke-InitialCdpState $verifyPort ([int]$verifyLauncher.Id) $leaseFile $env:APPDATA $configFile $verifyConfigHash
+  $targetState = Invoke-InitialCdpState $verifyPort ([int]$verifyLauncher.Id) $leaseFile $env:APPDATA $configFile $verifyConfigHash $initialPageTimeoutMs
   $verifyLease = Wait-For {
-    $candidate = Get-LeaseState $leaseFile
+    $candidate = Get-LeaseState $leaseFile $verifyLaunchAfter
     if ($candidate -and [int]$candidate.pid -ne $newPid) { return $candidate }
     return $null
   } 180 "Controlled target restart did not create a healthy parent lease"
