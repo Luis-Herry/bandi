@@ -36,6 +36,7 @@ test("draft release workflow stays manual, draft-only, and architecture-native",
   assert.match(source, /996af0513df21f7496288951c41428a03c174e9e4a9d63665c57d670f845ccb1/);
   assert.match(source, /@img\/sharp-libvips-darwin-\$\{BANDI_MAC_ARCH\}/);
   assert.match(source, /while IFS= read -r -d '' candidate/);
+  assert.match(source, /-name '\*\.app' -prune -print0/);
   assert.doesNotMatch(source, /Verify macOS package remains outside[\s\S]*?mapfile[\s\S]*?Stage macOS release assets/);
   assert.match(source, /--publish never/);
   assert.match(source, /A Release already exists[\s\S]*refusing to replace any existing assets/);
