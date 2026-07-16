@@ -1,0 +1,53 @@
+name: Windows N-1 update acceptance
+
+run-name: Windows N-1 ${{ inputs.base_tag }} to ${{ inputs.target_tag }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_tag:
+        description: Public pinned baseline Release tag
+        required: true
+        default: v0.1.6
+        type: string
+      target_tag:
+        description: Public latest Release tag
+        required: true
+        default: v0.1.7
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  windows-n1:
+    name: ${{ matrix.mode }} ${{ inputs.base_tag }} to ${{ inputs.target_tag }}
+    runs-on: windows-2025
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [setup, portable]
+    steps:
+      - name: Check out acceptance source
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24.14.1
+
+      - name: Exercise the public N-1 update path
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ACCEPTANCE_MODE: ${{ matrix.mode }}
+          BASE_TAG: ${{ inputs.base_tag }}
+          TARGET_TAG: ${{ inputs.target_tag }}
+        run: >-
+          ./scripts/acceptance/windows-n1-update.ps1
+          -Mode $env:ACCEPTANCE_MODE
+          -BaseTag $env:BASE_TAG
+          -TargetTag $env:TARGET_TAG
