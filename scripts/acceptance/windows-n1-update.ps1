@@ -101,6 +101,48 @@ function Get-ConfigProjection {
   }
 }
 
+function Test-ProductVersion {
+  param([string]$File, [string]$ExpectedVersion)
+  $expected = [Version]$ExpectedVersion
+  $actual = (Get-Item -LiteralPath $File).VersionInfo
+  return (
+    $actual.ProductMajorPart -eq $expected.Major -and
+    $actual.ProductMinorPart -eq $expected.Minor -and
+    $actual.ProductBuildPart -eq $expected.Build -and
+    $actual.ProductPrivatePart -eq 0
+  )
+}
+
+function Expand-PortablePackage {
+  param([string]$Package, [string]$Destination)
+  $sevenZipCommand = Get-Command "7z.exe" -ErrorAction SilentlyContinue
+  $sevenZipCandidates = @()
+  if ($sevenZipCommand) { $sevenZipCandidates += $sevenZipCommand.Source }
+  $sevenZipCandidates += (Join-Path $env:ProgramFiles "7-Zip\7z.exe")
+  $sevenZip = $sevenZipCandidates |
+    Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } |
+    Select-Object -Unique -First 1
+  Assert-True ([bool]$sevenZip) "7-Zip is unavailable on the acceptance runner"
+  $outerRoot = Join-Path $Destination "outer"
+  $runtimeRoot = Join-Path $Destination "runtime"
+  New-Item -ItemType Directory -Path $outerRoot, $runtimeRoot -Force | Out-Null
+
+  & $sevenZip x "-o$outerRoot" -y $Package *> $null
+  if ($LASTEXITCODE -ne 0) { throw "Portable package extraction failed" }
+
+  $directExecutables = @(Get-ChildItem -LiteralPath $outerRoot -Recurse -File -Filter "追番中心.exe")
+  if ($directExecutables.Count -eq 1) { return $directExecutables[0].FullName }
+
+  $appArchives = @(Get-ChildItem -LiteralPath $outerRoot -Recurse -File -Filter "app-*.7z")
+  Assert-True ($appArchives.Count -eq 1) "Portable package must contain exactly one application archive"
+  & $sevenZip x "-o$runtimeRoot" -y $appArchives[0].FullName *> $null
+  if ($LASTEXITCODE -ne 0) { throw "Portable application extraction failed" }
+
+  $runtimeExecutables = @(Get-ChildItem -LiteralPath $runtimeRoot -Recurse -File -Filter "追番中心.exe")
+  Assert-True ($runtimeExecutables.Count -eq 1) "Extracted portable application executable is missing or ambiguous"
+  return $runtimeExecutables[0].FullName
+}
+
 function Stop-RecordedProcesses {
   foreach ($processId in $recordedPids) {
     if (Get-Process -Id $processId -ErrorAction SilentlyContinue) {
@@ -195,10 +237,13 @@ try {
     Assert-True ($installer.ExitCode -eq 0) "Silent baseline installation failed"
     $appPath = Join-Path $installDir "追番中心.exe"
   } else {
-    $appPath = $basePackage
+    $appPath = Expand-PortablePackage $basePackage (Join-Path $root "PortableBase")
+    $env:PORTABLE_EXECUTABLE_FILE = $basePackage
+    $env:PORTABLE_EXECUTABLE_DIR = Split-Path -Parent $basePackage
+    $env:PORTABLE_EXECUTABLE_APP_FILENAME = Split-Path -Leaf $appPath
   }
   Assert-True (Test-Path -LiteralPath $appPath -PathType Leaf) "Baseline executable is missing"
-  Assert-True ((Get-Item -LiteralPath $appPath).VersionInfo.ProductVersion -eq $baseVersion) "Baseline ProductVersion is incorrect"
+  Assert-True (Test-ProductVersion $appPath $baseVersion) "Baseline ProductVersion is incorrect"
 
   $port = Get-Random -Minimum 43000 -Maximum 49000
   $launchArguments = @("--remote-debugging-address=127.0.0.1", "--remote-debugging-port=$port", "--disable-gpu")
@@ -262,12 +307,15 @@ try {
   [void]$recordedPids.Add($newPid)
 
   if ($Mode -eq "setup") {
-    Assert-True ((Get-Item -LiteralPath $appPath).VersionInfo.ProductVersion -eq $targetVersion) "Installed executable was not updated"
+    Assert-True (Test-ProductVersion $appPath $targetVersion) "Installed executable was not updated"
   } else {
-    $appPath = $downloadedPackage
+    $appPath = Expand-PortablePackage $downloadedPackage (Join-Path $root "PortableTarget")
+    $env:PORTABLE_EXECUTABLE_FILE = $downloadedPackage
+    $env:PORTABLE_EXECUTABLE_DIR = Split-Path -Parent $downloadedPackage
+    $env:PORTABLE_EXECUTABLE_APP_FILENAME = Split-Path -Leaf $appPath
   }
   $newProcess = Get-Process -Id $newPid -ErrorAction Stop
-  Assert-True ([bool]$newProcess.Path -and (Get-Item -LiteralPath $newProcess.Path).VersionInfo.ProductVersion -eq $targetVersion) "Automatically started process is not the target version"
+  Assert-True ([bool]$newProcess.Path -and (Test-ProductVersion $newProcess.Path $targetVersion)) "Automatically started process is not the target version"
   $firstLeaseTimestamp = [int64]$newLease.updatedAt
   Start-Sleep -Seconds 15
   $stableLease = Get-LeaseState $leaseFile
