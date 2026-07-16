@@ -49,6 +49,17 @@ function Invoke-CdpJson {
   return ($output | Out-String | ConvertFrom-Json)
 }
 
+function Invoke-InitialCdpState {
+  param([int]$Port, [int]$LauncherPid, [string]$LeaseFile)
+  try {
+    return Invoke-CdpJson "state" $Port
+  } catch {
+    $launcherAlive = [bool](Get-Process -Id $LauncherPid -ErrorAction SilentlyContinue)
+    $leaseHealthy = [bool](Get-LeaseState $LeaseFile)
+    throw "CDP state unavailable; launcherAlive=$launcherAlive; leaseHealthy=$leaseHealthy"
+  }
+}
+
 function Get-ReleaseChecksum {
   param([string]$ChecksumFile, [string]$FileName)
   $pattern = "^([0-9a-f]{64})\s+" + [Regex]::Escape($FileName) + "$"
@@ -246,11 +257,18 @@ try {
   Assert-True (Test-ProductVersion $appPath $baseVersion) "Baseline ProductVersion is incorrect"
 
   $port = Get-Random -Minimum 43000 -Maximum 49000
-  $launchArguments = @("--remote-debugging-address=127.0.0.1", "--remote-debugging-port=$port", "--disable-gpu")
+  $debugProfile = Join-Path $root "ChromiumBaseline"
+  New-Item -ItemType Directory -Path $debugProfile -Force | Out-Null
+  $launchArguments = @(
+    "--remote-debugging-address=127.0.0.1",
+    "--remote-debugging-port=$port",
+    "--user-data-dir=$debugProfile",
+    "--disable-gpu"
+  )
   $launcher = Start-Process -FilePath $appPath -ArgumentList $launchArguments -PassThru
   [void]$recordedPids.Add([int]$launcher.Id)
 
-  $initialState = Invoke-CdpJson "state" $port
+  $initialState = Invoke-InitialCdpState $port ([int]$launcher.Id) $leaseFile
   $expectedMode = if ($Mode -eq "setup") { "nsis" } else { "portable" }
   $expectedAction = if ($Mode -eq "setup") { "restart-to-install" } else { "install-portable" }
   Assert-True ([string]$initialState.mode -eq $expectedMode) "Baseline update mode is incorrect"
@@ -332,9 +350,16 @@ try {
   [void](Wait-For { if (-not (Get-Process -Id $newPid -ErrorAction SilentlyContinue)) { return $true }; return $null } 180 "Automatically started target did not close normally")
 
   $verifyPort = Get-Random -Minimum 50000 -Maximum 56000
-  $verifyLauncher = Start-Process -FilePath $appPath -ArgumentList @("--remote-debugging-address=127.0.0.1", "--remote-debugging-port=$verifyPort", "--disable-gpu") -PassThru
+  $verifyDebugProfile = Join-Path $root "ChromiumTarget"
+  New-Item -ItemType Directory -Path $verifyDebugProfile -Force | Out-Null
+  $verifyLauncher = Start-Process -FilePath $appPath -ArgumentList @(
+    "--remote-debugging-address=127.0.0.1",
+    "--remote-debugging-port=$verifyPort",
+    "--user-data-dir=$verifyDebugProfile",
+    "--disable-gpu"
+  ) -PassThru
   [void]$recordedPids.Add([int]$verifyLauncher.Id)
-  $targetState = Invoke-CdpJson "state" $verifyPort
+  $targetState = Invoke-InitialCdpState $verifyPort ([int]$verifyLauncher.Id) $leaseFile
   $verifyLease = Wait-For {
     $candidate = Get-LeaseState $leaseFile
     if ($candidate -and [int]$candidate.pid -ne $newPid) { return $candidate }

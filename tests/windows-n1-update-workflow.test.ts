@@ -40,6 +40,9 @@ test("Windows N-1 acceptance is manual, read-only, isolated, and fail-closed", (
   assert.match(acceptance, /Join-Path \$env:ProgramFiles "7-Zip\\7z\.exe"/);
   assert.match(acceptance, /PORTABLE_EXECUTABLE_FILE = \$basePackage/);
   assert.match(acceptance, /PORTABLE_EXECUTABLE_FILE = \$downloadedPackage/);
+  assert.match(acceptance, /--user-data-dir=\$debugProfile/);
+  assert.match(acceptance, /--user-data-dir=\$verifyDebugProfile/);
+  assert.match(acceptance, /launcherAlive=\$launcherAlive; leaseHealthy=\$leaseHealthy/);
   assert.match(acceptance, /configHashAfter -eq \$configHashBefore/);
   assert.match(acceptance, /SetEnvironmentVariable\(\$name, \$null, "Process"\)/);
   assert.match(acceptance, /"GH_TOKEN"/);
