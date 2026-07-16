@@ -31,7 +31,6 @@ $baseAssetRoot = Join-Path $assetRoot "base"
 $targetAssetRoot = Join-Path $assetRoot "target"
 $installDir = Join-Path $root "Installed"
 $downloadDir = Join-Path $root "Media"
-$originalUserProfile = $env:USERPROFILE
 $recordedPids = [System.Collections.Generic.HashSet[int]]::new()
 
 function Assert-True {
@@ -352,8 +351,11 @@ try {
     Assert-True ([bool]$notice.found -and [bool]$notice.buttonMatches -and [bool]$notice.positionFixed) "Global update notice failed on $pathname"
   }
 
-  $searchRoots = @($root)
-  if ($originalUserProfile) { $searchRoots += (Join-Path $originalUserProfile "Downloads\Bandi Updates") }
+  $searchRoots = if ($Mode -eq "setup") {
+    @(Join-Path $env:LOCALAPPDATA "anime-tracker-updater\pending")
+  } else {
+    @(Join-Path $env:USERPROFILE "Downloads\Bandi Updates")
+  }
   $downloadedCandidates = @()
   foreach ($searchRoot in $searchRoots | Select-Object -Unique) {
     if (Test-Path -LiteralPath $searchRoot) {
@@ -361,7 +363,7 @@ try {
     }
   }
   $downloadedCandidates = @($downloadedCandidates | Sort-Object FullName -Unique)
-  Assert-True ($downloadedCandidates.Count -eq 1) "Expected exactly one downloaded target package"
+  Assert-True ($downloadedCandidates.Count -eq 1) "Expected exactly one downloaded target package; candidateCount=$($downloadedCandidates.Count)"
   $downloadedPackage = $downloadedCandidates[0].FullName
   Assert-True ((Get-FileHash -LiteralPath $downloadedPackage -Algorithm SHA256).Hash.ToLowerInvariant() -eq $targetChecksum) "Updater-downloaded package failed SHA-256 verification"
   Assert-True ((Get-Item -LiteralPath $downloadedPackage).VersionInfo.ProductVersion -eq $targetVersion) "Updater-downloaded package version is incorrect"

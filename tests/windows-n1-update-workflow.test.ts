@@ -54,6 +54,10 @@ test("Windows N-1 acceptance is manual, read-only, isolated, and fail-closed", (
   assert.match(acceptance, /ProductMajorPart -eq \$expected\.Major/);
   assert.match(acceptance, /\$appPath = \$basePackage/);
   assert.match(acceptance, /\$appPath = \$downloadedPackage/);
+  assert.match(acceptance, /anime-tracker-updater\\pending/);
+  assert.match(acceptance, /Downloads\\Bandi Updates/);
+  assert.doesNotMatch(acceptance, /\$searchRoots = @\(\$root\)/);
+  assert.match(acceptance, /candidateCount=\$\(\$downloadedCandidates\.Count\)/);
   assert.match(acceptance, /if \(\$Mode -eq "portable"\) \{ 600000 \}/);
   assert.match(acceptance, /if \(\$Mode -eq "portable"\) \{ 900 \}/);
   assert.equal((acceptance.match(/--user-data-dir=\$userData/g) ?? []).length, 2);
