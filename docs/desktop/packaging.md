@@ -6,13 +6,13 @@ This is the canonical Bandi repository for the Windows Electron product and macO
 
 - Repository: https://github.com/Luis-Herry/bandi
 - Visibility: public
-- Latest GitHub release: https://github.com/Luis-Herry/bandi/releases/tag/v0.1.5
-- Latest release title: `Bandi 0.1.5`
-- Release candidate version: `0.1.6`
+- Latest GitHub release: https://github.com/Luis-Herry/bandi/releases/tag/v0.1.6
+- Latest release title: `Bandi v0.1.6`
+- Latest release source commit: `375c3087ffb6075bf1c41000969fbe4e8f1305dd`
 - Local installer: `release/Bandi-Setup-0.1.6-x64.exe`
 - Local portable build: `release/Bandi-0.1.6-x64-portable.exe`
-- Latest release installer asset: `Bandi-Setup-0.1.5-x64.exe`
-- Latest release portable asset: `Bandi-0.1.5-x64-portable.exe`
+- Latest release installer asset: `Bandi-Setup-0.1.6-x64.exe`
+- Latest release portable asset: `Bandi-0.1.6-x64-portable.exe`
 
 `electron-builder` 在本地 `release/` 目录直接生成最终 ASCII 附件名，避免托管平台净化文件名后与校验清单不一致。
 
@@ -94,7 +94,7 @@ The portable exe self-extracts on launch, so its first launch can be noticeably 
 
 ## Hot Update Release Contract
 
-公开的 `0.1.5` 继续作为 N-1 手动分发基线；`0.1.6` 是第一版按新合同生成的候选。仓库已接入更新运行时、最终 ASCII artifact 命名、Web 构建版本提示和发布元数据配置；`.github/workflows/draft-release.yml` 只接受手动触发和已存在的 `vX.Y.Z` tag，tag 必须与 `package.json` version 一致。
+公开的 `0.1.6` 是第一版按新合同发布的更新基线。仓库已接入更新运行时、最终 ASCII artifact 命名、Web 构建版本提示和发布元数据配置；`.github/workflows/draft-release.yml` 只接受手动触发和已存在的 `vX.Y.Z` tag，tag 必须与 `package.json` version 一致。`0.1.7` 将承担第一次从 N-1 公开版本完整升级到 N 的端到端验收。
 
 GitHub Release 是 Windows Desktop 与 macOS Local Web 的唯一公开二进制来源。每个版本必须先建立 draft Release，等 Windows、macOS Intel、macOS Apple Silicon 和元数据校验全部通过后再一次性公开。draft 中的半成品不能被客户端当作可用更新。
 
@@ -123,13 +123,15 @@ macOS 两个原生架构不能共用一份由独立 job 生成的 `latest-mac.ym
 
 ### Signing And Notarization Gate
 
-当前 Draft workflow 明确生成未签名产物：Windows Setup 与 portable 保留应用内下载链路，但附件标记为“未签名，仅供人工验收”；macOS x64 与 arm64 不设置 `BANDI_MAC_RELEASE=1`，应用继续显示“下载新版”并由用户手动安装。工作流会拒绝意外签名的 Windows 附件和带 Developer ID Authority 的 macOS app，防止草稿状态与实际产物不一致。
+当前 Draft workflow 明确生成未签名产物：Windows Setup 与 portable 保留应用内下载链路，公开 Release 如实标记未知发布者风险；macOS x64 与 arm64 不设置 `BANDI_MAC_RELEASE=1`，应用继续显示“下载新版”并由用户手动安装。工作流会拒绝意外签名的 Windows 附件和带 Developer ID Authority 的 macOS app，防止草稿状态与实际产物不一致。
 
 未来接入正式签名时另开变更：Windows 证书签发后再把准确 Common Name 配置为 electron-builder `win.publisherName`；macOS 再设置 `BANDI_MAC_RELEASE=1` 完成 Developer ID Application 签名、Hardened Runtime 与 Apple notarization，确认产物可信后才设置 `BANDI_MAC_AUTO_UPDATE=1`。只有真实签名、公证和 stapling 全部通过，两种 Mac 架构才能标记为 **已构建和公证，等待真机验收**。
 
 当前 workflow 不读取 Windows 或 Apple 签名 Secret。只有最终组装 Draft Release 的 job 使用 GitHub Actions 自动提供的 `GITHUB_TOKEN`，并映射为 `GH_TOKEN`；其余 job 统一保持 `contents: read`。证书、密码和 `.p8` 私钥不得进入仓库、日志、Release notes 或文档示例。
 
 `preflight`、Windows、macOS x64、macOS arm64 全部成功后，最终 job 才获得 `contents: write`：它会校验 update manifest 的 URL、size 与 sha512，生成 `SHA256SUMS.txt`，创建全新的 Draft Release，并在上传后再次确认 `draft=true` 及远端附件 name、size、SHA-256 与本地产物完全一致。同 tag 已存在任何 Release 时直接失败，既有草稿和已公开附件都不会被修改。workflow 没有 push/tag 自动触发，也没有公开 Release 的步骤。
+
+`v0.1.6` 的三个平台构建与最终附件校验已在 GitHub Actions 运行 `29484451345` 通过；Draft 创建步骤因仓库 Actions token 返回 HTTP 403 而停止。维护者随后用本机 GitHub 身份下载同一轮已验证产物，重新运行仓库附件校验器，创建 Draft，上传全部 13 个附件，并在公开前后分别通过 GitHub API 复核 name、size 与 SHA-256。该恢复流程没有重建、重命名或覆盖附件。
 
 GitHub 公共标准 runner 固定为 `windows-2025`、Intel `macos-15-intel` 与 Apple Silicon `macos-15`；两个 Mac job 都在对应原生架构构建，避免交叉构建原生模块。
 
@@ -139,12 +141,22 @@ GitHub 公共标准 runner 固定为 `windows-2025`、Intel `macos-15-intel` 与
 
 1. tag `vX.Y.Z` 与 `package.json` version 完全一致。
 2. `npm test`、`npx tsc --noEmit`、`npm run build`、`npm run desktop:prepare` 和 `git diff --check` 全部通过。
-3. Windows 安装版从 N-1 检查、下载、停止后台服务、安装、重启到 N；portable 下载并校验同架构新版，退出旧进程后启动新文件，原文件保持可回退。当前未签名草稿只用于人工验收，安装时如实记录系统警告。
+3. Windows 安装版从 N-1 检查、下载、停止后台服务、安装、重启到 N；portable 下载并校验同架构新版，退出旧进程后启动新文件，原文件保持可回退。`0.1.6` 只建立更新基线，第一次真实 N-1 升级验收安排在 `0.1.7`；当前未签名附件安装时如实记录系统警告。
 4. macOS x64 与 arm64 分别验证 DMG、ZIP 和各自 channel 清单；当前版本只验收“下载新版”手动流程，不宣称自动安装或公证状态。
 5. bundled Node 与 `better-sqlite3` 架构正确。未来正式签名工作流接入后，再把 `codesign --verify --deep --strict`、`spctl --assess` 和 `xcrun stapler validate` 加回发布硬门槛。
 6. 更新前后的数据库、下载目录、追番进度、配对设备撤销状态和受管 qBittorrent 配置保持一致。
 7. Mac 更新并重启 Local Web 后，本机 Safari 与已配对 iPhone/iPad 刷新可恢复页面；宿主文件操作继续只对本机会话开放。
 8. Release notes 只记录版本、commit、测试、签名、公证、架构和校验和，不包含本地路径、媒体名、数据库内容、RSS、magnet、token 或凭据。
+
+### v0.1.6 Release Record
+
+- Published: `2026-07-16`
+- Release: https://github.com/Luis-Herry/bandi/releases/tag/v0.1.6
+- Source commit: `375c3087ffb6075bf1c41000969fbe4e8f1305dd`
+- Public assets: `13`，包含 Windows Setup、portable、两套 macOS DMG/ZIP、更新清单、blockmap 与 `SHA256SUMS.txt`
+- Tests: `467` total，`466` passed，`1` platform-expected skip；TypeScript、Next production build、Windows packaging 与 packaged-app smoke 通过
+- Windows: unsigned；Setup 显示全局“重启并更新”，portable 显示全局“退出并运行新版”，下载完成不强制退出
+- macOS: x64/arm64 均未签名、未公证，当前显示“下载新版”并手动安装；已构建，等待真机验收
 
 ## App Icon Assets
 
