@@ -50,13 +50,40 @@ function Invoke-CdpJson {
 }
 
 function Invoke-InitialCdpState {
-  param([int]$Port, [int]$LauncherPid, [string]$LeaseFile)
+  param(
+    [int]$Port,
+    [int]$LauncherPid,
+    [string]$LeaseFile,
+    [string]$AppDataRoot,
+    [string]$ConfigFile,
+    [string]$PreparedConfigHash
+  )
   try {
     return Invoke-CdpJson "state" $Port
   } catch {
     $launcherAlive = [bool](Get-Process -Id $LauncherPid -ErrorAction SilentlyContinue)
     $leaseHealthy = [bool](Get-LeaseState $LeaseFile)
-    throw "CDP state unavailable; launcherAlive=$launcherAlive; leaseHealthy=$leaseHealthy"
+    $leaseFileCount = @(Get-ChildItem -LiteralPath $AppDataRoot -Recurse -File -Filter "parent-lease.json" -ErrorAction SilentlyContinue).Count
+    $configFileCount = @(Get-ChildItem -LiteralPath $AppDataRoot -Recurse -File -Filter "config.json" -ErrorAction SilentlyContinue).Count
+    $desktopErrorLogCount = @(Get-ChildItem -LiteralPath $AppDataRoot -Recurse -File -Filter "desktop.err.log" -ErrorAction SilentlyContinue).Count
+    $configTouched = if (Test-Path -LiteralPath $ConfigFile -PathType Leaf) {
+      (Get-FileHash -LiteralPath $ConfigFile -Algorithm SHA256).Hash -ne $PreparedConfigHash
+    } else {
+      $false
+    }
+    $hasRemoteDebug = $false
+    $hasUserDataDir = $false
+    $hasHeadless = $false
+    $childCount = -1
+    try {
+      $launcherProcess = Get-CimInstance Win32_Process -Filter "ProcessId = $LauncherPid" -ErrorAction Stop
+      $commandLine = [string]$launcherProcess.CommandLine
+      $hasRemoteDebug = $commandLine.Contains("--remote-debugging-port=")
+      $hasUserDataDir = $commandLine.Contains("--user-data-dir=")
+      $hasHeadless = $commandLine.Contains("--headless")
+      $childCount = @(Get-CimInstance Win32_Process -Filter "ParentProcessId = $LauncherPid" -ErrorAction SilentlyContinue).Count
+    } catch {}
+    throw "CDP state unavailable; launcherAlive=$launcherAlive; leaseHealthy=$leaseHealthy; leaseFileCount=$leaseFileCount; configFileCount=$configFileCount; desktopErrorLogCount=$desktopErrorLogCount; configTouched=$configTouched; hasRemoteDebug=$hasRemoteDebug; hasUserDataDir=$hasUserDataDir; hasHeadless=$hasHeadless; childCount=$childCount"
   }
 }
 
@@ -242,6 +269,7 @@ try {
   }
   $config | ConvertTo-Json | Set-Content -LiteralPath $configFile -Encoding UTF8
   Set-Content -LiteralPath (Join-Path $userData "n1-sentinel.txt") -Value $sentinelContent -Encoding UTF8
+  $preparedConfigHash = (Get-FileHash -LiteralPath $configFile -Algorithm SHA256).Hash
 
   if ($Mode -eq "setup") {
     $installer = Start-Process -FilePath $basePackage -ArgumentList @("/S", "/currentuser", "/D=$installDir") -PassThru -Wait
@@ -257,12 +285,10 @@ try {
   Assert-True (Test-ProductVersion $appPath $baseVersion) "Baseline ProductVersion is incorrect"
 
   $port = Get-Random -Minimum 43000 -Maximum 49000
-  $debugProfile = Join-Path $root "ChromiumBaseline"
-  New-Item -ItemType Directory -Path $debugProfile -Force | Out-Null
   $launchArguments = @(
     "--remote-debugging-address=127.0.0.1",
     "--remote-debugging-port=$port",
-    "--user-data-dir=$debugProfile",
+    "--user-data-dir=$userData",
     "--headless",
     "--no-sandbox",
     "--disable-gpu"
@@ -270,7 +296,7 @@ try {
   $launcher = Start-Process -FilePath $appPath -ArgumentList $launchArguments -PassThru
   [void]$recordedPids.Add([int]$launcher.Id)
 
-  $initialState = Invoke-InitialCdpState $port ([int]$launcher.Id) $leaseFile
+  $initialState = Invoke-InitialCdpState $port ([int]$launcher.Id) $leaseFile $env:APPDATA $configFile $preparedConfigHash
   $expectedMode = if ($Mode -eq "setup") { "nsis" } else { "portable" }
   $expectedAction = if ($Mode -eq "setup") { "restart-to-install" } else { "install-portable" }
   Assert-True ([string]$initialState.mode -eq $expectedMode) "Baseline update mode is incorrect"
@@ -352,18 +378,17 @@ try {
   [void](Wait-For { if (-not (Get-Process -Id $newPid -ErrorAction SilentlyContinue)) { return $true }; return $null } 180 "Automatically started target did not close normally")
 
   $verifyPort = Get-Random -Minimum 50000 -Maximum 56000
-  $verifyDebugProfile = Join-Path $root "ChromiumTarget"
-  New-Item -ItemType Directory -Path $verifyDebugProfile -Force | Out-Null
+  $verifyConfigHash = (Get-FileHash -LiteralPath $configFile -Algorithm SHA256).Hash
   $verifyLauncher = Start-Process -FilePath $appPath -ArgumentList @(
     "--remote-debugging-address=127.0.0.1",
     "--remote-debugging-port=$verifyPort",
-    "--user-data-dir=$verifyDebugProfile",
+    "--user-data-dir=$userData",
     "--headless",
     "--no-sandbox",
     "--disable-gpu"
   ) -PassThru
   [void]$recordedPids.Add([int]$verifyLauncher.Id)
-  $targetState = Invoke-InitialCdpState $verifyPort ([int]$verifyLauncher.Id) $leaseFile
+  $targetState = Invoke-InitialCdpState $verifyPort ([int]$verifyLauncher.Id) $leaseFile $env:APPDATA $configFile $verifyConfigHash
   $verifyLease = Wait-For {
     $candidate = Get-LeaseState $leaseFile
     if ($candidate -and [int]$candidate.pid -ne $newPid) { return $candidate }

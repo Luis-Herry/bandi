@@ -40,11 +40,13 @@ test("Windows N-1 acceptance is manual, read-only, isolated, and fail-closed", (
   assert.match(acceptance, /Join-Path \$env:ProgramFiles "7-Zip\\7z\.exe"/);
   assert.match(acceptance, /PORTABLE_EXECUTABLE_FILE = \$basePackage/);
   assert.match(acceptance, /PORTABLE_EXECUTABLE_FILE = \$downloadedPackage/);
-  assert.match(acceptance, /--user-data-dir=\$debugProfile/);
-  assert.match(acceptance, /--user-data-dir=\$verifyDebugProfile/);
-  assert.equal((acceptance.match(/"--headless"/g) ?? []).length, 2);
-  assert.equal((acceptance.match(/"--no-sandbox"/g) ?? []).length, 2);
+  assert.equal((acceptance.match(/--user-data-dir=\$userData/g) ?? []).length, 2);
+  assert.equal((acceptance.match(/^\s+"--headless",$/gm) ?? []).length, 2);
+  assert.equal((acceptance.match(/^\s+"--no-sandbox",$/gm) ?? []).length, 2);
   assert.match(acceptance, /launcherAlive=\$launcherAlive; leaseHealthy=\$leaseHealthy/);
+  assert.match(acceptance, /desktopErrorLogCount=\$desktopErrorLogCount/);
+  assert.match(acceptance, /configTouched=\$configTouched/);
+  assert.doesNotMatch(acceptance, /commandLine=\$commandLine/);
   assert.match(acceptance, /configHashAfter -eq \$configHashBefore/);
   assert.match(acceptance, /SetEnvironmentVariable\(\$name, \$null, "Process"\)/);
   assert.match(acceptance, /"GH_TOKEN"/);
