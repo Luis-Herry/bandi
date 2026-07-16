@@ -194,6 +194,9 @@ npm run db:seed  # 填充测试数据
 - `.github/workflows/draft-release.yml` 只能手动触发，并要求已经存在且与 `package.json` 一致的 tag。它只创建全新的 Draft Release；同 tag 已有任何 Release 时失败，不覆盖附件，也不包含自动公开步骤。
 - Draft 创建不得向 `gh release create` 传 `--target`；远端 annotated tag、tag commit 前后复核与 `--verify-tag` 负责锁定发布源码。Draft 状态统一用 `gh release view` 获取，再通过 `databaseId` 查询 Release API，避免 Draft 在 tag REST 入口不可见。
 - `.github/workflows/windows-n1-update-acceptance.yml` 只允许手动触发并保持 `contents: read`。Setup 与 portable 必须在独立 runner 验收；公开基线固定 SHA-256，目标必须是公开 latest，所有 GitHub/Actions 令牌在启动任何分发包前从子进程环境清除。
+- N-1 验收按 Setup 与 portable 分 lane 记结论；一个 lane 已通过后不得因另一 lane 失败而重跑或撤销。只改 `scripts/acceptance/` 或验收 workflow 时，继续复用同一组已公开附件，不提升 semver、不重打产品包。
+- portable 更新动作由旧版本中的 helper 执行。版本 N 修复的 helper 从 `N → N+1` 才能完整证明；旧版到 N 允许记录一次手动启动桥接，并把自动更新验证留给下一次正常产品发布，禁止为补验收制造空版本。
+- 同一诊断假设只运行一次完整长耗时验收。失败后先读取 runner artifact、阶段标记和脱敏日志；缺少新证据时停止连续发版与连续打包，把未闭环条件写入文档和待办。
 - 发布顺序固定为：版本与文档 → 测试/类型/构建 → commit/push → annotated tag/push → Draft workflow → 附件与摘要人工验收 → 单独公开 → GitHub API 反查。证书、密码、Token、Cookie 和签名私钥禁止进入仓库、日志或 Release notes。
 
 ## 运行约定 & 常见陷阱

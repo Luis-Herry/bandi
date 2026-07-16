@@ -249,12 +249,15 @@
 
 ## UI 参考图
 
-所有 Phase 1 页面的视觉参考位于 `docs/design/references/`：
+当前实现基线截图位于 `docs/screenshots/`：
 
 | 文件 | 页面 |
 |------|------|
-| 首页信息流.png | 首页完整布局 |
-| 番剧详情页.png | 番剧详情页 |
-| 我的追番页.png | 我的追番列表页 |
-| 登录页.png | 登录页 |
-| RSS & 下载管理.png | RSS 源管理 + 下载队列 |
+| `home.png` | 首页 Hero 与今日更新 |
+| `anime-detail-yuc.png` | 番剧详情页 |
+| `seasonal-browse.png` | 番剧库季度目录 |
+| `download-manager.png` | 下载管理 |
+| `onboarding.png` | 首次引导 |
+| `stats.png` | 统计页 |
+
+早期外部参考图未提交进仓库；设计方向以本文件规则和这些当前实现截图为准。

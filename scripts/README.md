@@ -57,7 +57,8 @@ netsh interface ipv6 show excludedportrange protocol=tcp
 
 ### 想换图标
 
-把 `.ico` 文件放到项目的 `public\favicon.ico`，重新跑 `create-shortcut.ps1`。
+- 开发模式桌面快捷方式读取 `public\favicon.ico`；替换后重新运行 `create-shortcut.ps1`。
+- 正式 Windows 窗口、Setup 与 portable 读取 `desktop\assets\app-icon.ico`；同步同一图标族的 PNG/favicon 后，结束旧应用进程并运行 `npm run desktop:dist`。
 
 ## 文件清单
 

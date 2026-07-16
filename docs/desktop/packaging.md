@@ -155,6 +155,17 @@ GitHub 公共标准 runner 固定为 `windows-2025`、Intel `macos-15-intel` 与
 7. Mac 更新并重启 Local Web 后，本机 Safari 与已配对 iPhone/iPad 刷新可恢复页面；宿主文件操作继续只对本机会话开放。
 8. Release notes 只记录版本、commit、测试、签名、公证、架构和校验和，不包含本地路径、媒体名、数据库内容、RSS、magnet、token 或凭据。
 
+### N-1 Acceptance Stop Contract
+
+更新验收必须有可达的退出条件，避免 runner 超时被误解为“继续生成下一个版本”。
+
+- Setup 与 portable 是两条独立证据链。某条链已经通过后保留结论；另一条链失败只修对应链路，不重跑已通过平台，也不重建无关 macOS 产物。
+- 先区分产品载荷变更与验收工具变更。`runtime/`、`desktop/` 或打包配置进入客户端时需要更高 semver 和新产物；只修改 `scripts/acceptance/` 或 workflow 时，复用同一组不可变的公开附件重新验收。
+- portable 的退出、替换和启动由旧版本 helper 执行。版本 N 中的 helper 修复只能在 `N → N+1` 生效；`N-1 → N` 仍可能需要手动运行已下载文件一次。此时终态是“修复已发布、一次性桥接已说明、下一正常版本待验”，不得创建无产品改动的版本追赶验证。
+- 每个失败假设只跑一次完整长耗时任务。失败后先检查阶段标记、runner artifact、进程树、known folder 和结果文件；没有新诊断就停止重跑。当前实测量级为本地 `desktop:dist` 约 14 分钟、Intel macOS 构建约 12 分钟、portable N-1 runner 约 20 分钟，任何串行重跑都要先说明它能新增哪条证据。
+- 验收脚本必须给下载、退出、安装、重启和健康检查各自设置超时，并在失败时保留脱敏诊断。总 job 超时只负责兜底，不能代替阶段级退出条件。
+- 发现真实产品缺口后，允许以“已通过 lane + 已定位失败 lane + 已发布修复 + 明确的未来触发条件”结束本轮。下一轮从已记录的公开基线继续，不回放整段发布历史。
+
 ### v0.1.10 Release Record
 
 - Published: `2026-07-16`
