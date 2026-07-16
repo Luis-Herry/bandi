@@ -7,7 +7,7 @@
 
 - 本仓库是追番中心唯一现行主仓库；产品迭代、桌面运行、打包与验收都在这里完成
 - GitHub 仓库：`https://github.com/Luis-Herry/bandi`
-- 当前分发版本为 `0.1.9`；发布与打包状态以 `docs/desktop/packaging.md` 为准
+- 下一分发版本为 `0.1.10`；当前公开版本与发布状态以 `docs/desktop/packaging.md` 为准
 - 桌面版通过 Electron 打包，内置 `vendor/node/node.exe` 和 `vendor/qbittorrent/qbittorrent.exe`
 - 桌面数据库、配置、受管 qBit profile、日志和服务缓存写入 `%APPDATA%\anime-tracker\`；播放器截图写入 Windows“图片”目录下的 `Bandi` 文件夹。视频下载目录由首次引导或设置中心选择，默认建议为 Windows“视频”目录下的 `Bandi\Downloads`，支持任意可写本地子目录或 UNC 网络共享
 - 桌面版把内置 qBittorrent 作为零配置后台下载服务：主进程自动选择回环端口、生成凭据、做 API 健康检查并在异常退出后恢复；正常界面隐藏 Web UI 地址、端口和账号。`public/qbit-guide/` 只供外部 qBittorrent 兼容模式使用。
@@ -188,6 +188,7 @@ npm run db:seed  # 填充测试数据
 
 - `runtime/app-update.cjs` 是桌面更新状态机与平台判定的事实来源；Electron 主进程只通过预加载桥暴露状态与明确动作，React 页面不能直接导入 Electron API。
 - Windows Setup 与 portable 都允许后台下载，下载完成后不强制退出。`src/components/features/DesktopUpdateNotice.tsx` 通过根布局挂载为所有页面右下角的全局入口：Setup 显示“重启并更新”，portable 显示“退出并运行新版”。
+- portable 更新 helper 必须先复制到 `%APPDATA%\anime-tracker\runtime\updates\`，同时等待当前 Electron 与其 NSIS 自解压 wrapper 退出，再校验目标文件并启动。helper 留下的结果文件只记录固定状态码和时间，不得写路径、哈希或凭据。
 - 当前 macOS 未签名构建只显示“下载新版”并打开公开 Release。只有 `BANDI_MAC_RELEASE=1` 完成 Developer ID 签名、公证，且另行显式设置 `BANDI_MAC_AUTO_UPDATE=1`，才允许显示“重启并更新”。
 - Mac 本机浏览器与配对 Safari 通过 `/api/app-version` 检测构建版本变化，只提示刷新页面，不获得桌面安装权限。
 - `.github/workflows/draft-release.yml` 只能手动触发，并要求已经存在且与 `package.json` 一致的 tag。它只创建全新的 Draft Release；同 tag 已有任何 Release 时失败，不覆盖附件，也不包含自动公开步骤。

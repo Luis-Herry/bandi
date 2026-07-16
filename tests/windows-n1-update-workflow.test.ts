@@ -67,6 +67,8 @@ test("Windows N-1 acceptance is manual, read-only, isolated, and fail-closed", (
   assert.match(acceptance, /desktopErrorLogCount=\$desktopErrorLogCount/);
   assert.match(acceptance, /leaseTokenChanged=\$leaseTokenChanged/);
   assert.match(acceptance, /targetProcessCount=\$targetProcessCount/);
+  assert.match(acceptance, /portableHelperCode=\$helperResultCode/);
+  assert.match(acceptance, /\^\[a-z_\]\{1,64\}\$/);
   assert.doesNotMatch(acceptance, /PreviousToken=|oldToken=|newToken=/);
   assert.match(acceptance, /configTouched=\$configTouched/);
   assert.doesNotMatch(acceptance, /commandLine=\$commandLine/);

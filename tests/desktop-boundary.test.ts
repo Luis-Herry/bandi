@@ -1015,6 +1015,10 @@ test("Windows desktop update flow keeps package identity and renderer privileges
   );
   assert.match(mainSource, /preparePortableUpdateOnExit\(\)/);
   assert.match(mainSource, /let portableUpdateHelperPromise = null/);
+  assert.match(mainSource, /app\.getPath\("userData"\), "runtime", "updates"/);
+  assert.match(mainSource, /fs\.copyFileSync\(helperSource, helper\)/);
+  assert.match(mainSource, /"-WaitForParentPid",\s*String\(process\.ppid\)/s);
+  assert.match(mainSource, /"-ResultFile",\s*resultFile/s);
   assert.match(mainSource, /"WindowsPowerShell",\s*"v1\.0",\s*"powershell\.exe"/s);
   assert.doesNotMatch(mainSource, /spawn\(\s*"powershell\.exe"/);
   assert.match(preloadSource, /bandi:update-state-changed/);
@@ -1028,7 +1032,9 @@ test("Windows desktop update flow keeps package identity and renderer privileges
   assert.match(controllerSource, /pathImpl\.relative\(directory, candidate\)/);
   assert.doesNotMatch(controllerSource, /GH_TOKEN|GITHUB_TOKEN|Authorization:/);
   assert.match(helperSource, /Resolve-Path -LiteralPath \$ExecutablePath/);
+  assert.match(helperSource, /Wait-ForRecordedProcess \$wrapperProcess \$deadline/);
   assert.match(helperSource, /Get-FileHash -LiteralPath \$resolvedExecutable -Algorithm SHA256/);
   assert.match(helperSource, /\$file\.Length -ne \$ExpectedSize/);
-  assert.match(helperSource, /Start-Process -FilePath \$resolvedExecutable/);
+  assert.match(helperSource, /Start-Process -FilePath \$resolvedExecutable -PassThru/);
+  assert.match(helperSource, /Write-Result "target_started"/);
 });

@@ -176,7 +176,17 @@ function Get-RelaunchDiagnostics {
   } else {
     0
   }
-  return "leaseExists=$leaseExists; leaseHealthy=$leaseHealthy; leaseUpdatedAfterConsent=$leaseUpdatedAfterConsent; leaseTokenChanged=$leaseTokenChanged; targetProcessCount=$targetProcessCount; installedVersionMatches=$installedVersionMatches; desktopErrorLogBytes=$desktopErrorLogBytes"
+  $helperResultFile = Join-Path (Split-Path -Parent (Split-Path -Parent $LeaseFile)) "runtime\updates\portable-update-result.json"
+  $helperResultCode = "missing"
+  if (Test-Path -LiteralPath $helperResultFile -PathType Leaf) {
+    try {
+      $candidateCode = [string](Get-Content -LiteralPath $helperResultFile -Raw -Encoding UTF8 | ConvertFrom-Json).code
+      if ($candidateCode -match "^[a-z_]{1,64}$") { $helperResultCode = $candidateCode }
+    } catch {
+      $helperResultCode = "invalid"
+    }
+  }
+  return "leaseExists=$leaseExists; leaseHealthy=$leaseHealthy; leaseUpdatedAfterConsent=$leaseUpdatedAfterConsent; leaseTokenChanged=$leaseTokenChanged; targetProcessCount=$targetProcessCount; installedVersionMatches=$installedVersionMatches; desktopErrorLogBytes=$desktopErrorLogBytes; portableHelperCode=$helperResultCode"
 }
 
 function Get-ConfigProjection {

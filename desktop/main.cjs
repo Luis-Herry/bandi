@@ -517,8 +517,18 @@ function initializeUpdateController() {
 
 function startPortableUpdateHelper(launch) {
   if (portableUpdateHelperPromise) return portableUpdateHelperPromise;
-  const helper = path.join(getAppRoot(), "runtime", "launch-portable-update.ps1");
-  if (!fs.existsSync(helper)) return Promise.reject(new Error("portable_helper_missing"));
+  const helperSource = path.join(getAppRoot(), "runtime", "launch-portable-update.ps1");
+  if (!fs.existsSync(helperSource)) return Promise.reject(new Error("portable_helper_missing"));
+  const helperDir = path.join(app.getPath("userData"), "runtime", "updates");
+  ensureDir(helperDir);
+  const helper = path.join(helperDir, "launch-portable-update.ps1");
+  const resultFile = path.join(helperDir, "portable-update-result.json");
+  fs.copyFileSync(helperSource, helper);
+  try {
+    fs.unlinkSync(resultFile);
+  } catch (error) {
+    if (error?.code !== "ENOENT") throw error;
+  }
   const systemRoot = process.env.SystemRoot || process.env.WINDIR;
   if (!systemRoot || !path.isAbsolute(systemRoot)) {
     return Promise.reject(new Error("windows_system_root_missing"));
@@ -532,6 +542,9 @@ function startPortableUpdateHelper(launch) {
   );
   if (!fs.existsSync(powershell)) {
     return Promise.reject(new Error("windows_powershell_missing"));
+  }
+  if (!Number.isSafeInteger(process.ppid) || process.ppid <= 0) {
+    return Promise.reject(new Error("portable_parent_pid_missing"));
   }
   const attempt = new Promise((resolve, reject) => {
     const child = spawn(
@@ -548,12 +561,16 @@ function startPortableUpdateHelper(launch) {
         helper,
         "-WaitForPid",
         String(process.pid),
+        "-WaitForParentPid",
+        String(process.ppid),
         "-ExecutablePath",
         launch.executablePath,
         "-ExpectedSha256",
         launch.expectedSha256,
         "-ExpectedSize",
         String(launch.expectedSize),
+        "-ResultFile",
+        resultFile,
       ],
       { detached: true, stdio: "ignore", windowsHide: true },
     );

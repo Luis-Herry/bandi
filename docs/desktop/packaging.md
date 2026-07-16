@@ -6,14 +6,14 @@ This is the canonical Bandi repository for the Windows Electron product and macO
 
 - Repository: https://github.com/Luis-Herry/bandi
 - Visibility: public
-- Latest GitHub release: https://github.com/Luis-Herry/bandi/releases/tag/v0.1.8
-- Latest release title: `Bandi v0.1.8`
-- Latest release source commit: `9d2f2a8c881f9d3d5d65ae940b82cbd8f62fb773`
-- Release candidate version: `0.1.9`
-- Local installer: `release/Bandi-Setup-0.1.9-x64.exe`
-- Local portable build: `release/Bandi-0.1.9-x64-portable.exe`
-- Latest release installer asset: `Bandi-Setup-0.1.8-x64.exe`
-- Latest release portable asset: `Bandi-0.1.8-x64-portable.exe`
+- Latest GitHub release: https://github.com/Luis-Herry/bandi/releases/tag/v0.1.9
+- Latest release title: `Bandi v0.1.9`
+- Latest release source commit: `3bd25917c8eecb027bf56526821aec92b595f267`
+- Release candidate version: `0.1.10`
+- Local installer: `release/Bandi-Setup-0.1.10-x64.exe`
+- Local portable build: `release/Bandi-0.1.10-x64-portable.exe`
+- Latest release installer asset: `Bandi-Setup-0.1.9-x64.exe`
+- Latest release portable asset: `Bandi-0.1.9-x64-portable.exe`
 
 `electron-builder` 在本地 `release/` 目录直接生成最终 ASCII 附件名，避免托管平台净化文件名后与校验清单不一致。
 
@@ -96,6 +96,8 @@ The portable exe self-extracts on launch, so its first launch can be noticeably 
 ## Hot Update Release Contract
 
 公开的 `0.1.6` 建立了更新基线。`0.1.7` 首次端到端验收发现两项真实缺口：portable 自解压运行时的 `app.isPackaged=false` 让更新模式落入 development，Setup 使用交互式 NSIS 安装。`0.1.8` 把 Electron Builder 的 portable 环境标记放到模式判断首位，并将 Setup 更新改为静默安装；后续公开版本从 `0.1.8` 建立新的自动更新验收基线。
+
+`0.1.8 → 0.1.9` 的 Setup 真实更新链路已经通过。portable 验收确认旧内层 Electron 退出后，外层 NSIS wrapper 仍在清理自解压目录，位于该目录内的 helper 会与清理过程竞争，导致新版没有启动。`0.1.10` 将 helper 复制到稳定的应用数据目录，等待内层进程与外层 wrapper 都退出后再复核 size/SHA-256 并启动新版。由于更新动作由旧版本执行，`0.1.9 → 0.1.10` 的 portable 用户若没有自动看到新版窗口，需要手动运行已经下载的 `0.1.10` 文件一次；完整自动更新证明需要从 `0.1.10` 基线升级到更高版本。
 
 GitHub Release 是 Windows Desktop 与 macOS Local Web 的唯一公开二进制来源。每个版本必须先建立 draft Release，等 Windows、macOS Intel、macOS Apple Silicon 和元数据校验全部通过后再一次性公开。draft 中的半成品不能被客户端当作可用更新。
 
