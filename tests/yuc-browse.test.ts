@@ -191,3 +191,54 @@ test("a YUC movie release card reuses one original-year local movie", async () =
   assert.equal(items[0].bangumiId, null);
   assert.deepEqual(items[0].sources, ["yuc", "local"]);
 });
+
+test("YUC quarter cards reuse tracked Re:Zero and Wistoria season rows", async () => {
+  const sqlite = new Database(dbPath);
+  sqlite.exec(`
+    insert into anime
+      (id, bangumi_id, title, title_ja, type, status, total_episodes, season, year, media_type)
+    values
+      (11, 547888, 'Re：从零开始的异世界生活 第四季 丧失篇',
+       'Re:ゼロから始める異世界生活 4th season 喪失編',
+       'TV', 'airing', 11, 'spring', 2026, 'anime'),
+      (70, 515856, '杖与剑的魔剑谭 第二季',
+       '杖と剣のウィストリア Season 2',
+       'TV', 'airing', 12, 'spring', 2026, 'anime');
+    insert into user_anime (user_id, anime_id, watch_status, current_episode)
+    values ('u1', 11, 'completed', 77), ('u1', 70, 'completed', 24);
+  `);
+  sqlite.close();
+
+  const reZero = yucEntry({
+    sourceUrl: "https://yuc.wiki/202604/",
+    title: "Re:从零开始的异世界生活 第4期",
+    titleJa: "Re:ゼロから始める異世界生活 4th season",
+    premiereDate: "2026-04-08",
+    totalEpisodes: 11,
+    seasonYear: 2026,
+    seasonMonth: 4,
+  });
+  const wistoria = yucEntry({
+    sourceUrl: "https://yuc.wiki/202604/",
+    title: "杖与剑的魔剑谭 第2期",
+    titleJa: "杖と剣のウィストリア 第2期",
+    premiereDate: "2026-04-12",
+    totalEpisodes: 12,
+    seasonYear: 2026,
+    seasonMonth: 4,
+  });
+  const { buildSeasonalBrowseItems } = await browse();
+  const items = buildSeasonalBrowseItems("u1", [], [reZero, wistoria], 2026);
+
+  assert.deepEqual(
+    items.map((item) => ({
+      title: item.title,
+      localAnimeId: item.localAnimeId,
+      inLibrary: item.inLibrary,
+    })),
+    [
+      { title: reZero.title, localAnimeId: 11, inLibrary: true },
+      { title: wistoria.title, localAnimeId: 70, inLibrary: true },
+    ],
+  );
+});

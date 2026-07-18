@@ -4,8 +4,11 @@ import { anime, appSettings, type Anime } from "@/db/schema";
 import {
   getYucEntryYear,
   findUniqueYucCatalogMatch,
+  findUniqueYucCatalogTarget,
+  inferYucSeasonMonth,
   isReliableYucMovieWorkMatch,
   isReliableYucMatch,
+  isYucCatalogTargetCandidate,
   isYucMovieReRelease,
   yucEntryType,
   type YucMatchTarget,
@@ -369,30 +372,6 @@ function hasFormatEvidence(entry: YucEntry): boolean {
   return entry.sourceKind === "movie" || Boolean(entry.format);
 }
 
-function isHighConfidenceLocalMatch(entry: YucEntry, row: Anime): boolean {
-  const year = getYucEntryYear(entry);
-  if (row.mediaType !== "anime") return false;
-  if (yucEntryType(entry) === "Movie") {
-    return (
-      row.type === "Movie" &&
-      isReliableYucMovieWorkMatch(entry, {
-        title: row.title,
-        titleJa: row.titleJa,
-        year: row.year,
-        format: row.type,
-      })
-    );
-  }
-  if (year == null || row.year !== year) return false;
-  if (hasFormatEvidence(entry) && row.type !== yucEntryType(entry)) return false;
-  return isReliableYucMatch(entry, {
-    title: row.title,
-    titleJa: row.titleJa,
-    year: row.year,
-    format: row.type,
-  });
-}
-
 function findLocalCandidateWith(tx: Transaction, entry: YucEntry): Anime | null {
   const year = getYucEntryYear(entry);
   const type = yucEntryType(entry);
@@ -421,11 +400,28 @@ function findLocalCandidateWith(tx: Transaction, entry: YucEntry): Anime | null 
             .from(anime)
             .where(and(eq(anime.mediaType, "anime"), eq(anime.year, year!)))
             .all();
-  const matches = candidates.filter((row) => isHighConfidenceLocalMatch(entry, row));
-  if (matches.length > 1) {
+  const targets = candidates.map((row) => ({
+    row,
+    title: row.title,
+    titleJa: row.titleJa,
+    year: row.year,
+    format: row.type,
+    seasonMonth: inferYucSeasonMonth({
+      season: row.season,
+      tags: row.tags,
+      year: row.year,
+    }),
+    totalEpisodes: row.totalEpisodes,
+  }));
+  const match = findUniqueYucCatalogTarget(entry, targets);
+  if (match) return match.row;
+  const plausibleMatches = targets.filter((target) =>
+    isYucCatalogTargetCandidate(entry, target),
+  );
+  if (plausibleMatches.length > 1) {
     throw new YucIdentityConflictError("Multiple local anime rows match this YUC work");
   }
-  return matches[0] ?? null;
+  return null;
 }
 
 function bindWith(

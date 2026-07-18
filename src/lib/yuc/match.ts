@@ -8,6 +8,9 @@ export interface YucMatchTarget {
   aliases?: readonly (string | null | undefined)[];
   year?: number | null;
   format?: string | null;
+  premiereDate?: string | null;
+  seasonMonth?: number | null;
+  totalEpisodes?: number | null;
 }
 
 export function normalizeYucIdentityTitle(value: string): string {
@@ -119,49 +122,89 @@ export function findUniqueYucMatch(
 /**
  * Read-only catalog matching may accept one additional case: an exact base
  * title with a longer subtitle/cour suffix on one source. It still requires an
- * explicit equal year and compatible format, and it fails closed unless there
- * is exactly one candidate. Identity writes continue using isReliableYucMatch.
+ * explicit equal year and compatible format, and it fails closed unless one
+ * candidate has uniquely stronger identity evidence.
  */
 export function findUniqueYucCatalogMatch(
   entries: readonly YucEntry[],
   target: YucMatchTarget,
 ): YucEntry | null {
-  const exact = findUniqueYucMatch(entries, target);
-  if (exact) return exact;
-  const movieMatches = entries.filter((entry) =>
-    isReliableYucMovieWorkMatch(entry, target),
+  return selectUniqueCatalogCandidate(
+    entries.map((entry) => ({
+      value: entry,
+      score: yucCatalogTargetScore(entry, target, false),
+    })),
   );
-  if (movieMatches.length === 1) return movieMatches[0];
-  if (movieMatches.length > 1) return null;
-  if (target.year == null) return null;
+}
 
-  const matches = entries.filter((entry) => {
-    const year = getYucEntryYear(entry);
-    if (year == null || year !== target.year) return false;
-    if (hasAnimeSeasonConflict([entry.title, entry.titleJa], [
-      target.title,
-      target.titleJa,
-      ...(target.aliases ?? []),
-    ])) {
-      return false;
-    }
-    const exactTitle = hasExactTitleVariant(
-      [entry.title, entry.titleJa],
-      [target.title, target.titleJa, ...(target.aliases ?? [])],
-    );
-    const catalogTitle = hasCatalogTitleIdentity(
-      [entry.title, entry.titleJa],
-      [target.title, target.titleJa, ...(target.aliases ?? [])],
-    );
-    if (
-      !formatsAreCompatible(entry.format, target.format) &&
-      !(entry.sourceKind === "special" && (exactTitle || catalogTitle))
-    ) {
-      return false;
-    }
-    return catalogTitle;
-  });
-  return matches.length === 1 ? matches[0] : null;
+/**
+ * Select one durable work identity for a YUC entry. Subtitle/cour-only title
+ * relations must also agree on an exact premiere date or on both quarter and
+ * main episode count. Equal scores fail closed.
+ */
+export function findUniqueYucCatalogTarget<T extends YucMatchTarget>(
+  entry: YucEntry,
+  targets: readonly T[],
+): T | null {
+  return selectUniqueCatalogCandidate(
+    targets.map((target) => ({
+      value: target,
+      score: yucCatalogTargetScore(entry, target, true),
+    })),
+  );
+}
+
+/**
+ * Broad admission check for search results; the final identity resolver still
+ * applies metadata corroboration and unique-score selection.
+ */
+export function isYucCatalogTargetCandidate(
+  entry: YucEntry,
+  target: YucMatchTarget,
+): boolean {
+  return yucCatalogTargetScore(entry, target, false) != null;
+}
+
+export function isHighConfidenceYucCatalogIdentity(
+  left: YucMatchTarget,
+  right: YucMatchTarget,
+): boolean {
+  const relation = catalogTitleRelation(left, right);
+  if (relation == null) return false;
+  if (!catalogTargetsAreCompatible(left, right)) return false;
+  if (relation !== "relaxed") return true;
+  const metadata = catalogMetadataEvidence(left, right);
+  return metadata.dateMatch || (metadata.monthMatch && metadata.episodeMatch);
+}
+
+export function inferYucSeasonMonth(input: {
+  premiereDate?: string | null;
+  seasonMonth?: number | null;
+  season?: string | null;
+  tags?: readonly string[] | null;
+  year?: number | null;
+}): number | null {
+  if (isCalendarMonth(input.seasonMonth)) return input.seasonMonth;
+  const dateMonth = monthFromDate(input.premiereDate);
+  if (dateMonth != null) return dateMonth;
+  const seasonMonths: Record<string, number> = {
+    winter: 1,
+    spring: 4,
+    summer: 7,
+    fall: 10,
+  };
+  if (input.season && input.season in seasonMonths) {
+    return seasonMonths[input.season];
+  }
+  for (const tag of input.tags ?? []) {
+    const match = tag.match(/(?:^|\D)(\d{4})年\s*(\d{1,2})月/u);
+    if (!match) continue;
+    const year = Number(match[1]);
+    const month = Number(match[2]);
+    if (input.year != null && year !== input.year) continue;
+    if (isCalendarMonth(month)) return month;
+  }
+  return null;
 }
 
 function hasExactTitleVariant(
@@ -170,6 +213,167 @@ function hasExactTitleVariant(
 ): boolean {
   const leftKeys = new Set(yucTitleVariants(left));
   return yucTitleVariants(right).some((key) => leftKeys.has(key));
+}
+
+type CatalogTitleRelation = "exact" | "catalog" | "relaxed";
+
+function yucCatalogTargetScore(
+  entry: YucEntry,
+  target: YucMatchTarget,
+  requireRelaxedCorroboration: boolean,
+): number | null {
+  const entryTarget: YucMatchTarget = {
+    title: entry.title,
+    titleJa: entry.titleJa,
+    year: getYucEntryYear(entry),
+    format: entry.format,
+    premiereDate: entry.premiereDate,
+    seasonMonth: inferYucSeasonMonth(entry),
+    totalEpisodes: entry.totalEpisodes,
+  };
+  const relation = catalogTitleRelation(entryTarget, target);
+  if (relation == null) return null;
+
+  if (isReliableYucMovieWorkMatch(entry, target)) {
+    return 380 + catalogMetadataScore(entryTarget, target);
+  }
+  if (
+    !catalogTargetsAreCompatible(
+      entryTarget,
+      target,
+      entry.sourceKind === "special",
+    )
+  ) {
+    return null;
+  }
+
+  const metadata = catalogMetadataEvidence(entryTarget, target);
+  if (relation === "relaxed") {
+    const entryYear = getYucEntryYear(entry);
+    if (entryYear == null || target.year == null || entryYear !== target.year) {
+      return null;
+    }
+    if (metadata.dateConflict || metadata.monthConflict) return null;
+    if (
+      requireRelaxedCorroboration &&
+      !metadata.dateMatch &&
+      !(metadata.monthMatch && metadata.episodeMatch)
+    ) {
+      return null;
+    }
+  }
+
+  const tier = isReliableYucMatch(entry, target)
+    ? 400
+    : relation === "exact"
+      ? 340
+      : relation === "catalog"
+        ? 300
+        : 200;
+  return tier + catalogMetadataScore(entryTarget, target);
+}
+
+function catalogTitleRelation(
+  left: YucMatchTarget,
+  right: YucMatchTarget,
+): CatalogTitleRelation | null {
+  const leftTitles = [left.title, left.titleJa, ...(left.aliases ?? [])];
+  const rightTitles = [right.title, right.titleJa, ...(right.aliases ?? [])];
+  if (hasAnimeSeasonConflict(leftTitles, rightTitles)) return null;
+  if (hasExactTitleVariant(leftTitles, rightTitles)) return "exact";
+
+  const leftCatalog = new Set(yucCatalogTitleVariants(leftTitles));
+  if (yucCatalogTitleVariants(rightTitles).some((key) => leftCatalog.has(key))) {
+    return "catalog";
+  }
+  return hasCatalogTitleIdentity(leftTitles, rightTitles) ? "relaxed" : null;
+}
+
+function catalogTargetsAreCompatible(
+  left: YucMatchTarget,
+  right: YucMatchTarget,
+  allowFormatMismatch = false,
+): boolean {
+  if (left.year != null && right.year != null && left.year !== right.year) {
+    return false;
+  }
+  return allowFormatMismatch || formatsAreCompatible(left.format, right.format);
+}
+
+function catalogMetadataEvidence(
+  left: YucMatchTarget,
+  right: YucMatchTarget,
+): {
+  dateMatch: boolean;
+  dateConflict: boolean;
+  monthMatch: boolean;
+  monthConflict: boolean;
+  episodeMatch: boolean;
+} {
+  const leftDate = normalizedPremiereDate(left.premiereDate);
+  const rightDate = normalizedPremiereDate(right.premiereDate);
+  const leftMonth = inferYucSeasonMonth(left);
+  const rightMonth = inferYucSeasonMonth(right);
+  const leftEpisodes = positiveEpisodeCount(left.totalEpisodes);
+  const rightEpisodes = positiveEpisodeCount(right.totalEpisodes);
+  return {
+    dateMatch: leftDate != null && rightDate != null && leftDate === rightDate,
+    dateConflict: leftDate != null && rightDate != null && leftDate !== rightDate,
+    monthMatch:
+      leftMonth != null && rightMonth != null && leftMonth === rightMonth,
+    monthConflict:
+      leftMonth != null && rightMonth != null && leftMonth !== rightMonth,
+    episodeMatch:
+      leftEpisodes != null &&
+      rightEpisodes != null &&
+      leftEpisodes === rightEpisodes,
+  };
+}
+
+function catalogMetadataScore(
+  left: YucMatchTarget,
+  right: YucMatchTarget,
+): number {
+  const evidence = catalogMetadataEvidence(left, right);
+  return (
+    Number(evidence.dateMatch) * 30 +
+    Number(evidence.monthMatch) * 10 +
+    Number(evidence.episodeMatch) * 20
+  );
+}
+
+function selectUniqueCatalogCandidate<T>(
+  candidates: readonly { value: T; score: number | null }[],
+): T | null {
+  const ranked = candidates
+    .filter(
+      (candidate): candidate is { value: T; score: number } =>
+        candidate.score != null,
+    )
+    .sort((left, right) => right.score - left.score);
+  if (ranked.length === 0) return null;
+  if (ranked.length > 1 && ranked[0].score === ranked[1].score) return null;
+  return ranked[0].value;
+}
+
+function normalizedPremiereDate(value: string | null | undefined): string | null {
+  const match = value?.match(/^(\d{4})-(\d{2})-(\d{2})$/u);
+  return match ? match[0] : null;
+}
+
+function monthFromDate(value: string | null | undefined): number | null {
+  const match = value?.match(/^\d{4}-(\d{2})-/u);
+  if (!match) return null;
+  const month = Number(match[1]);
+  return isCalendarMonth(month) ? month : null;
+}
+
+function isCalendarMonth(value: number | null | undefined): value is number {
+  return Number.isInteger(value) && Number(value) >= 1 && Number(value) <= 12;
+}
+
+function positiveEpisodeCount(value: number | null | undefined): number | null {
+  return Number.isInteger(value) && Number(value) > 0 ? Number(value) : null;
 }
 
 export function dedupeYucEntries(entries: readonly YucEntry[]): YucEntry[] {
@@ -214,7 +418,7 @@ export function yucEntryType(entry: YucEntry): "TV" | "Movie" | "OVA" | "Web" {
 }
 
 function formatsAreCompatible(
-  entryFormat: string | null,
+  entryFormat: string | null | undefined,
   targetFormat: string | null | undefined,
 ): boolean {
   if (!entryFormat || !targetFormat) return true;

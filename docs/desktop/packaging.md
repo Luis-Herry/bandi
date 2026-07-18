@@ -290,6 +290,8 @@ Completed `downloadQueue` rows are the playback identity. When duplicate `episod
 
 `/api/anime/refresh` owns the manual reconciliation entry points used by browse, downloads, the local anime library, and anime detail. It can merge duplicate local rows, reconnect downloads, refresh Bangumi episodes and YUC identity, expand RSS aliases, and prefer a reliable Chinese synopsis. A Chinese synopsis comes from existing local data or a Douban subject whose title, original title, year, and explicit season agree with the anime row; otherwise the existing Bangumi text stays visible. YUC provides schedule and production facts but no per-show story synopsis.
 
+Season browse status, `/api/browse/add`, and metadata refresh share the same YUC/Bangumi identity resolver. Existing local identity wins, followed by a resolved Bangumi subject and then a YUC-only fallback. Relaxed title-family matches such as numeric season labels or arc suffixes require an exact premiere date, or matching quarter plus main episode count; ambiguous candidates fail closed.
+
 The browse quarter action refreshes Bangumi and YUC caches first, then runs metadata refresh for local anime rows in the selected quarter. Douban synopsis fallback stays sequential in this bulk path because burst requests to the suggestion endpoint can silently omit valid titles. Single-anime, local-library, and download scopes keep bounded concurrency.
 
 ## Douban Catalog Classification

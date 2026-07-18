@@ -60,6 +60,10 @@ import {
   type YucDetailMatch,
 } from "@/lib/yuc/detail";
 import {
+  findUniqueYucCatalogTarget,
+  inferYucSeasonMonth,
+  isHighConfidenceYucCatalogIdentity,
+  isYucCatalogTargetCandidate,
   normalizeYucCatalogTitle,
   yucCatalogTitleVariants,
 } from "@/lib/yuc/match";
@@ -671,8 +675,31 @@ function animeRowsShareIdentity(left: Anime, right: Anime): boolean {
   if (hasAnimeSeasonConflict(leftTitles, rightTitles)) return false;
   const leftKeys = new Set(yucCatalogTitleVariants(leftTitles));
   const rightKeys = yucCatalogTitleVariants(rightTitles);
-  return rightKeys.some(
-    (key) => isSafeIdentityKey(key) && leftKeys.has(key),
+  if (
+    rightKeys.some(
+      (key) => isSafeIdentityKey(key) && leftKeys.has(key),
+    )
+  ) {
+    return true;
+  }
+  if (![...leftKeys, ...rightKeys].some(isSafeIdentityKey)) return false;
+  return isHighConfidenceYucCatalogIdentity(
+    {
+      title: left.title,
+      titleJa: left.titleJa,
+      year: left.year,
+      format: left.type,
+      seasonMonth: inferAnimeSeasonMonth(left),
+      totalEpisodes: left.totalEpisodes,
+    },
+    {
+      title: right.title,
+      titleJa: right.titleJa,
+      year: right.year,
+      format: right.type,
+      seasonMonth: inferAnimeSeasonMonth(right),
+      totalEpisodes: right.totalEpisodes,
+    },
   );
 }
 
@@ -711,7 +738,17 @@ function isSafeIdentityKey(value: string): boolean {
     .length >= 3;
 }
 
-function mergeAnimeRows(targetId: number, sourceId: number): void {
+function inferAnimeSeasonMonth(
+  row: Pick<Anime, "season" | "tags" | "year">,
+): number | null {
+  return inferYucSeasonMonth({
+    season: row.season,
+    tags: row.tags,
+    year: row.year,
+  });
+}
+
+export function mergeAnimeRows(targetId: number, sourceId: number): void {
   const target = db.select().from(anime).where(eq(anime.id, targetId)).get();
   const source = db.select().from(anime).where(eq(anime.id, sourceId)).get();
   if (!target || !source || target.id === source.id) return;
@@ -1153,9 +1190,16 @@ export async function findUniqueBangumiSubject(
     if (hasAnimeSeasonConflict(identityTitles, hitTitles)) continue;
     const hitYear = hit.date?.match(/^\d{4}/u)?.[0];
     if (row.year != null && hitYear && Number(hitYear) !== row.year) continue;
-    if (
-      !yucCatalogTitleVariants(hitTitles).some((key) => identityKeys.has(key))
-    ) {
+    const directTitleMatch = yucCatalogTitleVariants(hitTitles).some((key) =>
+      identityKeys.has(key),
+    );
+    const yucTitleCandidate =
+      yucMatch != null &&
+      isYucCatalogTargetCandidate(
+        yucMatch.entry,
+        bangumiCatalogTarget(hit),
+      );
+    if (!directTitleMatch && !yucTitleCandidate) {
       continue;
     }
     ids.add(hit.id);
@@ -1163,13 +1207,28 @@ export async function findUniqueBangumiSubject(
   const subjects = (
     await Promise.all([...ids].map((id) => dependencies.getSubject(id)))
   ).filter((subject): subject is BgmSubject => subject != null);
-  const ranked = subjects
+  const compatibleSubjects = subjects
     .filter((subject) => {
       if (bangumiPlatformToAnimeType(subject.platform) !== row.type) return false;
       const aliases = selectTitleAliasesFromBangumi(subject);
-      if (hasAnimeSeasonConflict(identityTitles, aliases)) return false;
-      return yucCatalogTitleVariants(aliases).some((key) => identityKeys.has(key));
-    })
+      return !hasAnimeSeasonConflict(identityTitles, aliases);
+    });
+  if (yucMatch) {
+    const match = findUniqueYucCatalogTarget(
+      yucMatch.entry,
+      compatibleSubjects.map((subject) => ({
+        subject,
+        ...bangumiCatalogTarget(subject),
+      })),
+    );
+    return match?.subject ?? null;
+  }
+  const ranked = compatibleSubjects
+    .filter((subject) =>
+      yucCatalogTitleVariants(selectTitleAliasesFromBangumi(subject)).some(
+        (key) => identityKeys.has(key),
+      ),
+    )
     .map((subject) => ({
       subject,
       score: bangumiMatchScore(subject, row, yucMatch),
@@ -1178,6 +1237,23 @@ export async function findUniqueBangumiSubject(
   if (ranked.length === 0) return null;
   if (ranked.length > 1 && ranked[0]!.score === ranked[1]!.score) return null;
   return ranked[0]!.subject;
+}
+
+function bangumiCatalogTarget(subject: BgmSubject) {
+  const year = subject.date?.match(/^\d{4}/u)?.[0];
+  return {
+    title: subject.name_cn?.trim() || subject.name,
+    titleJa: subject.name,
+    aliases: selectTitleAliasesFromBangumi(subject),
+    year: year ? Number(year) : null,
+    format: bangumiPlatformToAnimeType(subject.platform),
+    premiereDate: subject.date ?? null,
+    seasonMonth: inferYucSeasonMonth({ premiereDate: subject.date }),
+    totalEpisodes:
+      subject.eps != null && subject.eps > 0
+        ? subject.eps
+        : subject.total_episodes ?? null,
+  };
 }
 
 function bangumiMatchScore(

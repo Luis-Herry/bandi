@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { beforeEach, test } from "node:test";
 import Database from "better-sqlite3";
+import type { BgmSubject } from "../src/lib/bangumi";
 import { buildYucSourceKey } from "../src/lib/yuc/parser";
 import type { YucEntry, YucSourceKind } from "../src/lib/yuc/types";
 
@@ -98,6 +99,105 @@ function insertAnime(values: {
   sqlite.close();
   return Number(result.lastInsertRowid);
 }
+
+test("YUC add reuses canonical split-cour and numeric-season local rows", async () => {
+  const sqlite = new Database(dbPath);
+  sqlite.exec(`
+    insert into anime
+      (id, bangumi_id, title, title_ja, type, status, total_episodes, season, year, media_type)
+    values
+      (11, 547888, 'Re：从零开始的异世界生活 第四季 丧失篇',
+       'Re:ゼロから始める異世界生活 4th season 喪失編',
+       'TV', 'airing', 11, 'spring', 2026, 'anime'),
+      (70, 515856, '杖与剑的魔剑谭 第二季',
+       '杖と剣のウィストリア Season 2',
+       'TV', 'airing', 12, 'spring', 2026, 'anime');
+  `);
+  sqlite.close();
+  const identity = await identities();
+  const reZero = identity.resolveYucAnime(entryOf({
+    sourceKind: "season",
+    sourceUrl: "https://yuc.wiki/202604/",
+    title: "Re:从零开始的异世界生活 第4期",
+    titleJa: "Re:ゼロから始める異世界生活 4th season",
+    premiereDate: "2026-04-08",
+    totalEpisodes: 11,
+    seasonYear: 2026,
+    seasonMonth: 4,
+  }));
+  const wistoria = identity.resolveYucAnime(entryOf({
+    sourceKind: "season",
+    sourceUrl: "https://yuc.wiki/202604/",
+    title: "杖与剑的魔剑谭 第2期",
+    titleJa: "杖と剣のウィストリア 第2期",
+    premiereDate: "2026-04-12",
+    totalEpisodes: 12,
+    seasonYear: 2026,
+    seasonMonth: 4,
+  }));
+
+  assert.equal(reZero.anime.id, 11);
+  assert.equal(reZero.matchedBy, "local");
+  assert.equal(wistoria.anime.id, 70);
+  assert.equal(wistoria.matchedBy, "local");
+  const verify = new Database(dbPath);
+  assert.equal(verify.prepare("select count(*) from anime").pluck().get(), 2);
+  verify.close();
+});
+
+test("metadata refresh resolves the correct Bangumi cour from YUC schedule facts", async () => {
+  const { findUniqueBangumiSubject } = await import(
+    "../src/lib/anime-metadata-refresh"
+  );
+  const subjects: BgmSubject[] = [
+    {
+      id: 547888,
+      type: 2,
+      name: "Re:ゼロから始める異世界生活 4th season 喪失編",
+      name_cn: "Re：从零开始的异世界生活 第四季 丧失篇",
+      date: "2026-04-08",
+      platform: "TV",
+      eps: 11,
+      total_episodes: 11,
+    },
+    {
+      id: 633836,
+      type: 2,
+      name: "Re:ゼロから始める異世界生活 4th season 再起編",
+      name_cn: "Re：从零开始的异世界生活 第四季 再起篇",
+      date: "2026-08-12",
+      platform: "TV",
+      eps: 8,
+      total_episodes: 8,
+    },
+  ];
+  const yucEntry = entryOf({
+    sourceKind: "season",
+    sourceUrl: "https://yuc.wiki/202604/",
+    title: "Re:从零开始的异世界生活 第4期",
+    titleJa: "Re:ゼロから始める異世界生活 4th season",
+    premiereDate: "2026-04-08",
+    totalEpisodes: 11,
+    seasonYear: 2026,
+    seasonMonth: 4,
+  });
+  const match = await findUniqueBangumiSubject(
+    {
+      title: yucEntry.title,
+      titleJa: yucEntry.titleJa,
+      year: 2026,
+      type: "TV",
+    },
+    { entry: yucEntry, matchedBy: "metadata" },
+    {
+      searchSubjects: async () => subjects,
+      getSubject: async (id) =>
+        subjects.find((subject) => subject.id === id) ?? null,
+    },
+  );
+
+  assert.equal(match?.id, 547888);
+});
 
 test("YUC-only movie creation preserves anime format and schedule metadata", async () => {
   const identity = await identities();

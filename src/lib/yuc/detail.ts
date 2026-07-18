@@ -12,6 +12,7 @@ import {
   dedupeYucEntries,
   findUniqueYucCatalogMatch,
   findUniqueYucMatch,
+  inferYucSeasonMonth,
 } from "./match";
 import type { YucEntry } from "./types";
 
@@ -174,6 +175,12 @@ function animeTarget(anime: Anime) {
     titleJa: anime.titleJa,
     year: anime.year,
     format: anime.type,
+    seasonMonth: inferYucSeasonMonth({
+      season: anime.season,
+      tags: anime.tags,
+      year: anime.year,
+    }),
+    totalEpisodes: anime.totalEpisodes,
   };
 }
 

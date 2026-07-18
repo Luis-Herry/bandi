@@ -242,6 +242,8 @@ npm run db:seed  # 填充测试数据
 - 下载目录与单条文件定位统一走 `/api/downloads/open-location`，请求体只接受队列 ID，不接受客户端路径。Windows 使用 Explorer，macOS 使用 Finder；macOS 配对设备隐藏入口并由 `requireLocalHostRouteUser` 拒绝宿主文件操作。
 
 **资料刷新 / 简介语言**
+- 番剧库季度卡片、`/api/browse/add` 与 `/api/anime/refresh` 必须共用 YUC/Bangumi 身份解析。优先级固定为已有本地 `animeId` → 已解析的 Bangumi ID → YUC-only 条目；YUC key 只能作为绑定提示，不能覆盖已解析的 Bangumi 身份。
+- “第2期 / 第二季”等季别写法或篇章后缀不同的标题族，只在首播日期精确一致，或季度与主篇话数同时一致时允许合并；同分候选或证据不足时停止自动关联。
 - `selectPreferredSynopsis` 负责中文优先：已有简体或繁体简介继续保留；当前简介为外文时，仅使用标题、年份、季别严格匹配的豆瓣中文简介；没有可靠中文来源时保留原文。当前没有机器翻译链路。
 - 长门番堂的季度与详情模型提供档期、话数、制作、声优、平台、PV 和官网，当前不提供单部剧情简介；Atom `summaryHtml` 只属于情报 Feed，不可当作番剧简介。
 - 番剧库“刷新资料”除了刷新 Bangumi/长门季度缓存，还必须对本季度本地 anime rows 调用 `refreshAnimeMetadata({ scope: "season" })`。豆瓣建议接口在突发并发下会漏结果，季度中文补全保持串行；单番、本地库和下载范围可继续使用有界并发。

@@ -18,7 +18,8 @@ import { getYucEntriesForQuarter, type YucSourceStatus } from "@/lib/yuc/client"
 import {
   dedupeYucEntries,
   findUniqueYucCatalogMatch,
-  isReliableYucWorkMatch,
+  findUniqueYucCatalogTarget,
+  inferYucSeasonMonth,
   yucEntryType,
 } from "@/lib/yuc/match";
 import type { YucEntry } from "@/lib/yuc/types";
@@ -230,10 +231,17 @@ export function buildSeasonalBrowseItems(
     const yuc = findUniqueYucCatalogMatch(yucEntries, {
       title: subject.name_cn?.trim() || subject.name,
       titleJa: subject.name,
+      aliases: [subject.name_cn],
       year: subject.date?.match(/^\d{4}/u)
         ? Number(subject.date.slice(0, 4))
         : year,
       format: subject.platform,
+      premiereDate: subject.date,
+      seasonMonth: inferYucSeasonMonth({ premiereDate: subject.date }),
+      totalEpisodes:
+        subject.eps && subject.eps > 0
+          ? subject.eps
+          : subject.total_episodes ?? null,
     });
     if (yuc) matchedYucKeys.add(yuc.sourceKey);
 
@@ -456,15 +464,23 @@ function matchYucEntriesToLocalRows(
   }
   for (const entry of entries) {
     if (result.has(entry.sourceKey)) continue;
-    const matches = rows.filter((row) =>
-      isReliableYucWorkMatch(entry, {
+    const match = findUniqueYucCatalogTarget(
+      entry,
+      rows.map((row) => ({
+        row,
         title: row.title,
         titleJa: row.titleJa,
         year: row.year,
         format: row.type,
-      }),
+        seasonMonth: inferYucSeasonMonth({
+          season: row.season,
+          tags: row.tags,
+          year: row.year,
+        }),
+        totalEpisodes: row.totalEpisodes,
+      })),
     );
-    if (matches.length === 1) result.set(entry.sourceKey, matches[0]);
+    if (match) result.set(entry.sourceKey, match.row);
   }
   return result;
 }

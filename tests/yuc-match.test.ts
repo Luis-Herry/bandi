@@ -4,6 +4,7 @@ import type { YucEntry } from "../src/lib/yuc/types";
 import {
   dedupeYucEntries,
   findUniqueYucCatalogMatch,
+  findUniqueYucCatalogTarget,
   findUniqueYucMatch,
   isReliableYucMovieWorkMatch,
   isReliableYucMatch,
@@ -96,6 +97,73 @@ test("read-only catalog matching stays closed on multiple relaxed candidates", (
     }),
     null,
   );
+});
+
+test("catalog identity chooses the correct Re:Zero cour by date and main episode count", () => {
+  const reZero = entry({
+    title: "Re:从零开始的异世界生活 第4期",
+    titleJa: "Re:ゼロから始める異世界生活 4th season",
+    premiereDate: "2026-04-08",
+    totalEpisodes: 11,
+    seasonMonth: 4,
+  });
+  const lossArc = {
+    id: 547888,
+    title: "Re：从零开始的异世界生活 第四季 丧失篇",
+    titleJa: "Re:ゼロから始める異世界生活 4th season 喪失編",
+    year: 2026,
+    format: "TV",
+    premiereDate: "2026-04-08",
+    seasonMonth: 4,
+    totalEpisodes: 11,
+  };
+  const recoveryArc = {
+    id: 633836,
+    title: "Re：从零开始的异世界生活 第四季 再起篇",
+    titleJa: "Re:ゼロから始める異世界生活 4th season 再起編",
+    year: 2026,
+    format: "TV",
+    premiereDate: "2026-08-12",
+    seasonMonth: 8,
+    totalEpisodes: 8,
+  };
+
+  assert.equal(
+    findUniqueYucCatalogTarget(reZero, [recoveryArc, lossArc])?.id,
+    547888,
+  );
+  assert.equal(
+    findUniqueYucCatalogTarget(
+      { ...reZero, premiereDate: null },
+      [
+        { ...lossArc, premiereDate: null },
+        { ...recoveryArc, premiereDate: null, seasonMonth: 4, totalEpisodes: 11 },
+      ],
+    ),
+    null,
+  );
+});
+
+test("catalog identity normalizes numeric season labels for Wistoria", () => {
+  const wistoria = entry({
+    title: "杖与剑的魔剑谭 第2期",
+    titleJa: "杖と剣のウィストリア 第2期",
+    premiereDate: "2026-04-12",
+    totalEpisodes: 12,
+    seasonMonth: 4,
+  });
+  const canonical = {
+    id: 515856,
+    title: "杖与剑的魔剑谭 第二季",
+    titleJa: "杖と剣のウィストリア Season 2",
+    year: 2026,
+    format: "TV",
+    premiereDate: "2026-04-12",
+    seasonMonth: 4,
+    totalEpisodes: 12,
+  };
+
+  assert.equal(findUniqueYucCatalogTarget(wistoria, [canonical])?.id, 515856);
 });
 
 test("read-only catalog matching handles reordered media labels and a unique Latin subtitle", () => {
