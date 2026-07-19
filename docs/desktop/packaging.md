@@ -9,9 +9,9 @@ This is the canonical Bandi repository for the Windows Electron product and macO
 - Latest GitHub release: https://github.com/Luis-Herry/bandi/releases/tag/v0.1.11
 - Latest release title: `Bandi v0.1.11`
 - Latest release source commit: `7ed3dc701e70c19b4d9dc5709d71a48e2284fcb4`
-- Release candidate version: none
-- Local installer: `release/Bandi-Setup-0.1.11-x64.exe`
-- Local portable build: `release/Bandi-0.1.11-x64-portable.exe`
+- Release candidate version: `0.1.12`
+- Local installer: `release/Bandi-Setup-0.1.12-x64.exe`
+- Local portable build: `release/Bandi-0.1.12-x64-portable.exe`
 - Latest release installer asset: `Bandi-Setup-0.1.11-x64.exe`
 - Latest release portable asset: `Bandi-0.1.11-x64-portable.exe`
 

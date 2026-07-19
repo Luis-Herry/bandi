@@ -809,9 +809,16 @@ test("desktop first-run onboarding owns download location and tray behavior", ()
   assert.match(mainSource, /inspectDownloadDirectory/);
   assert.match(mainSource, /fs\.statfsSync/);
   assert.match(mainSource, /bandi:get-desktop-settings/);
-  assert.match(mainSource, /bandi:open-download-directory/);
-  assert.match(mainSource, /shell\.openPath\(inspection\.downloadDir\)/);
-  assert.match(mainSource, /isTrustedMainWindowSender\(event\)/);
+  const openDownloadDirectoryHandler = mainSource.match(
+    /ipcMain\.handle\("bandi:open-download-directory", async \(event\) => \{[\s\S]*?\n  \}\);/,
+  )?.[0];
+  assert.ok(openDownloadDirectoryHandler);
+  assert.match(openDownloadDirectoryHandler, /isTrustedMainWindowSender\(event\)/);
+  assert.match(
+    openDownloadDirectoryHandler,
+    /shell\.openPath\(desktopConfig\.downloadDir\)/,
+  );
+  assert.doesNotMatch(openDownloadDirectoryHandler, /inspectDownloadDirectory/);
   assert.match(mainSource, /bandi:choose-download-directory/);
   assert.match(mainSource, /bandi:save-desktop-settings/);
   assert.match(mainSource, /\/api\/v2\/app\/setPreferences/);

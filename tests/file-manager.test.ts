@@ -4,7 +4,27 @@ import path from "node:path";
 import {
   buildFileManagerLaunch,
   isPathWithinRoot,
+  openInFileManager,
 } from "../src/lib/file-manager";
+
+function createSpawnStub(outcome: "error" | "spawn") {
+  let unrefCalled = false;
+  const spawnProcess = () => {
+    const listeners = new Map<string, () => void>();
+    const child = {
+      once(event: "error" | "spawn", listener: () => void) {
+        listeners.set(event, listener);
+        return child;
+      },
+      unref() {
+        unrefCalled = true;
+      },
+    };
+    queueMicrotask(() => listeners.get(outcome)?.());
+    return child;
+  };
+  return { spawnProcess, wasUnrefCalled: () => unrefCalled };
+}
 
 test("file manager path guard accepts descendants and rejects siblings", () => {
   const root = path.resolve("C:/Bandi/Downloads");
@@ -52,4 +72,26 @@ test("file manager launch keeps Finder reveal and fails closed elsewhere", () =>
     buildFileManagerLaunch("/tmp/video.mp4", { platform: "linux" }),
     null,
   );
+});
+
+test("file manager reports Explorer spawn success and releases the child", async () => {
+  const stub = createSpawnStub("spawn");
+  const opened = await openInFileManager("D:\\Bandi\\Downloads", {
+    platform: "win32",
+    windowsRoot: "C:\\Windows",
+    spawnProcess: stub.spawnProcess,
+  });
+  assert.equal(opened, true);
+  assert.equal(stub.wasUnrefCalled(), true);
+});
+
+test("file manager reports Explorer spawn failure without releasing the child", async () => {
+  const stub = createSpawnStub("error");
+  const opened = await openInFileManager("D:\\Bandi\\Downloads", {
+    platform: "win32",
+    windowsRoot: "C:\\Windows",
+    spawnProcess: stub.spawnProcess,
+  });
+  assert.equal(opened, false);
+  assert.equal(stub.wasUnrefCalled(), false);
 });

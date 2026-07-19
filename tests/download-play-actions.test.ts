@@ -257,6 +257,11 @@ test("downloads admin can open the configured root and each local item", () => {
   assert.match(clientSource, /打开下载目录/);
   assert.match(clientSource, /getDesktopBridge\(\)/);
   assert.match(clientSource, /bridge\?\.openDownloadDirectory/);
+  assert.match(clientSource, /if \(!desktopResult\.ok\)/);
+  assert.match(
+    clientSource,
+    /if \(!desktopResult\.ok\)[\s\S]*?title: "打开目录失败"[\s\S]*?return;[\s\S]*?title: "已打开下载目录"[\s\S]*?return;/,
+  );
   assert.match(clientSource, /result\.opened === "file"/);
   assert.match(clientSource, /更改保存位置请前往设置中心/);
   assert.match(clientSource, /aria-label="打开本地目录"/);

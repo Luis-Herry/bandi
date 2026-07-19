@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import type { SpawnOptions } from "node:child_process";
 import path from "node:path";
 
 interface FileManagerLaunchOptions {
@@ -11,6 +12,17 @@ interface FileManagerLaunch {
   command: string;
   args: string[];
 }
+
+interface FileManagerChildProcess {
+  once(event: "error" | "spawn", listener: () => void): FileManagerChildProcess;
+  unref(): void;
+}
+
+type FileManagerSpawner = (
+  command: string,
+  args: string[],
+  options: SpawnOptions,
+) => FileManagerChildProcess;
 
 export function isPathWithinRoot(root: string, candidate: string): boolean {
   const resolvedRoot = path.resolve(root);
@@ -49,14 +61,23 @@ export function buildFileManagerLaunch(
 
 export async function openInFileManager(
   targetPath: string,
-  { selectFile = false }: { selectFile?: boolean } = {},
+  {
+    selectFile = false,
+    platform = process.platform,
+    windowsRoot = process.env.SystemRoot || process.env.WINDIR,
+    spawnProcess = spawn,
+  }: FileManagerLaunchOptions & { spawnProcess?: FileManagerSpawner } = {},
 ): Promise<boolean> {
-  const launch = buildFileManagerLaunch(targetPath, { selectFile });
+  const launch = buildFileManagerLaunch(targetPath, {
+    selectFile,
+    platform,
+    windowsRoot,
+  });
   if (!launch) return false;
 
   try {
     return await new Promise<boolean>((resolve) => {
-      const child = spawn(launch.command, launch.args, {
+      const child = spawnProcess(launch.command, launch.args, {
         detached: true,
         shell: false,
         stdio: "ignore",

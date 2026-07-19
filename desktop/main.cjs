@@ -1304,12 +1304,8 @@ function registerDesktopIpc() {
     if (!isTrustedMainWindowSender(event)) {
       return { ok: false, error: "untrusted_sender" };
     }
-    const inspection = inspectDownloadDirectory(desktopConfig.downloadDir);
-    if (!inspection.ok) {
-      return { ok: false, error: "download_directory_unavailable" };
-    }
     try {
-      const openError = await shell.openPath(inspection.downloadDir);
+      const openError = await shell.openPath(desktopConfig.downloadDir);
       return openError
         ? { ok: false, error: "file_manager_unavailable" }
         : { ok: true };
