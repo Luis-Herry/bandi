@@ -6,14 +6,14 @@ This is the canonical Bandi repository for the Windows Electron product and macO
 
 - Repository: https://github.com/Luis-Herry/bandi
 - Visibility: public
-- Latest GitHub release: https://github.com/Luis-Herry/bandi/releases/tag/v0.1.11
-- Latest release title: `Bandi v0.1.11`
-- Latest release source commit: `7ed3dc701e70c19b4d9dc5709d71a48e2284fcb4`
-- Release candidate version: `0.1.12`
+- Latest GitHub release: https://github.com/Luis-Herry/bandi/releases/tag/v0.1.12
+- Latest release title: `Bandi v0.1.12`
+- Latest release source commit: `55d60e8177a8cb7239853de27ebda672b32f5d87`
+- Release candidate version: none
 - Local installer: `release/Bandi-Setup-0.1.12-x64.exe`
 - Local portable build: `release/Bandi-0.1.12-x64-portable.exe`
-- Latest release installer asset: `Bandi-Setup-0.1.11-x64.exe`
-- Latest release portable asset: `Bandi-0.1.11-x64-portable.exe`
+- Latest release installer asset: `Bandi-Setup-0.1.12-x64.exe`
+- Latest release portable asset: `Bandi-0.1.12-x64-portable.exe`
 
 `electron-builder` 在本地 `release/` 目录直接生成最终 ASCII 附件名，避免托管平台净化文件名后与校验清单不一致。
 
@@ -169,6 +169,19 @@ GitHub 公共标准 runner 固定为 `windows-2025`、Intel `macos-15-intel` 与
 - 每个失败假设只跑一次完整长耗时任务。失败后先检查阶段标记、runner artifact、进程树、known folder 和结果文件；没有新诊断就停止重跑。当前实测量级为本地 `desktop:dist` 约 14 分钟、Intel macOS 构建约 12 分钟、portable N-1 runner 约 20 分钟，任何串行重跑都要先说明它能新增哪条证据。
 - 验收脚本必须给下载、退出、安装、重启和健康检查各自设置超时，并在失败时保留脱敏诊断。总 job 超时只负责兜底，不能代替阶段级退出条件。
 - 发现真实产品缺口后，允许以“已通过 lane + 已定位失败 lane + 已发布修复 + 明确的未来触发条件”结束本轮。下一轮从已记录的公开基线继续，不回放整段发布历史。
+
+### v0.1.12 Release Record
+
+- Published: `2026-07-19`
+- Release: https://github.com/Luis-Herry/bandi/releases/tag/v0.1.12
+- Source commit: `55d60e8177a8cb7239853de27ebda672b32f5d87`
+- Draft workflow: `29682870385`；源码门禁、Windows x64、macOS x64、macOS arm64 与 Draft 聚合 5 个作业全部通过，13 个附件上传完成；公开后 Release ID `356312394`、latest、tag API、GitHub asset digest、`SHA256SUMS.txt` 与三套更新元数据反查一致
+- Tests: `481` total，`480` passed，`1` platform-expected skip；TypeScript、Next production build、本地 Windows `desktop:dist`、包内容审计和免安装 packaged-app smoke 通过；桌面快捷方式启动 `0.1.12` 后从下载管理真实打开配置目录
+- Windows: Setup SHA-256 `a22d1dadec93280185723ac9ad62a2244a9e984bec75d8fe7dc87cd2c65904ec`；portable SHA-256 `31ba8ac60e104620e01d06ef2e3540e6d9944a98ef88d802ee2e70fac40167e6`；两包均未签名
+- N-1 acceptance: 首次运行 `29683655738` 在产品启动前发现验收脚本尚未固定 `0.1.11` 基线；提交 `2f3bfb89b1740d0a342f432c77aee5c370cda9a0` 补齐并通过测试。最终运行 `29683739336` 中，Setup 旧版 launcher 与 parent lease 健康、配置未改动、CDP 参数齐全，但受信任页面未就绪并出现一个桌面错误日志，自动 Setup 更新未进入检测阶段；portable 完成下载、校验、三页提示、60 秒就绪保持和旧进程退出，随后 15 分钟内没有新版 lease、目标进程或 helper 结果，终态为 `leaseUpdatedAfterConsent=False`、`targetProcessCount=0`、`portableHelperCode=missing`。两条自动更新链路均未闭环，用户从公开 Release 手动运行对应新包
+- Security review: 13 个远端附件 digest 与校验清单一致；Setup、portable 和两套 macOS ZIP 共扫描 `114610` 个归档条目，本机数据库、环境文件、qBit profile、Cookie 与 torrent 遗留均为 `0`；两套 DMG 的 UDIF `koly` 尾标与 GitHub digest 通过
+- macOS: x64/arm64 均未签名、未公证，当前显示“下载新版”并手动安装；已构建，等待真机验收
+- Local direct runtime: `release\win-unpacked` 保留为仓库所有者日常运行副本，桌面 `追番中心.lnk` 已恢复并指向该目录；本机未安装 Setup
 
 ### v0.1.11 Release Record
 

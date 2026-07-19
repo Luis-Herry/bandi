@@ -4,7 +4,7 @@
 
 当前 Draft workflow 的 `signed_macos` 默认关闭，更新入口只显示“下载新版”并打开 GitHub Release。取得 Apple 证书后，维护者显式开启该输入；workflow 会同时设置 `BANDI_MAC_RELEASE=1` 与 `BANDI_MAC_AUTO_UPDATE=1`，要求 Developer ID 签名、公证、Gatekeeper、stapling 和包内更新标记全部通过。Apple Secret 缺失或签名构建失败时整轮停止，不会降级成未签名公开包。
 
-公开的 `v0.1.11` 使用 `signed_macos=false` 构建，x64 与 arm64 均未进行 Developer ID 签名或 Apple 公证，只验收“下载新版”与同架构 DMG 手动安装流程。
+公开的 `v0.1.12` 使用 `signed_macos=false` 构建，x64 与 arm64 均未进行 Developer ID 签名或 Apple 公证，只验收“下载新版”与同架构 DMG 手动安装流程。
 
 这份清单需要在两类 Mac 真机各跑一次：Intel x64 与 Apple Silicon ARM64。每台机器只构建并验收自己的架构；iPhone 和 iPad 的局域网步骤也应分别记录实际设备与系统版本。测试使用空白 Bandi 数据目录、公开测试视频和有权下载的测试资源；不要使用个人媒体库、成人观看记录、真实密码或私人 RSS。
 
@@ -130,12 +130,12 @@ lsof -nP -iTCP -sTCP:LISTEN | grep -E 'Bandi|node|qbittorrent'
 
 ## 7. 验证当前手动更新
 
-当前公开的 `v0.1.11` macOS 产物没有 Developer ID 签名与公证，应用内只显示“下载新版”。验证已公开版本时只从公开 Release 下载；验证未来候选版本时先用 Draft 附件完成包体与手动安装检查，人工确认后公开，再复验公开 URL 和应用内提示。两种阶段都禁止使用构建机器上的 unpacked app 或临时复制文件。Release 公开前先确认附件包括 x64 与 arm64 各自的 DMG、ZIP、channel 清单和 `SHA256SUMS.txt`，且清单中的 URL、size、sha512 与 ZIP 一致。
+当前公开的 `v0.1.12` macOS 产物没有 Developer ID 签名与公证，应用内只显示“下载新版”。验证已公开版本时只从公开 Release 下载；验证未来候选版本时先用 Draft 附件完成包体与手动安装检查，人工确认后公开，再复验公开 URL 和应用内提示。两种阶段都禁止使用构建机器上的 unpacked app 或临时复制文件。Release 公开前先确认附件包括 x64 与 arm64 各自的 DMG、ZIP、channel 清单和 `SHA256SUMS.txt`，且清单中的 URL、size、sha512 与 ZIP 一致。
 
-1. 候选版本在 GitHub Draft Release 页面下载；当前 `v0.1.11` 在公开 Release 页面下载。按测试 Mac 架构选择对应 DMG，并用 `SHA256SUMS.txt` 核对文件；Intel 只取 x64，Apple Silicon 只取 arm64。
+1. 候选版本在 GitHub Draft Release 页面下载；当前 `v0.1.12` 在公开 Release 页面下载。按测试 Mac 架构选择对应 DMG，并用 `SHA256SUMS.txt` 核对文件；Intel 只取 x64，Apple Silicon 只取 arm64。
 2. 在干净测试 Mac 上手动安装 DMG，记录未签名版本触发的 Gatekeeper 提示和实际放行步骤；当前阶段不能标记为“已签名”或“已公证”。
 3. 完成首次引导，记录一个合成追番进度、公开测试下载和测试下载目录；关闭再启动一次，确认数据库、设置和受管 qBittorrent 状态保持。
-4. 候选版本经人工确认后另行公开 Release。上一版本发现该公开版本时，全局提示应显示“下载新版”；点击后打开公开 Release，应用保持运行，不自动退出。直接复验 `v0.1.11` 时从这一步开始。
+4. 候选版本经人工确认后另行公开 Release。上一版本发现该公开版本时，全局提示应显示“下载新版”；点击后打开公开 Release，应用保持运行，不自动退出。直接复验 `v0.1.12` 时从这一步开始。
 5. 从公开 Release 下载正确架构的 DMG，用户自行选择退出时机并手动安装。再次启动后确认版本已更新，原数据库、下载目录、追番进度、测试文件和设置保持，受管 qBittorrent 只恢复一份实例。
 6. 已配对 iPhone/iPad 刷新 Mac 提供的 Local Web 页面即可获得新版界面。Safari 不下载 DMG/ZIP，也不显示桌面安装操作。
 7. 未来原生 iOS App 的版本检查与更新只走 TestFlight / App Store，不复用 GitHub Desktop channel。
