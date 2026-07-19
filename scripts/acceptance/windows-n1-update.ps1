@@ -257,6 +257,8 @@ try {
     "portable:v0.1.6" = "64f7b4f93475cfa776d520b270c0ce96cb98a29ee59c3e36aa10338c819fc3e9"
     "setup:v0.1.8" = "3725a4a033b00f7a346a477cc9504272dddfa7d8108a51585d496f7c6d3dc55c"
     "portable:v0.1.8" = "c66b295f78ab0bcdc9ec0f4f905dcc4ab7653d7a920f422962d69865b35bca1e"
+    "setup:v0.1.10" = "3a40b42b1ce707a1c66949b9d7049bfb4f2e06255079c39f4ca3b4d4608e8325"
+    "portable:v0.1.10" = "a6d71165b818db77992764ccff5ccec1332d223f581276b17fdf57f21d2a5a65"
   }
   $baseKey = "$Mode`:$BaseTag"
   Assert-True ($pinnedBaseChecksums.ContainsKey($baseKey)) "The requested N-1 baseline is not pinned"

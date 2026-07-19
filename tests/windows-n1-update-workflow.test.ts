@@ -34,6 +34,14 @@ test("Windows N-1 acceptance is manual, read-only, isolated, and fail-closed", (
   assert.match(acceptance, /"Downloads", "Music", "Pictures", "Videos"/);
   assert.match(acceptance, /application data was not clean before acceptance/);
   assert.match(acceptance, /pinnedBaseChecksums/);
+  assert.match(
+    acceptance,
+    /"setup:v0\.1\.10" = "3a40b42b1ce707a1c66949b9d7049bfb4f2e06255079c39f4ca3b4d4608e8325"/,
+  );
+  assert.match(
+    acceptance,
+    /"portable:v0\.1\.10" = "a6d71165b818db77992764ccff5ccec1332d223f581276b17fdf57f21d2a5a65"/,
+  );
   assert.match(acceptance, /releases\/latest/);
   assert.match(acceptance, /Get-FileHash[^\n]+SHA256/);
   assert.match(acceptance, /restart-to-install/);
