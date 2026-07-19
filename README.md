@@ -137,14 +137,14 @@
 
 ### 选择分发包
 
-当前公开版本是 [`v0.1.10`](https://github.com/Luis-Herry/bandi/releases/tag/v0.1.10)：
+当前公开版本是 [`v0.1.11`](https://github.com/Luis-Herry/bandi/releases/tag/v0.1.11)：
 
 | 文件 | 适合谁 | 使用方式 |
 |---|---|---|
-| `Bandi-Setup-0.1.10-x64.exe` | 日常长期使用 | 可选择安装目录，并创建桌面与开始菜单快捷方式 |
-| `Bandi-0.1.10-x64-portable.exe` | 临时体验或移动硬盘 | 直接运行；首次自解压可能需要等待一会儿 |
-| `Bandi-Local-Web-0.1.10-macOS-x64.dmg` | Intel Mac | 安装后由菜单栏启动本地服务，并在默认浏览器打开 |
-| `Bandi-Local-Web-0.1.10-macOS-arm64.dmg` | Apple Silicon Mac | 安装后由菜单栏启动本地服务，并在默认浏览器打开 |
+| `Bandi-Setup-0.1.11-x64.exe` | 日常长期使用 | 可选择安装目录，并创建桌面与开始菜单快捷方式 |
+| `Bandi-0.1.11-x64-portable.exe` | 临时体验或移动硬盘 | 直接运行；首次自解压可能需要等待一会儿 |
+| `Bandi-Local-Web-0.1.11-macOS-x64.dmg` | Intel Mac | 安装后由菜单栏启动本地服务，并在默认浏览器打开 |
+| `Bandi-Local-Web-0.1.11-macOS-arm64.dmg` | Apple Silicon Mac | 安装后由菜单栏启动本地服务，并在默认浏览器打开 |
 
 当前安装包尚未进行 Authenticode 代码签名，Windows SmartScreen 可能显示未知发布者。请只从本仓库 Releases 下载，并对照 Release 中公布的 SHA-256 校验值。
 
@@ -154,12 +154,12 @@
 
 所有版本先生成 Draft Release。GitHub Actions 负责构建和校验平台附件；Draft 只供维护者核对架构、文件大小、SHA-256 与更新清单，客户端看不到，人工验收通过后才单独公开。
 
-`v0.1.8 → v0.1.9` 的 Setup 已通过真实 N-1 更新验收。`v0.1.10` 修复 portable 的 NSIS 自解压 wrapper 与启动 helper 清理竞态；由于更新动作由旧版本执行，`v0.1.9 → v0.1.10` 若未自动打开新版，只需手动运行已下载的 `v0.1.10` 文件一次。portable 完整自动更新将在 `v0.1.10` 升级到下一正常版本时验收。
+`v0.1.10 → v0.1.11` 的 Setup 已通过真实 N-1 更新验收。portable 能下载并校验 v0.1.11、显示全局“退出并运行新版”并保持就绪，但本轮确认退出后没有自动启动新版，helper 也没有留下结果。若 portable 点击更新后没有出现新版窗口，请从 [`v0.1.11` Release](https://github.com/Luis-Herry/bandi/releases/tag/v0.1.11) 手动下载并运行 `Bandi-0.1.11-x64-portable.exe`；自动替换链路留待下一次正常产品修复与 N-1 验收。
 
 | 当前入口 | 发现新版后的体验 |
 |---|---|
 | Windows Setup | 后台下载，完成后在所有页面右下角显示“重启并更新” |
-| Windows portable | 后台下载同架构 portable，完成后显示“退出并运行新版” |
+| Windows portable | 后台下载同架构 portable，完成后显示“退出并运行新版”；若新版未自动打开，从当前 Release 手动运行 portable 文件 |
 | macOS Local Web | 所有业务页显示“下载新版”，打开公开 Release 后手动安装对应架构 DMG |
 | Mac 本机浏览器、iPhone / iPad Safari | Mac 宿主更新后显示“新版本已就绪，立即刷新”，刷新页面即可使用新界面 |
 
