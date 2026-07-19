@@ -1300,6 +1300,23 @@ function registerDesktopIpc() {
   ipcMain.handle("bandi:get-desktop-settings", () =>
     getDesktopSettingsState(),
   );
+  ipcMain.handle("bandi:open-download-directory", async (event) => {
+    if (!isTrustedMainWindowSender(event)) {
+      return { ok: false, error: "untrusted_sender" };
+    }
+    const inspection = inspectDownloadDirectory(desktopConfig.downloadDir);
+    if (!inspection.ok) {
+      return { ok: false, error: "download_directory_unavailable" };
+    }
+    try {
+      const openError = await shell.openPath(inspection.downloadDir);
+      return openError
+        ? { ok: false, error: "file_manager_unavailable" }
+        : { ok: true };
+    } catch {
+      return { ok: false, error: "file_manager_unavailable" };
+    }
+  });
   ipcMain.handle("bandi:choose-download-directory", async () => {
     const result = await dialog.showOpenDialog(mainWindow, {
       title: "选择 Bandi 下载目录",

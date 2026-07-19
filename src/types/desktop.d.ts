@@ -44,6 +44,11 @@ declare global {
     error?: string;
   }
 
+  interface DesktopOpenDirectoryResult {
+    ok: boolean;
+    error?: string;
+  }
+
   interface DesktopMediaDirectoryChoice {
     canceled: boolean;
     directoryPath?: string;
@@ -125,6 +130,7 @@ declare global {
     bandiDesktop?: {
       getSettings(): Promise<DesktopSettingsState>;
       chooseDownloadDirectory(): Promise<DesktopDirectoryChoice>;
+      openDownloadDirectory?(): Promise<DesktopOpenDirectoryResult>;
       chooseMediaDirectory(
         input?: DesktopMediaDirectoryInput,
       ): Promise<DesktopMediaDirectoryChoice>;

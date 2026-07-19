@@ -220,18 +220,31 @@ test("standalone preparation mirrors public and static directories", () => {
   }
 });
 
-test("desktop shortcut targets the on-demand Electron launcher", () => {
+test("desktop shortcuts keep direct local use and development launch separate", () => {
   const pkg = JSON.parse(readFileSync("package.json", "utf8")) as {
     scripts: Record<string, string>;
   };
-  const shortcut = readFileSync("scripts/create-shortcut.ps1", "utf8");
+  const developmentShortcut = readFileSync("scripts/create-shortcut.ps1", "utf8");
+  const directShortcut = readFileSync("scripts/create-direct-shortcut.ps1", "utf8");
   assert.equal(pkg.scripts["desktop:start"], "node scripts/desktop-dev-start.mjs");
   assert.equal(
     pkg.scripts["desktop:check-build"],
     "node scripts/desktop-dev-start.mjs --check",
   );
-  assert.match(shortcut, /start-bandi-desktop-dev\.bat/);
-  assert.match(shortcut, /按需构建并启动 Electron/);
+  assert.match(developmentShortcut, /start-bandi-desktop-dev\.bat/);
+  assert.match(developmentShortcut, /按需构建并启动 Electron/);
+  assert.equal(
+    pkg.scripts["desktop:shortcut"],
+    "powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File scripts/create-direct-shortcut.ps1",
+  );
+  assert.equal(
+    pkg.scripts["desktop:direct"],
+    "npm run desktop:pack && npm run desktop:shortcut",
+  );
+  assert.match(directShortcut, /release\\win-unpacked/);
+  assert.match(directShortcut, /Direct runtime is missing/);
+  assert.match(directShortcut, /CreateShortcut\(\$shortcutPath\)/);
+  assert.match(directShortcut, /\$shortcut\.TargetPath = \$targetPath/);
   assert.match(
     pkg.scripts["desktop:pack"],
     /^npm run build && npm run desktop:prepare && electron-builder --dir$/,

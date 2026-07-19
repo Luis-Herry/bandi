@@ -1,6 +1,17 @@
 import { spawn } from "node:child_process";
 import path from "node:path";
 
+interface FileManagerLaunchOptions {
+  selectFile?: boolean;
+  platform?: NodeJS.Platform;
+  windowsRoot?: string;
+}
+
+interface FileManagerLaunch {
+  command: string;
+  args: string[];
+}
+
 export function isPathWithinRoot(root: string, candidate: string): boolean {
   const resolvedRoot = path.resolve(root);
   const resolvedCandidate = path.resolve(candidate);
@@ -11,31 +22,52 @@ export function isPathWithinRoot(root: string, candidate: string): boolean {
   );
 }
 
-export function openInFileManager(
+export function buildFileManagerLaunch(
+  targetPath: string,
+  {
+    selectFile = false,
+    platform = process.platform,
+    windowsRoot = process.env.SystemRoot || process.env.WINDIR,
+  }: FileManagerLaunchOptions = {},
+): FileManagerLaunch | null {
+  if (platform === "darwin") {
+    return {
+      command: "/usr/bin/open",
+      args: selectFile ? ["-R", targetPath] : [targetPath],
+    };
+  }
+
+  if (platform !== "win32" || !windowsRoot || !path.win32.isAbsolute(windowsRoot)) {
+    return null;
+  }
+
+  return {
+    command: path.win32.join(windowsRoot, "explorer.exe"),
+    args: selectFile ? ["/select,", targetPath] : [targetPath],
+  };
+}
+
+export async function openInFileManager(
   targetPath: string,
   { selectFile = false }: { selectFile?: boolean } = {},
-): boolean {
-  if (process.platform !== "win32" && process.platform !== "darwin") {
-    return false;
-  }
+): Promise<boolean> {
+  const launch = buildFileManagerLaunch(targetPath, { selectFile });
+  if (!launch) return false;
+
   try {
-    const command = process.platform === "darwin" ? "/usr/bin/open" : "explorer.exe";
-    const args =
-      process.platform === "darwin"
-        ? selectFile
-          ? ["-R", targetPath]
-          : [targetPath]
-        : selectFile
-          ? ["/select,", targetPath]
-          : [targetPath];
-    const child = spawn(command, args, {
-      detached: true,
-      shell: false,
-      stdio: "ignore",
-      windowsHide: true,
+    return await new Promise<boolean>((resolve) => {
+      const child = spawn(launch.command, launch.args, {
+        detached: true,
+        shell: false,
+        stdio: "ignore",
+        windowsHide: false,
+      });
+      child.once("error", () => resolve(false));
+      child.once("spawn", () => {
+        child.unref();
+        resolve(true);
+      });
     });
-    child.unref();
-    return true;
   } catch {
     return false;
   }

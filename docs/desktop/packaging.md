@@ -64,6 +64,8 @@ The YUC cache stores normalized 长门番堂 facts and HTTP validators only. It 
 
 ```bash
 npm run desktop:pack
+npm run desktop:shortcut
+npm run desktop:direct
 npm run desktop:dist
 npm run desktop:start
 npm run desktop:check-build
@@ -73,11 +75,13 @@ npm run local-server:dist:arm64
 
 `desktop:dist` builds Next standalone output, copies `public/` and `.next/static/` into the standalone server folder, then creates an NSIS installer exe and a portable Windows exe in `release/`.
 
+`desktop:direct` is the repository owner's default local Windows rebuild command. It runs `desktop:pack`, keeps the directly runnable `release/win-unpacked/追番中心.exe`, and creates or refreshes the desktop `追番中心.lnk`. Local use must remain installation-free: a rebuild is complete only after the shortcut targets the unpacked executable and a real window opens. Routine artifact cleanup must preserve both the unpacked runtime and this desktop entry.
+
 公开的 Windows Desktop 与 macOS Local Web 分发包不捆绑 FFmpeg 或 `ffmpeg-static`。兼容播放需要时，Bandi 会发现宿主系统已经安装的 FFmpeg：Windows 检查 PATH 与 WinGet Links，macOS 检查 PATH 与 Homebrew 常用路径；管理员也可以同时提供经过 SHA-256 固定的显式路径。系统组件缺失或校验失败时只停用兼容播放，原文件 Range 播放与外部播放器入口继续可用。
 
 `desktop:start` 面向本地开发快捷方式。它对 `src/`、根配置、依赖清单和 `.env*` 计算内容 SHA-256，校验 standalone server、两份一致的 `BUILD_ID`、server 运行树和关键 manifest；输入变化、文件删除或产物残缺时才执行 Next build。build 前后输入指纹不一致会停止启动，避免把编译期间的新改动错误标成已构建。`desktop:prepare` 对 `public/` 和 `.next/static/` 做镜像同步，已删除资源不会残留到 standalone。
 
-The portable exe self-extracts on launch, so its first launch can be noticeably slower than the installed build. The installer is the recommended daily-use artifact.
+The portable exe self-extracts on launch, so its first launch can be noticeably slower than the installed build. The installer remains the recommended artifact for public recipients; the repository owner uses the retained unpacked runtime through the desktop direct shortcut.
 
 ## macOS Local Web Packaging
 
@@ -312,6 +316,6 @@ Douban `type: tv` includes live-action television and TV animation. Every TV hit
 
 ## Real-window Release Verification
 
-For changes to Electron lifecycle, image networking, source matching, or UI layout, run `npm run desktop:dist` and verify `release/win-unpacked/追番中心.exe` with real pointer/keyboard input. The minimum route order is cinema cards → cinema detail Hero → global search thumbnails → qBit status → maximize/restore → tray hide/reopen → full exit → log and database checks.
+For local changes, run `npm run desktop:direct` and verify the desktop `追番中心.lnk` with real pointer/keyboard input. Formal release changes still run `npm run desktop:dist`. The minimum route order is cinema cards → cinema detail Hero → global search thumbnails → qBit status → maximize/restore → tray hide/reopen → full exit → log and database checks. Every cleanup pass keeps `release/win-unpacked` because it is the local direct-run delivery.
 
 Release verification must use synthetic data and a disposable database. Publish the test, type-check, build, package and checksum results in the GitHub Release notes without including local paths, media titles, database counts or download activity.

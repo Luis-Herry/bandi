@@ -347,6 +347,7 @@ npm run desktop:start
 | `npm run build` | 构建 Next.js 生产版本 |
 | `npm run desktop:prepare` | 准备 Electron 所需 standalone 资源 |
 | `npm run desktop:check-build` | 检查桌面输入指纹和构建完整性 |
+| `npm run desktop:direct` | 重建免安装 `win-unpacked` 并恢复桌面 `追番中心.lnk` |
 | `npm run desktop:dist` | 生成 Windows 安装版与 portable |
 | `npm run local-server:dist:x64` | 在 Intel Mac 生成 x64 DMG 与 ZIP |
 | `npm run local-server:dist:arm64` | 在 Apple Silicon Mac 生成 ARM64 DMG 与 ZIP |

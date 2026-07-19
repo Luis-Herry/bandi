@@ -8,6 +8,7 @@
 - 本仓库是追番中心唯一现行主仓库；产品迭代、桌面运行、打包与验收都在这里完成
 - GitHub 仓库：`https://github.com/Luis-Herry/bandi`
 - 当前分发版本为 `0.1.11`；发布与打包状态以 `docs/desktop/packaging.md` 为准
+- 仓库所有者在本机固定使用桌面 `追番中心.lnk` 直开 `release\win-unpacked\追番中心.exe`，无需安装 Setup。`release\win-unpacked` 属于必须保留的本机运行副本，常规清理永远排除该目录与桌面入口；只有用户明确撤销免安装入口时才允许删除
 - 桌面版通过 Electron 打包，内置 `vendor/node/node.exe` 和 `vendor/qbittorrent/qbittorrent.exe`
 - 桌面数据库、配置、受管 qBit profile、日志和服务缓存写入 `%APPDATA%\anime-tracker\`；播放器截图写入 Windows“图片”目录下的 `Bandi` 文件夹。视频下载目录由首次引导或设置中心选择，默认建议为 Windows“视频”目录下的 `Bandi\Downloads`，支持任意可写本地子目录或 UNC 网络共享
 - 桌面版把内置 qBittorrent 作为零配置后台下载服务：主进程自动选择回环端口、生成凭据、做 API 健康检查并在异常退出后恢复；正常界面隐藏 Web UI 地址、端口和账号。`public/qbit-guide/` 只供外部 qBittorrent 兼容模式使用。
@@ -172,6 +173,7 @@ npm run build    # 构建生产版本到 .next/
 npm start        # 生产启动（必须先 build；端口 3000；启用 Node 环境代理）
 npm run desktop:prepare # 复制 standalone 所需静态资源
 npm run desktop:start   # 校验输入指纹与构建完整性，按需 build 后启动 Electron
+npm run desktop:direct  # 重建 win-unpacked 并恢复桌面免安装直开入口
 npm run desktop:dist    # 构建 Windows 安装包和便携版
 npm run db:push  # 推送 schema 到数据库
 npm run db:seed  # 填充测试数据
@@ -179,8 +181,11 @@ npm run db:seed  # 填充测试数据
 
 开发脚本（Windows）：
 
-- **桌面 `追番中心-开发模式.lnk`** — 由 `scripts/create-shortcut.ps1` 生成，只启动浏览器开发/调试链路；日常使用安装版或 portable
+- **桌面 `追番中心.lnk`** — 仓库所有者的默认日常入口，由 `npm run desktop:direct` 创建并固定指向 `release\win-unpacked\追番中心.exe`；本机验收和交付不得要求用户安装 Setup
+- **桌面 `追番中心-开发模式.lnk`** — 由 `scripts/create-shortcut.ps1` 生成，只用于源码开发/调试链路
 - **项目根 `update-anime.bat`** — 开发模式更新：build → 杀占 3000 端口的旧进程 → 弹新窗口起 `npm start`。build 失败时**不会**杀旧服务
+
+本机重建的完成条件包含：`release\win-unpacked\追番中心.exe` 存在、桌面 `追番中心.lnk` 目标与工作目录准确、双击后真实窗口可用。清理缓存时不得把 `release\win-unpacked` 当作可删除的过程遗物。
 
 何时必须重 build：改了 `src/`、`*.config.*`、`package.json` deps、`NEXT_PUBLIC_*` 环境变量、Drizzle schema。其他情况只重启 `npm start` 即可。
 

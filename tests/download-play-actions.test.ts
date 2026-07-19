@@ -255,6 +255,9 @@ test("downloads admin can open the configured root and each local item", () => {
   );
 
   assert.match(clientSource, /打开下载目录/);
+  assert.match(clientSource, /getDesktopBridge\(\)/);
+  assert.match(clientSource, /bridge\?\.openDownloadDirectory/);
+  assert.match(clientSource, /result\.opened === "file"/);
   assert.match(clientSource, /更改保存位置请前往设置中心/);
   assert.match(clientSource, /aria-label="打开本地目录"/);
   assert.match(clientSource, /title="打开本地目录"/);
@@ -266,6 +269,7 @@ test("downloads admin can open the configured root and each local item", () => {
   assert.match(routeSource, /resolveDownloadRoot\(\)/);
   assert.match(routeSource, /parseLocalFileDownloadUrl/);
   assert.match(routeSource, /getTorrentFiles/);
+  assert.match(routeSource, /opened: selectFile \? "file" : "directory"/);
   assert.doesNotMatch(routeSource, /body\.(?:path|directory|target)/);
 });
 

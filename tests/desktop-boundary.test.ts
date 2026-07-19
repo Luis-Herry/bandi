@@ -809,6 +809,9 @@ test("desktop first-run onboarding owns download location and tray behavior", ()
   assert.match(mainSource, /inspectDownloadDirectory/);
   assert.match(mainSource, /fs\.statfsSync/);
   assert.match(mainSource, /bandi:get-desktop-settings/);
+  assert.match(mainSource, /bandi:open-download-directory/);
+  assert.match(mainSource, /shell\.openPath\(inspection\.downloadDir\)/);
+  assert.match(mainSource, /isTrustedMainWindowSender\(event\)/);
   assert.match(mainSource, /bandi:choose-download-directory/);
   assert.match(mainSource, /bandi:save-desktop-settings/);
   assert.match(mainSource, /\/api\/v2\/app\/setPreferences/);
@@ -820,6 +823,7 @@ test("desktop first-run onboarding owns download location and tray behavior", ()
   assert.match(mainSource, /"\/onboarding"/);
   assert.match(mainSource, /if \(desktopConfig\.closeToTray\)/);
   assert.match(preloadSource, /contextBridge\.exposeInMainWorld\("bandiDesktop"/);
+  assert.match(preloadSource, /bandi:open-download-directory/);
   assert.match(onboardingSource, /确认新版下载位置/);
   assert.match(onboardingSource, /completeOnboarding: true/);
   assert.match(onboardingSource, /1080p/);

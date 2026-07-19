@@ -92,9 +92,13 @@ function isExistingDirectory(candidate: string): boolean {
   }
 }
 
-function openTarget(targetPath: string, selectFile: boolean, fallback: boolean) {
-  if (!openInFileManager(targetPath, { selectFile })) {
+async function openTarget(targetPath: string, selectFile: boolean, fallback: boolean) {
+  if (!(await openInFileManager(targetPath, { selectFile }))) {
     return NextResponse.json({ error: "file_manager_unavailable" }, { status: 500 });
   }
-  return NextResponse.json({ ok: true, fallback });
+  return NextResponse.json({
+    ok: true,
+    fallback,
+    opened: selectFile ? "file" : "directory",
+  });
 }

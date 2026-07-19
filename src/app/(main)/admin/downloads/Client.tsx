@@ -30,6 +30,7 @@ import { showToast } from "@/components/features/ToastHost";
 import { AnimeDataRefreshButton } from "@/components/features/AnimeDataRefreshButton";
 import { PageHeader } from "@/components/features/PageHeader";
 import { cn } from "@/lib/cn";
+import { getDesktopBridge } from "@/lib/desktop-bridge";
 import { formatDataSize, formatTransferSpeed } from "@/lib/transfer-format";
 import type { DownloadStatus } from "@/components/ui";
 
@@ -329,6 +330,26 @@ export function DownloadsAdminClient({
   }
 
   async function handleOpenLocation(downloadId?: number) {
+    if (downloadId == null) {
+      const bridge = getDesktopBridge();
+      if (bridge?.openDownloadDirectory) {
+        const desktopResult = await bridge.openDownloadDirectory().catch(() => ({
+          ok: false,
+          error: "file_manager_unavailable",
+        }));
+        if (!desktopResult.ok) {
+          showToast({
+            title: "打开目录失败",
+            description: "下载目录暂时无法访问",
+            tone: "error",
+          });
+          return;
+        }
+        showToast({ title: "已打开下载目录", tone: "info" });
+        return;
+      }
+    }
+
     const response = await fetch("/api/downloads/open-location", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -337,6 +358,7 @@ export function DownloadsAdminClient({
     const result = (await response.json().catch(() => ({}))) as {
       ok?: boolean;
       fallback?: boolean;
+      opened?: "directory" | "file";
       error?: string;
     };
     if (!response.ok || !result.ok) {
@@ -351,7 +373,7 @@ export function DownloadsAdminClient({
       return;
     }
     showToast({
-      title: result.fallback ? "已打开下载目录" : "已定位本地文件",
+      title: result.opened === "file" ? "已定位本地文件" : "已打开下载目录",
       description: result.fallback ? "当前任务尚未生成可定位的视频文件" : undefined,
       tone: "info",
     });

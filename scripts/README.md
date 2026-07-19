@@ -1,8 +1,20 @@
-# 追番中心 - Desktop 开发启动脚本
+# 追番中心 - Desktop 本机启动脚本
 
-这些脚本只用于开发/调试。现行产品是 Electron 桌面版，日常使用和分发都应运行 `release/` 内的安装版或 portable；打包说明见 `docs/desktop/packaging.md`。
+这些脚本同时维护仓库所有者的免安装直开入口与开发调试入口。打包说明见 `docs/desktop/packaging.md`。
 
-## 一次性配置：生成桌面快捷方式
+## 默认本机入口：免安装直开
+
+在仓库根目录运行：
+
+```powershell
+npm run desktop:direct
+```
+
+该命令完成生产构建、standalone 准备和 Electron 解包，然后创建桌面 `追番中心.lnk`。快捷方式固定指向 `release\win-unpacked\追番中心.exe`，双击即可打开，无需运行 Setup 或 portable 自解压包。
+
+`release\win-unpacked` 是本机日常运行副本，清理构建遗物时必须保留。源码变化后再次运行 `npm run desktop:direct`，同一路径和桌面入口会原地刷新。
+
+## 可选入口：开发模式快捷方式
 
 在仓库根目录的 PowerShell 中运行：
 
@@ -12,7 +24,7 @@ powershell -ExecutionPolicy Bypass -File ".\scripts\create-shortcut.ps1"
 
 完成后桌面会出现「追番中心-开发模式.lnk」，避免与正式安装版快捷方式混淆。
 
-## 日常使用
+## 开发模式使用
 
 1. 双击桌面「追番中心-开发模式」图标
 2. 启动器比较源码、根配置和 `.env*` 的内容 SHA-256，只在输入变化或构建残缺时运行 Next build
@@ -21,6 +33,7 @@ powershell -ExecutionPolicy Bypass -File ".\scripts\create-shortcut.ps1"
 ## 重要前提
 
 - 第一次使用或源码、配置、依赖清单更新后，启动器会自动 build。
+- 本机日常使用优先双击桌面 `追番中心.lnk`；开发模式只用于按源码启动和调试。
 - 构建失败时不会启动残缺应用；已有 `release/` 安装包不受影响。
 - 只想查看判断结果可运行 `npm run desktop:check-build`。
 - 发布用 `npm run desktop:dist` 始终执行完整构建，不复用开发判断。
@@ -57,6 +70,7 @@ netsh interface ipv6 show excludedportrange protocol=tcp
 
 ### 想换图标
 
+- 免安装直开快捷方式读取 `release\win-unpacked\追番中心.exe` 的正式应用图标；重新运行 `npm run desktop:shortcut` 即可刷新入口。
 - 开发模式桌面快捷方式读取 `public\favicon.ico`；替换后重新运行 `create-shortcut.ps1`。
 - 正式 Windows 窗口、Setup 与 portable 读取 `desktop\assets\app-icon.ico`；同步同一图标族的 PNG/favicon 后，结束旧应用进程并运行 `npm run desktop:dist`。
 
@@ -67,5 +81,6 @@ netsh interface ipv6 show excludedportrange protocol=tcp
 | `start-bandi-desktop-dev.bat` | 按需构建并启动 Electron（开发快捷方式入口） |
 | `desktop-dev-start.mjs` | 比较输入内容指纹、校验构建完整性、准备 standalone 并启动 Electron |
 | `start-anime-tracker.bat` | 保留的浏览器调试入口，依赖外部 qBit |
-| `create-shortcut.ps1` | 生成桌面快捷方式（只需跑一次） |
+| `create-direct-shortcut.ps1` | 为 `release\win-unpacked` 创建免安装桌面入口 |
+| `create-shortcut.ps1` | 生成开发模式桌面快捷方式 |
 | `README.md` | 本文件 |
