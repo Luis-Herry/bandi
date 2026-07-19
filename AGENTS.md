@@ -7,7 +7,7 @@
 
 - 本仓库是追番中心唯一现行主仓库；产品迭代、桌面运行、打包与验收都在这里完成
 - GitHub 仓库：`https://github.com/Luis-Herry/bandi`
-- 当前分发版本为 `0.1.10`；发布与打包状态以 `docs/desktop/packaging.md` 为准
+- 下一分发版本为 `0.1.11`；当前公开版本与发布状态以 `docs/desktop/packaging.md` 为准
 - 桌面版通过 Electron 打包，内置 `vendor/node/node.exe` 和 `vendor/qbittorrent/qbittorrent.exe`
 - 桌面数据库、配置、受管 qBit profile、日志和服务缓存写入 `%APPDATA%\anime-tracker\`；播放器截图写入 Windows“图片”目录下的 `Bandi` 文件夹。视频下载目录由首次引导或设置中心选择，默认建议为 Windows“视频”目录下的 `Bandi\Downloads`，支持任意可写本地子目录或 UNC 网络共享
 - 桌面版把内置 qBittorrent 作为零配置后台下载服务：主进程自动选择回环端口、生成凭据、做 API 健康检查并在异常退出后恢复；正常界面隐藏 Web UI 地址、端口和账号。`public/qbit-guide/` 只供外部 qBittorrent 兼容模式使用。
