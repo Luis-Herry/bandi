@@ -12,6 +12,7 @@ import { inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { downloadQueue } from "@/db/schema";
 import { resetDownloadedFlagsWithoutCompletedRows } from "@/lib/download-cleanup";
+import { dismissDownloadSources } from "@/lib/download-dismissals";
 import { requireRouteUser } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -36,10 +37,14 @@ export async function POST(req: Request) {
   }
 
   const rows = db
-    .select({ episodeId: downloadQueue.episodeId })
+    .select({
+      episodeId: downloadQueue.episodeId,
+      magnetUrl: downloadQueue.magnetUrl,
+    })
     .from(downloadQueue)
     .where(inArray(downloadQueue.id, ids))
     .all();
+  const dismissed = dismissDownloadSources(rows.map((row) => row.magnetUrl));
   const result = db
     .delete(downloadQueue)
     .where(inArray(downloadQueue.id, ids))
@@ -51,6 +56,7 @@ export async function POST(req: Request) {
   return NextResponse.json({
     ok: true,
     deleted: result.changes ?? 0,
+    dismissed,
     resetDownloaded,
   });
 }

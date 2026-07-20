@@ -25,6 +25,8 @@ import {
   type LibraryAnimeRef,
 } from "@/lib/rss";
 import { findDownloadDuplicate } from "@/lib/download-dedupe";
+import { listDismissedDownloadSourceKeys } from "@/lib/download-dismissals";
+import { buildDownloadSourceKey } from "@/lib/download-reconcile";
 import { buildSafeTorrentOptions } from "@/lib/download-safety";
 import { addTorrent } from "@/lib/qbit";
 import { getPreferences } from "@/lib/preferences";
@@ -178,6 +180,7 @@ export async function runCheckRss(): Promise<CheckRssResult> {
 
   // 跨源的 magnet 去重缓存（同一次运行内）
   const seenMagnets = new Set<string>();
+  const dismissedSourceKeys = listDismissedDownloadSourceKeys();
 
   for (const src of sources) {
     try {
@@ -192,6 +195,11 @@ export async function runCheckRss(): Promise<CheckRssResult> {
         }
 
         const magnet = it.magnet!;
+        const sourceKey = buildDownloadSourceKey(magnet);
+        if (sourceKey && dismissedSourceKeys.has(sourceKey)) {
+          result.skipped += 1;
+          continue;
+        }
         if (seenMagnets.has(magnet)) {
           result.skipped += 1;
           continue;

@@ -85,6 +85,8 @@ test("notifications include download queue status and qbit interruption signals"
   assert.match(notificationHelperSource, /下载完成/);
   assert.match(notificationHelperSource, /下载失败/);
   assert.match(notificationHelperSource, /下载连接中断/);
+  assert.match(notificationHelperSource, /文件不存在/);
+  assert.match(notificationHelperSource, /本地源文件已移动或删除/);
   assert.match(notificationHelperSource, /\/admin\/downloads/);
   assert.match(notificationHelperSource, /download-completed-/);
   assert.match(notificationHelperSource, /download-failed-/);

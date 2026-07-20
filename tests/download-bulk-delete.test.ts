@@ -28,6 +28,9 @@ const retryRouteSource = readFileSync(
 );
 const cleanupSource = readFileSync("src/lib/download-cleanup.ts", "utf8");
 const dedupeSource = readFileSync("src/lib/download-dedupe.ts", "utf8");
+const downloadsRouteSource = readFileSync("src/app/api/downloads/route.ts", "utf8");
+const reconcileSource = readFileSync("src/lib/download-reconcile.ts", "utf8");
+const dismissalSource = readFileSync("src/lib/download-dismissals.ts", "utf8");
 
 test("downloads admin exposes bulk local-list removal controls", () => {
   assert.match(clientSource, /selectedDownloadIds/);
@@ -35,7 +38,8 @@ test("downloads admin exposes bulk local-list removal controls", () => {
   assert.match(clientSource, /全选当前分类/);
   assert.match(clientSource, /删除所选/);
   assert.match(clientSource, /清空列表/);
-  assert.match(clientSource, /不会删除下载引擎中的任务或本地文件/);
+  assert.match(clientSource, /后续刷新不会重新加入/);
+  assert.match(clientSource, /下载引擎任务和本地文件保持不变/);
 });
 
 test("download row selection keeps only one visible checkbox frame", () => {
@@ -89,6 +93,20 @@ test("bulk delete route removes only local download queue rows", () => {
     bulkDeleteRouteSource,
     /from ["']@\/lib\/qbit|addTorrent|pauseTorrent|deleteTorrent|removeTorrent|deleteFiles/,
   );
+  assert.match(singleDeleteRouteSource, /dismissDownloadSources/);
+  assert.match(bulkDeleteRouteSource, /dismissDownloadSources/);
+  assert.match(dismissalSource, /download_dismissal_v1:/);
+  assert.match(downloadsRouteSource, /listDismissedDownloadSourceKeys/);
+  assert.match(reconcileSource, /dismissedSourceKeys/);
+});
+
+test("missing source files have their own download state and explanation", () => {
+  assert.match(clientSource, /missing: "文件缺失"/);
+  assert.match(clientSource, /源文件已移动或删除/);
+  assert.match(clientSource, /status: "missing"/);
+  assert.match(downloadsRouteSource, /deriveQbitDownloadIssue/);
+  assert.match(downloadsRouteSource, /errorMessage: liveIssue/);
+  assert.match(reconcileSource, /DOWNLOAD_ISSUE_LOCAL_FILE_MISSING/);
 });
 
 test("download row deletion clears stale downloaded episode flags", () => {

@@ -145,6 +145,30 @@ test("YUC add reuses canonical split-cour and numeric-season local rows", async 
   verify.close();
 });
 
+test("YUC identity binds Mushoku Tensei when the season marker moves around the subtitle", async () => {
+  const localId = insertAnime({
+    title: "无职转生 第三季 ～到了异世界就拿出真本事～",
+    titleJa: "無職転生Ⅲ ～異世界行ったら本気だす～",
+    type: "TV",
+    year: 2026,
+  });
+  const identity = await identities();
+  const result = identity.resolveYucAnime(
+    entryOf({
+      title: "无职转生 第3期",
+      titleJa: "無職転生 ～異世界行ったら本気だす～ 第3期",
+      premiereDate: "2026-07-12",
+      totalEpisodes: null,
+      seasonYear: 2026,
+      seasonMonth: 7,
+    }),
+  );
+
+  assert.equal(result.anime.id, localId);
+  assert.equal(result.matchedBy, "local");
+  assert.equal(identity.listYucIdentitiesForAnime(localId).length, 1);
+});
+
 test("metadata refresh resolves the correct Bangumi cour from YUC schedule facts", async () => {
   const { findUniqueBangumiSubject } = await import(
     "../src/lib/anime-metadata-refresh"

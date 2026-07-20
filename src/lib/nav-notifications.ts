@@ -7,6 +7,7 @@ import { desc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { anime, appSettings, downloadQueue } from "@/db/schema";
 import { filterShadowLocalFileDownloads } from "@/lib/download-reconcile";
+import { DOWNLOAD_ISSUE_LOCAL_FILE_MISSING } from "@/lib/download-status";
 
 export type NavNotificationTone =
   | "alert"
@@ -259,6 +260,19 @@ function downloadRowToNotification(row: {
   }
 
   if (row.status === "failed") {
+    if (row.errorMessage === DOWNLOAD_ISSUE_LOCAL_FILE_MISSING) {
+      return {
+        id: `download-missing-${row.id}-${timeKey}`,
+        tone: "danger",
+        icon: "alert",
+        countsAsUnread: true,
+        isRead: false,
+        title: "文件不存在",
+        description: `${subject} 的本地源文件已移动或删除${release}`,
+        href: DOWNLOADS_HREF,
+        actionLabel: "处理记录",
+      };
+    }
     const interrupted = isQbitConnectionError(row.errorMessage);
     return {
       id: `download-failed-${row.id}-${timeKey}`,

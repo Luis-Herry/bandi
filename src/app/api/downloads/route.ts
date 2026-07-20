@@ -5,6 +5,7 @@ import { db } from "@/db";
 import { anime, downloadQueue, episodes, userAnime } from "@/db/schema";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import {
+  deriveQbitDownloadIssue,
   deriveQbitDownloadStatus,
   filterShadowLocalFileDownloads,
   findMatchingQbitTorrent,
@@ -13,6 +14,10 @@ import {
   parseLocalFileDownloadUrl,
   planExternalDownloadImports,
 } from "@/lib/download-reconcile";
+import {
+  clearDownloadSourceDismissal,
+  listDismissedDownloadSourceKeys,
+} from "@/lib/download-dismissals";
 import { findDownloadDuplicate } from "@/lib/download-dedupe";
 import { resetDownloadedFlagsWithoutCompletedRows } from "@/lib/download-cleanup";
 import { resolveDownloadRoot } from "@/lib/download-root";
@@ -55,7 +60,11 @@ export async function GET() {
     live,
     qbitConnected: qbitStatus.connected,
   });
-  syncExternalDownloads(live, downloadRoot.path);
+  syncExternalDownloads(
+    live,
+    downloadRoot.path,
+    listDismissedDownloadSourceKeys(),
+  );
   backfillMissingDownloadEpisodeRefs();
 
   const rows = await db
@@ -86,9 +95,11 @@ export async function GET() {
     let status: DbStatus = r.d.status as DbStatus;
     let progress = r.d.progress;
     let speed: string | null = r.d.speed ?? null;
+    let errorMessage = r.d.errorMessage;
 
     if (lt) {
       const liveStatus = deriveQbitDownloadStatus(lt) as DbStatus;
+      const liveIssue = deriveQbitDownloadIssue(lt);
       const livePct = Math.min(100, Math.max(0, Math.round(lt.progress * 100)));
       const completedNow = shouldPauseAfterCompletion(status, liveStatus);
       const liveSpeedStr = lt.dlspeed > 0 ? null : null; // 不存速度，UI 用 liveSpeed 实时显示
@@ -96,13 +107,15 @@ export async function GET() {
       const changed =
         liveStatus !== status ||
         Math.abs(livePct - progress) >= 1 ||
-        speed !== liveSpeedStr;
+        speed !== liveSpeedStr ||
+        errorMessage !== liveIssue;
 
       if (changed) {
         db.update(downloadQueue)
           .set({
             status: liveStatus,
             progress: livePct,
+            errorMessage: liveIssue,
             updatedAt: now,
           })
           .where(eq(downloadQueue.id, r.d.id))
@@ -122,9 +135,17 @@ export async function GET() {
           const hash = extractMagnetHash(r.d.magnetUrl);
           if (hash) pauseHashes.add(hash);
         }
+        if (
+          liveStatus !== "completed" &&
+          r.d.episodeId != null &&
+          (status === "completed" || liveIssue != null)
+        ) {
+          resetDownloadedFlagsWithoutCompletedRows([r.d.episodeId]);
+        }
 
         status = liveStatus;
         progress = livePct;
+        errorMessage = liveIssue;
       }
     }
 
@@ -137,6 +158,7 @@ export async function GET() {
       status,
       progress,
       speed,
+      errorMessage,
       anime: r.anime?.id ? r.anime : null,
       episodeNumber: r.episodeNumber ?? null,
       liveProgress: lt ? lt.progress : null,
@@ -269,7 +291,11 @@ function backfillMissingDownloadEpisodeRefs() {
   }
 }
 
-function syncExternalDownloads(live: QbitTorrent[], downloadRoot: string) {
+function syncExternalDownloads(
+  live: QbitTorrent[],
+  downloadRoot: string,
+  dismissedSourceKeys: ReadonlySet<string>,
+) {
   const existingDownloads = db
     .select({
       title: downloadQueue.title,
@@ -303,6 +329,7 @@ function syncExternalDownloads(live: QbitTorrent[], downloadRoot: string) {
     animeRefs,
     episodeRefs,
     aliasesByAnimeId: getAllRssTitleAliases(),
+    dismissedSourceKeys,
   });
 
   if (imports.length === 0) return;
@@ -417,6 +444,7 @@ export async function POST(req: Request) {
     })
     .returning({ id: downloadQueue.id })
     .get();
+  clearDownloadSourceDismissal(body.magnetUrl);
 
   // Push to qBit, update status accordingly.
   const result = await addTorrent(

@@ -1,4 +1,5 @@
 import { existsSync, readdirSync } from "node:fs";
+import { createHash } from "node:crypto";
 import path from "node:path";
 import { extractEpisodeNumber, extractSeason, stripSeasonSuffix } from "@/lib/rss";
 import {
@@ -8,6 +9,11 @@ import {
 import { expandZhVariants } from "@/lib/zh-convert";
 import { extractMagnetHash, type QbitTorrent } from "@/lib/qbit";
 import { resolveUniqueEpisodeRangeCandidate } from "@/lib/anime-season-range";
+import {
+  DOWNLOAD_ISSUE_LOCAL_FILE_MISSING,
+  DOWNLOAD_ISSUE_QBIT_ERROR,
+  type DownloadIssueCode,
+} from "@/lib/download-status";
 
 export type DownloadImportSource = "qbit" | "local-file";
 export type DownloadImportStatus = "pending" | "downloading" | "completed" | "failed";
@@ -60,6 +66,7 @@ interface PlanExternalDownloadImportsInput {
   animeRefs: DownloadAnimeRef[];
   episodeRefs: DownloadEpisodeRef[];
   aliasesByAnimeId: Record<number | string, string[]>;
+  dismissedSourceKeys?: ReadonlySet<string>;
 }
 
 const LOCAL_FILE_DOWNLOAD_URL_PREFIX = "local-file:";
@@ -169,6 +176,18 @@ export function parseLocalFileDownloadUrl(value: string): string | null {
   }
 }
 
+export function buildDownloadSourceKey(value: string): string | null {
+  const hash = extractMagnetHash(value);
+  if (hash) return `qbit:${hash}`;
+
+  const localPath = parseLocalFileDownloadUrl(value);
+  if (!localPath) return null;
+  const pathHash = createHash("sha256")
+    .update(normalizePathForCompare(localPath))
+    .digest("hex");
+  return `local:${pathHash}`;
+}
+
 export function findMatchingQbitTorrent(
   row: ExistingDownloadRef,
   live: QbitTorrent[],
@@ -235,6 +254,7 @@ export function planExternalDownloadImports(
 
     const hash = normalizeHash(torrent.hash);
     if (!hash || existingHashes.has(hash)) continue;
+    if (input.dismissedSourceKeys?.has(`qbit:${hash}`)) continue;
     const titleKey = normalizeTitleKey(torrent.name);
     if (existingTitles.has(titleKey)) continue;
 
@@ -267,6 +287,9 @@ export function planExternalDownloadImports(
     if (existingLocalPaths.has(normalizePathForCompare(absPath))) continue;
     if (existingTitles.has(titleKey)) continue;
     if (liveFileNamesInDownloadRoot.has(titleKey)) continue;
+    const localMagnetUrl = buildLocalFileDownloadUrl(absPath);
+    const sourceKey = buildDownloadSourceKey(localMagnetUrl);
+    if (sourceKey && input.dismissedSourceKeys?.has(sourceKey)) continue;
 
     const inferred = inferAnimeEpisode(
       file.name,
@@ -277,7 +300,7 @@ export function planExternalDownloadImports(
     imports.push({
       source: "local-file",
       title: file.name,
-      magnetUrl: buildLocalFileDownloadUrl(absPath),
+      magnetUrl: localMagnetUrl,
       status: "completed",
       progress: 100,
       animeId: inferred.animeId,
@@ -316,6 +339,12 @@ export function deriveQbitDownloadStatus(t: QbitTorrent): DownloadImportStatus {
   if (t.progress >= 0.999) return "completed";
   if (COMPLETED_QBIT_STATES.has(t.state)) return "completed";
   return "downloading";
+}
+
+export function deriveQbitDownloadIssue(t: QbitTorrent): DownloadIssueCode | null {
+  if (t.state === "missingFiles") return DOWNLOAD_ISSUE_LOCAL_FILE_MISSING;
+  if (t.state === "error") return DOWNLOAD_ISSUE_QBIT_ERROR;
+  return null;
 }
 
 function inferAnimeEpisode(

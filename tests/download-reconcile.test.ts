@@ -2,11 +2,15 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   buildLocalFileDownloadUrl,
+  buildDownloadSourceKey,
+  deriveQbitDownloadIssue,
+  deriveQbitDownloadStatus,
   filterShadowLocalFileDownloads,
   findMatchingQbitTorrent,
   parseLocalFileDownloadUrl,
   planExternalDownloadImports,
 } from "../src/lib/download-reconcile";
+import { DOWNLOAD_ISSUE_LOCAL_FILE_MISSING } from "../src/lib/download-status";
 
 const downloadRoot = "D:\\Media\\Bandi Downloads";
 
@@ -63,6 +67,62 @@ test("plans missing qBit torrents from the project download folder", () => {
   assert.match(
     imports[0]?.magnetUrl ?? "",
     /^magnet:\?xt=urn:btih:74ed85b1650f7095dff8ca823e7b02a6137a1148&dn=/,
+  );
+});
+
+test("dismissed qBit and local-file sources stay out of automatic imports", () => {
+  const hash = "f9b8f54c2e1e6be23b9d34b46bb045b3828912e7";
+  const localPath = `${downloadRoot}\\manual.mp4`;
+  const localUrl = buildLocalFileDownloadUrl(localPath);
+  const imports = planExternalDownloadImports({
+    downloadRoot,
+    existingDownloads: [],
+    liveTorrents: [
+      {
+        hash,
+        name: "missing.mp4",
+        progress: 0,
+        dlspeed: 0,
+        upspeed: 0,
+        eta: 0,
+        state: "missingFiles",
+        category: "anime",
+        save_path: downloadRoot,
+        content_path: `${downloadRoot}\\missing.mp4`,
+        size: 433_823_715,
+      },
+    ],
+    localFiles: [{ path: localPath, name: "manual.mp4" }],
+    animeRefs: [],
+    aliasesByAnimeId: {},
+    episodeRefs: [],
+    dismissedSourceKeys: new Set([
+      `qbit:${hash}`,
+      buildDownloadSourceKey(localUrl)!,
+    ]),
+  });
+
+  assert.deepEqual(imports, []);
+});
+
+test("qBit missingFiles keeps database compatibility and exposes the real issue", () => {
+  const torrent = {
+    hash: "f9b8f54c2e1e6be23b9d34b46bb045b3828912e7",
+    name: "missing.mp4",
+    progress: 0,
+    dlspeed: 0,
+    upspeed: 0,
+    eta: 0,
+    state: "missingFiles",
+    category: "anime",
+    save_path: downloadRoot,
+    size: 433_823_715,
+  };
+
+  assert.equal(deriveQbitDownloadStatus(torrent), "failed");
+  assert.equal(
+    deriveQbitDownloadIssue(torrent),
+    DOWNLOAD_ISSUE_LOCAL_FILE_MISSING,
   );
 });
 

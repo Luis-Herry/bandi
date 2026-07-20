@@ -281,6 +281,9 @@ function catalogTitleRelation(
   const rightTitles = [right.title, right.titleJa, ...(right.aliases ?? [])];
   if (hasAnimeSeasonConflict(leftTitles, rightTitles)) return null;
   if (hasExactTitleVariant(leftTitles, rightTitles)) return "exact";
+  if (hasRelocatedRomanSeasonMarkerIdentity(leftTitles, rightTitles)) {
+    return "catalog";
+  }
 
   const leftCatalog = new Set(yucCatalogTitleVariants(leftTitles));
   if (yucCatalogTitleVariants(rightTitles).some((key) => leftCatalog.has(key))) {
@@ -541,6 +544,83 @@ function hasCatalogTitleIdentity(
     }
   }
   return false;
+}
+
+function hasRelocatedRomanSeasonMarkerIdentity(
+  left: readonly (string | null | undefined)[],
+  right: readonly (string | null | undefined)[],
+): boolean {
+  return (
+    hasRomanAndExplicitSeasonIdentity(left, right) ||
+    hasRomanAndExplicitSeasonIdentity(right, left)
+  );
+}
+
+function hasRomanAndExplicitSeasonIdentity(
+  romanTitles: readonly (string | null | undefined)[],
+  explicitTitles: readonly (string | null | undefined)[],
+): boolean {
+  for (const romanTitle of romanTitles) {
+    const roman = splitRelocatedRomanSeasonTitle(romanTitle);
+    if (!roman) continue;
+    const romanBaseKeys = new Set(yucCatalogTitleVariants([roman.base]));
+
+    for (const explicitTitle of explicitTitles) {
+      const explicit = splitExplicitSeasonTitle(explicitTitle);
+      if (!explicit || explicit.season !== roman.season) continue;
+      if (
+        yucCatalogTitleVariants([explicit.base]).some((key) =>
+          romanBaseKeys.has(key),
+        )
+      ) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+function splitRelocatedRomanSeasonTitle(
+  value: string | null | undefined,
+): { season: number; base: string } | null {
+  if (!value) return null;
+  const matches = [...value.matchAll(/[ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ]/gu)];
+  if (matches.length !== 1 || matches[0].index == null) return null;
+
+  const marker = matches[0][0];
+  const trailing = value
+    .slice(matches[0].index + marker.length)
+    .replace(/^[\s~～:：\-—–・·（）()【】\[\]]+/gu, "")
+    .trim();
+  // A numeral embedded before a real subtitle is the catalog spelling used by
+  // works such as 無職転生Ⅲ. A numeral at the end may be part of the work name.
+  if (normalizeYucCatalogTitle(trailing).length < 4) return null;
+
+  return {
+    season: "ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ".indexOf(marker) + 1,
+    base: `${value.slice(0, matches[0].index)}${value.slice(
+      matches[0].index + marker.length,
+    )}`,
+  };
+}
+
+function splitExplicitSeasonTitle(
+  value: string | null | undefined,
+): { season: number; base: string } | null {
+  if (!value) return null;
+  const normalized = value.normalize("NFKC");
+  const matches = [
+    ...normalized.matchAll(/第\s*([一二三四五六七八九十\d]+)\s*(?:季|期)/gu),
+  ];
+  if (matches.length !== 1 || matches[0].index == null) return null;
+  const season = parseSeasonNumber(matches[0][1]);
+  if (season == null) return null;
+  return {
+    season,
+    base: `${normalized.slice(0, matches[0].index)}${normalized.slice(
+      matches[0].index + matches[0][0].length,
+    )}`,
+  };
 }
 
 function unorderedCjkSignature(value: string): string {

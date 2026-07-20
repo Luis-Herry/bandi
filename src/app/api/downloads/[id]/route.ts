@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { downloadQueue } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { resetDownloadedFlagsWithoutCompletedRows } from "@/lib/download-cleanup";
+import { dismissDownloadSources } from "@/lib/download-dismissals";
 import { requireRouteUser } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -51,10 +52,17 @@ export async function DELETE(
   if (!Number.isFinite(rowId))
     return NextResponse.json({ error: "invalid id" }, { status: 400 });
   const row = db
-    .select({ episodeId: downloadQueue.episodeId })
+    .select({
+      episodeId: downloadQueue.episodeId,
+      magnetUrl: downloadQueue.magnetUrl,
+    })
     .from(downloadQueue)
     .where(eq(downloadQueue.id, rowId))
     .get();
+  if (!row) {
+    return NextResponse.json({ error: "download_not_found" }, { status: 404 });
+  }
+  const dismissed = dismissDownloadSources([row.magnetUrl]);
   const result = db.delete(downloadQueue).where(eq(downloadQueue.id, rowId)).run();
   const resetDownloaded = resetDownloadedFlagsWithoutCompletedRows([
     row?.episodeId,
@@ -62,6 +70,7 @@ export async function DELETE(
   return NextResponse.json({
     ok: true,
     deleted: result.changes ?? 0,
+    dismissed,
     resetDownloaded,
   });
 }

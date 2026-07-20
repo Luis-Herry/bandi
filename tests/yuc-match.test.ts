@@ -166,6 +166,38 @@ test("catalog identity normalizes numeric season labels for Wistoria", () => {
   assert.equal(findUniqueYucCatalogTarget(wistoria, [canonical])?.id, 515856);
 });
 
+test("catalog identity aligns a relocated Unicode Roman season marker", () => {
+  const mushoku = entry({
+    title: "无职转生 第3期",
+    titleJa: "無職転生 ～異世界行ったら本気だす～ 第3期",
+    premiereDate: "2026-07-12",
+    totalEpisodes: null,
+    seasonMonth: 7,
+  });
+  const canonical = {
+    id: 501963,
+    title: "无职转生 第三季 ～到了异世界就拿出真本事～",
+    titleJa: "無職転生Ⅲ ～異世界行ったら本気だす～",
+    year: 2026,
+    format: "TV",
+    seasonMonth: 7,
+    totalEpisodes: 14,
+  };
+
+  assert.equal(findUniqueYucCatalogTarget(mushoku, [canonical])?.id, 501963);
+  assert.equal(
+    findUniqueYucCatalogTarget(mushoku, [
+      {
+        ...canonical,
+        id: 501962,
+        title: "无职转生",
+        titleJa: "無職転生Ⅱ ～異世界行ったら本気だす～",
+      },
+    ]),
+    null,
+  );
+});
+
 test("read-only catalog matching handles reordered media labels and a unique Latin subtitle", () => {
   const reordered = entry({
     title: "吹响吧上低音号 最终乐章 后篇",

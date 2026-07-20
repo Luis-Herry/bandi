@@ -428,7 +428,7 @@ test("runtime storage APIs require injected absolute directories", () => {
   assert.match(downloadsSource, /download_directory_unavailable/);
   assert.match(
     downloadsSource,
-    /syncExternalDownloads\(live, downloadRoot\.path\)/,
+    /syncExternalDownloads\([\s\S]*?live,[\s\S]*?downloadRoot\.path,[\s\S]*?listDismissedDownloadSourceKeys\(\),[\s\S]*?\)/,
   );
 });
 

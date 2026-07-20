@@ -32,6 +32,7 @@ import { PageHeader } from "@/components/features/PageHeader";
 import { cn } from "@/lib/cn";
 import { getDesktopBridge } from "@/lib/desktop-bridge";
 import { formatDataSize, formatTransferSpeed } from "@/lib/transfer-format";
+import { DOWNLOAD_ISSUE_LOCAL_FILE_MISSING } from "@/lib/download-status";
 import type { DownloadStatus } from "@/components/ui";
 
 /* ─── Types ─────────────────────────────────────────────────── */
@@ -76,6 +77,16 @@ interface QbitStatus {
   error?: string;
 }
 
+function normalizeDownloadRow(row: DownloadRow): DownloadRow {
+  if (
+    row.liveState === "missingFiles" ||
+    row.errorMessage === DOWNLOAD_ISSUE_LOCAL_FILE_MISSING
+  ) {
+    return { ...row, status: "missing" };
+  }
+  return row;
+}
+
 /* ─── Client ────────────────────────────────────────────────── */
 
 export function DownloadsAdminClient({
@@ -102,7 +113,10 @@ export function DownloadsAdminClient({
         fetch("/api/downloads").then((r) => r.json()),
         fetch("/api/downloads/qbit/status").then((r) => r.json()),
       ]);
-      setDownloads(downloadResult.items ?? []);
+      const items = Array.isArray(downloadResult.items)
+        ? (downloadResult.items as DownloadRow[]).map(normalizeDownloadRow)
+        : [];
+      setDownloads(items);
       setQbit(qbitStatus);
     } catch (e) {
       console.error("[downloads-admin] refresh failed", e);
@@ -146,6 +160,7 @@ export function DownloadsAdminClient({
       pending: 0,
       downloading: 0,
       completed: 0,
+      missing: 0,
       failed: 0,
     };
     for (const d of downloads) out[d.status] = (out[d.status] ?? 0) + 1;
@@ -231,7 +246,10 @@ export function DownloadsAdminClient({
       const j = await res.json().catch(() => ({}));
       showToast({
         title: "移除失败",
-        description: j.error ?? res.statusText,
+        description:
+          j.error === "download_not_found"
+            ? "这条下载记录已经不存在"
+            : j.error ?? res.statusText,
         tone: "error",
       });
       return;
@@ -241,7 +259,11 @@ export function DownloadsAdminClient({
       next.delete(id);
       return next;
     });
-    showToast({ title: "已从下载列表移除", tone: "info" });
+    showToast({
+      title: "已从下载列表移除",
+      description: "刷新时不会再次加入；下载引擎任务和本地文件保持不变",
+      tone: "info",
+    });
     void refresh();
   }
 
@@ -274,7 +296,7 @@ export function DownloadsAdminClient({
           uniqueIds.length === downloads.length
             ? "下载列表已清空"
             : `已移除 ${j.deleted ?? uniqueIds.length} 条下载记录`,
-        description: "下载引擎中的任务和本地文件未改动",
+        description: "刷新时不会重新加入；下载引擎任务和本地文件保持不变",
         tone: "info",
       });
       await refresh();
@@ -453,7 +475,7 @@ export function DownloadsAdminClient({
               {selectedCount > 0 && (
                 <ConfirmDialog
                   title="移除已选下载记录？"
-                  description={`将从本地下载列表移除已选的 ${selectedCount} 条记录。不会删除下载引擎中的任务或本地文件。`}
+                  description={`将从本地下载列表移除已选的 ${selectedCount} 条记录，后续刷新不会重新加入。下载引擎任务和本地文件保持不变。`}
                   confirmLabel="移除所选"
                   destructive
                   onConfirm={() => handleBulkDelete([...selectedDownloadIds])}
@@ -473,7 +495,7 @@ export function DownloadsAdminClient({
               {downloads.length > 0 && (
                 <ConfirmDialog
                   title="清空下载列表？"
-                  description={`将从本地下载列表移除全部 ${downloads.length} 条记录。不会删除下载引擎中的任务或本地文件。`}
+                  description={`将从本地下载列表移除全部 ${downloads.length} 条记录，后续刷新不会重新加入。下载引擎任务和本地文件保持不变。`}
                   confirmLabel="清空列表"
                   destructive
                   onConfirm={() => handleBulkDelete(downloads.map((d) => d.id))}
@@ -491,8 +513,14 @@ export function DownloadsAdminClient({
                 />
               )}
               <div className="no-scrollbar flex max-w-full items-center gap-1 overflow-x-auto touch-pan-x">
-              {(["all", "downloading", "completed", "pending", "failed"] as const).map(
-                (t) => (
+              {([
+                "all",
+                "downloading",
+                "completed",
+                "pending",
+                "missing",
+                "failed",
+              ] as const).map((t) => (
                   <button
                     key={t}
                     type="button"
@@ -509,8 +537,7 @@ export function DownloadsAdminClient({
                       <NumberPop value={counts[t] ?? 0} dirY={-1} />
                     </span>
                   </button>
-                ),
-              )}
+              ))}
               </div>
             </div>
           }
@@ -803,6 +830,7 @@ function buildDownloadListEntries(rows: DownloadRow[]): DownloadListEntry[] {
           pending: row.status === "pending" ? 1 : 0,
           downloading: row.status === "downloading" ? 1 : 0,
           completed: row.status === "completed" ? 1 : 0,
+          missing: row.status === "missing" ? 1 : 0,
           failed: row.status === "failed" ? 1 : 0,
         },
       });
@@ -852,8 +880,9 @@ function DownloadGroupItem({
 }) {
   const allSelected = selectedCount === group.rows.length;
   const partlySelected = selectedCount > 0 && !allSelected;
-  const statusEntries = (["failed", "downloading", "pending", "completed"] as const)
-    .filter((status) => group.statusCounts[status] > 0);
+  const statusEntries = (
+    ["failed", "missing", "downloading", "pending", "completed"] as const
+  ).filter((status) => group.statusCounts[status] > 0);
 
   return (
     <div
@@ -1004,6 +1033,7 @@ function DownloadRowItem({
     row.status === "completed" && row.anime && row.episodeNumber != null
       ? `/player/${row.anime.id}/${row.episodeNumber}`
       : null;
+  const errorDescription = downloadErrorDescription(row);
 
   return (
     <div
@@ -1090,9 +1120,16 @@ function DownloadRowItem({
               {row.title}
             </p>
           )}
-          {row.errorMessage && (
-            <p className="mt-1 text-[10px] text-[color:var(--status-error,#ef4444)]">
-              {row.errorMessage}
+          {errorDescription && (
+            <p
+              className={cn(
+                "mt-1 text-[10px]",
+                row.status === "missing"
+                  ? "text-[color:var(--status-warning)]"
+                  : "text-[color:var(--status-error,#ef4444)]",
+              )}
+            >
+              {errorDescription}
             </p>
           )}
         </div>
@@ -1208,6 +1245,13 @@ function tabLabel(t: "all" | DownloadStatus): string {
     pending: "等待",
     downloading: "下载中",
     completed: "完成",
+    missing: "文件缺失",
     failed: "失败",
   }[t];
+}
+
+function downloadErrorDescription(row: DownloadRow): string | null {
+  if (row.status === "missing") return "源文件已移动或删除";
+  if (row.errorMessage === "qbit_error") return "下载引擎报告任务错误";
+  return row.errorMessage;
 }

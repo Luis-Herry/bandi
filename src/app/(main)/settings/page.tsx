@@ -15,6 +15,7 @@ import { GlassPanel } from "@/components/ui";
 import { db } from "@/db";
 import { downloadQueue } from "@/db/schema";
 import { getCurrentUser } from "@/lib/session";
+import { DOWNLOAD_ISSUE_LOCAL_FILE_MISSING } from "@/lib/download-status";
 
 export const dynamic = "force-dynamic";
 
@@ -201,7 +202,7 @@ function getDownloadSummary() {
     .select({
       total: sql<number>`count(*)`,
       completed: sql<number>`sum(case when ${downloadQueue.status} = 'completed' then 1 else 0 end)`,
-      failed: sql<number>`sum(case when ${downloadQueue.status} = 'failed' then 1 else 0 end)`,
+      failed: sql<number>`sum(case when ${downloadQueue.status} = 'failed' and coalesce(${downloadQueue.errorMessage}, '') <> ${DOWNLOAD_ISSUE_LOCAL_FILE_MISSING} then 1 else 0 end)`,
     })
     .from(downloadQueue)
     .get();

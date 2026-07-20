@@ -8,7 +8,12 @@ export type WatchStatus =
   | "onhold"
   | "dropped";
 
-export type DownloadStatus = "pending" | "downloading" | "completed" | "failed";
+export type DownloadStatus =
+  | "pending"
+  | "downloading"
+  | "completed"
+  | "missing"
+  | "failed";
 
 interface Tone {
   label: string;
@@ -79,6 +84,13 @@ const DOWNLOAD_TONES: Record<DownloadStatus, Tone> = {
     text: "text-[color:var(--status-success)]",
     bg: "bg-[rgba(74,222,128,0.08)]",
     border: "border-[rgba(74,222,128,0.20)]",
+  },
+  missing: {
+    label: "文件不存在",
+    dot: "bg-[color:var(--status-warning)]",
+    text: "text-[color:var(--status-warning)]",
+    bg: "bg-[rgba(245,158,11,0.08)]",
+    border: "border-[rgba(245,158,11,0.22)]",
   },
   failed: {
     label: "失败",
