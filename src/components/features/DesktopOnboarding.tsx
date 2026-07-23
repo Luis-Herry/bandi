@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import * as Switch from "@radix-ui/react-switch";
 import {
   ArrowRight,
   CheckCircle2,
@@ -15,7 +14,12 @@ import {
   Subtitles,
 } from "lucide-react";
 import { BrandLogo } from "@/components/features/BrandLogo";
-import { Button, GlassPanel, ShimmerText } from "@/components/ui";
+import {
+  Button,
+  GlassPanel,
+  MotionSwitch,
+  ShimmerText,
+} from "@/components/ui";
 import { cn } from "@/lib/cn";
 import { formatStorageBytes, getDesktopBridge } from "@/lib/desktop-bridge";
 
@@ -258,14 +262,13 @@ export function DesktopOnboarding() {
                   窗口缩到系统托盘，下载服务继续运行
                 </p>
               </div>
-              <Switch.Root
+              <MotionSwitch
                 checked={closeToTray}
                 onCheckedChange={setCloseToTray}
                 aria-label="关闭窗口后继续下载"
-                className="relative h-6 w-11 shrink-0 rounded-full border border-[color:var(--border-default)] bg-[color:var(--bg-surface-hover)] transition-colors data-[state=checked]:border-[color:var(--accent)] data-[state=checked]:bg-[color:var(--accent)]"
-              >
-                <Switch.Thumb className="block h-4 w-4 translate-x-1 rounded-full bg-[color:var(--text-primary)] shadow-sm transition-transform data-[state=checked]:translate-x-6" />
-              </Switch.Root>
+                className="relative h-6 w-11 shrink-0 rounded-full border border-[color:var(--border-default)] bg-[color:var(--bg-surface-hover)] p-1 [--toggle-travel:20px] data-[state=checked]:border-[color:var(--accent)] data-[state=checked]:bg-[color:var(--accent)]"
+                thumbClassName="block h-4 w-4 rounded-full bg-[color:var(--text-primary)] shadow-sm"
+              />
             </div>
           </GlassPanel>
 

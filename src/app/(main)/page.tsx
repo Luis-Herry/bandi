@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
-import { ArrowRight, Play, Clock, AlertCircle } from "lucide-react";
+import { Play, Clock, AlertCircle } from "lucide-react";
 import { getCurrentUser } from "@/lib/session";
 import {
   getHeroCandidates,
@@ -134,9 +134,9 @@ export default async function HomePage() {
               right={
                 <a
                   href="/library"
-                  className="text-[12px] text-[color:var(--text-muted)] hover:text-[color:var(--accent)] inline-flex items-center gap-1 transition-colors"
+                  className="t-learn inline-flex items-center gap-1 text-[12px] text-[color:var(--text-muted)] transition-colors hover:text-[color:var(--accent)]"
                 >
-                  全部追番 <ArrowRight size={12} />
+                  全部追番 <LearnMoreChevron />
                 </a>
               }
             >
@@ -337,10 +337,33 @@ function SeasonalBrowseLink() {
   return (
     <a
       href="/browse"
-      className="inline-flex items-center gap-1 text-[12px] text-[color:var(--text-muted)] transition-colors hover:text-[color:var(--accent)]"
+      className="t-learn inline-flex items-center gap-1 text-[12px] text-[color:var(--text-muted)] transition-colors hover:text-[color:var(--accent)]"
     >
-      查看全部 <ArrowRight size={12} />
+      查看全部 <LearnMoreChevron />
     </a>
+  );
+}
+
+function LearnMoreChevron() {
+  return (
+    <span className="t-learn-chevron" aria-hidden>
+      <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
+        <path
+          className="t-learn-arm t-learn-arm-top"
+          d="M6 4L10 8"
+          stroke="currentColor"
+          strokeWidth="1.6"
+          strokeLinecap="round"
+        />
+        <path
+          className="t-learn-arm t-learn-arm-bot"
+          d="M10 8L6 12"
+          stroke="currentColor"
+          strokeWidth="1.6"
+          strokeLinecap="round"
+        />
+      </svg>
+    </span>
   );
 }
 

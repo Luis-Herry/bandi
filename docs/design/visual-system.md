@@ -188,6 +188,10 @@
 - 标题 reveal 不改变宿主 display。`t-stagger-line` 不能覆盖 flex 标题行，否则左侧图标会错位。
 - `t-badge` 用固定 `16px` inline-flex 承载通知数字和 dot，避免被按钮行高拉偏。
 - 长等待文案可使用 `ShimmerText`，范围控制在“正在整理推荐”“加载 RSS 源中”“扫描中”“保存中”等明确等待状态。
+- 全局 Toast 使用 `t-toast` 完成入场与离场；关闭状态播放结束后再卸载节点，避免提示瞬间消失。
+- 设置、首次引导和播放器开关统一使用 `MotionSwitch` + `t-toggle`。首次渲染直接落在当前状态，弹性反馈只由用户操作触发。
+- “加入追番”使用 `t-like` 的填充与轻量 pop，不挂粒子节点；`t-learn` 只用于“全部追番”“查看全部”这类静态方向链接。
+- `SpinningCounter` 只用于统计页年度观看时长、已看集数、今年看完、活跃日均四张核心指标卡；活跃天数及高频更新数字继续使用 `NumberPop`。
 - 所有新动效必须照顾 `prefers-reduced-motion`，并优先退化为 opacity / transform 的静态状态。
 
 ### 基础曲线

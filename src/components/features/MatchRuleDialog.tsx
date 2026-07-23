@@ -2,9 +2,14 @@
 
 import { useState, useEffect, type KeyboardEvent, type ReactNode } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
-import * as Switch from "@radix-ui/react-switch";
 import { X } from "lucide-react";
-import { Button, ShimmerText, TextField, Tag } from "@/components/ui";
+import {
+  Button,
+  MotionSwitch,
+  ShimmerText,
+  TextField,
+  Tag,
+} from "@/components/ui";
 import { cn } from "@/lib/cn";
 
 export interface MatchRuleDraft {
@@ -211,20 +216,19 @@ export function MatchRuleDialog({
 
             <div className="flex items-center justify-between rounded-[8px] px-3 py-2 bg-[color:var(--bg-surface)] border border-[color:var(--border-subtle)]">
               <p className="text-sm">启用</p>
-              <Switch.Root
+              <MotionSwitch
                 checked={draft.isActive}
                 onCheckedChange={(v) =>
                   setDraft((d) => ({ ...d, isActive: v }))
                 }
                 className={cn(
-                  "relative w-10 h-6 rounded-full transition-colors",
+                  "relative h-6 w-10 rounded-full p-1 [--toggle-travel:16px]",
                   "data-[state=checked]:bg-[color:var(--accent)]",
                   "data-[state=unchecked]:bg-[color:var(--bg-surface-hover)]",
                   "border border-[color:var(--border-default)]",
                 )}
-              >
-                <Switch.Thumb className="block w-4 h-4 bg-[color:var(--text-primary)] rounded-full transition-transform translate-x-1 data-[state=checked]:translate-x-5" />
-              </Switch.Root>
+                thumbClassName="block h-4 w-4 rounded-full bg-[color:var(--text-primary)]"
+              />
             </div>
           </div>
 

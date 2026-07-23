@@ -20,6 +20,7 @@ export function AnimeSubscriptionButton({
   const router = useRouter();
   const [subscribed, setSubscribed] = useState(initialSubscribed);
   const [joining, setJoining] = useState(false);
+  const [likeAnimating, setLikeAnimating] = useState(false);
 
   useEffect(() => {
     setSubscribed(initialSubscribed);
@@ -39,6 +40,7 @@ export function AnimeSubscriptionButton({
       }
 
       setSubscribed(true);
+      setLikeAnimating(true);
       showToast({ title: "已加入追番", tone: "success" });
       window.dispatchEvent(
         new CustomEvent("anime-library-status-change", {
@@ -70,6 +72,7 @@ export function AnimeSubscriptionButton({
     }
 
     setSubscribed(false);
+    setLikeAnimating(false);
     showToast({ title: "已取消追番", tone: "info" });
     window.dispatchEvent(
       new CustomEvent("anime-library-status-change", {
@@ -88,11 +91,14 @@ export function AnimeSubscriptionButton({
   );
 
   const icon = (
-    <Heart
-      size={15}
-      strokeWidth={2.4}
-      style={{ fill: subscribed ? "var(--accent)" : "transparent" }}
-    />
+    <span className="t-like-icon inline-flex">
+      <Heart className="t-like-heart" size={15} strokeWidth={2.4} />
+    </span>
+  );
+  const motionClass = cn(
+    buttonClass,
+    "t-like",
+    likeAnimating && "is-like-animating",
   );
 
   if (!subscribed) {
@@ -103,8 +109,10 @@ export function AnimeSubscriptionButton({
         size="md"
         leftIcon={icon}
         disabled={joining}
-        className={buttonClass}
+        data-liked="false"
+        className={motionClass}
         onClick={joinLibrary}
+        onAnimationEnd={() => setLikeAnimating(false)}
       >
         {joining ? "加入中..." : "加入追番"}
       </Button>
@@ -124,7 +132,9 @@ export function AnimeSubscriptionButton({
           variant="secondary"
           size="md"
           leftIcon={icon}
-          className={buttonClass}
+          data-liked="true"
+          className={motionClass}
+          onAnimationEnd={() => setLikeAnimating(false)}
         >
           已加入追番
         </Button>

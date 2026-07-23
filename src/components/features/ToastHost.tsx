@@ -19,6 +19,17 @@ export interface AppToast {
 }
 
 const TOAST_EVENT = "anime-toast";
+const TOAST_VISIBLE_MS = 3200;
+
+function readToastCloseDuration() {
+  if (typeof window === "undefined") return 250;
+  const raw = getComputedStyle(document.documentElement)
+    .getPropertyValue("--toast-close")
+    .trim();
+  const parsed = Number.parseFloat(raw);
+  if (!Number.isFinite(parsed)) return 250;
+  return raw.endsWith("s") && !raw.endsWith("ms") ? parsed * 1000 : parsed;
+}
 
 export function showToast(toast: AppToast) {
   if (typeof window === "undefined") return;
@@ -27,11 +38,13 @@ export function showToast(toast: AppToast) {
 
 export function ToastHost() {
   const [toast, setToast] = useState<(AppToast & { id: number }) | null>(null);
+  const [open, setOpen] = useState(false);
 
   useEffect(() => {
     const onToast = (event: Event) => {
       const detail = (event as CustomEvent<AppToast>).detail;
       if (!detail?.title) return;
+      setOpen(false);
       setToast({
         id: Date.now(),
         tone: detail.tone ?? "info",
@@ -46,8 +59,24 @@ export function ToastHost() {
 
   useEffect(() => {
     if (!toast) return;
-    const timer = window.setTimeout(() => setToast(null), 3200);
-    return () => window.clearTimeout(timer);
+    const toastId = toast.id;
+    const openFrame = window.requestAnimationFrame(() => {
+      setOpen(true);
+    });
+    const closeTimer = window.setTimeout(() => {
+      setOpen(false);
+    }, TOAST_VISIBLE_MS);
+    const removeTimer = window.setTimeout(
+      () =>
+        setToast((current) => (current?.id === toastId ? null : current)),
+      TOAST_VISIBLE_MS + readToastCloseDuration(),
+    );
+
+    return () => {
+      window.cancelAnimationFrame(openFrame);
+      window.clearTimeout(closeTimer);
+      window.clearTimeout(removeTimer);
+    };
   }, [toast]);
 
   if (!toast) return null;
@@ -56,11 +85,13 @@ export function ToastHost() {
     <div
       key={toast.id}
       role="status"
+      data-open={open ? "true" : "false"}
       className={cn(
+        "t-toast",
+        open && "is-open",
         "fixed right-6 top-20 z-[70] flex min-w-[280px] max-w-[min(420px,calc(100vw-32px))] items-center gap-3",
         "rounded-[8px] border border-[color:var(--border-default)] bg-[color:var(--bg-elevated)] px-4 py-3",
         "shadow-[0_18px_50px_rgba(0,0,0,0.42)] backdrop-blur-[18px]",
-        "animate-[toast-slide-in_220ms_cubic-bezier(0.22,1,0.36,1)]",
       )}
     >
       <span

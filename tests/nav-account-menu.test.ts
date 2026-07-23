@@ -56,7 +56,12 @@ test("Nav keeps the space switcher and compact actions in a single-row header", 
   assert.doesNotMatch(brandLogoSource, /group-hover:-translate-y/);
   assert.doesNotMatch(brandLogoSource, /group-hover:rotate/);
   assert.doesNotMatch(brandLogoSource, /group-hover:scale/);
-  assert.doesNotMatch(globalsSource, /rotate\(/);
+  const brandLogoKeyframes =
+    globalsSource.match(
+      /@keyframes brand-logo-float[\s\S]*?(?=\n\.brand-logo-float\s*\{)/,
+    )?.[0] ?? "";
+  assert.match(brandLogoKeyframes, /translateY\(/);
+  assert.doesNotMatch(brandLogoKeyframes, /rotate\(/);
   assert.doesNotMatch(navSource, /Flame/);
 });
 

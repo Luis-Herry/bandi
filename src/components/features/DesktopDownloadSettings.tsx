@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import * as Switch from "@radix-ui/react-switch";
 import {
   CheckCircle2,
   Copy,
@@ -12,7 +11,7 @@ import {
   Smartphone,
   Trash2,
 } from "lucide-react";
-import { Button, ShimmerText } from "@/components/ui";
+import { Button, MotionSwitch, ShimmerText } from "@/components/ui";
 import { formatStorageBytes, getDesktopBridge } from "@/lib/desktop-bridge";
 
 export function DesktopDownloadSettings() {
@@ -194,17 +193,16 @@ export function DesktopDownloadSettings() {
               </p>
             </div>
             <div className="flex shrink-0 items-center gap-3">
-              <Switch.Root
+              <MotionSwitch
                 checked={closeToTray}
                 onCheckedChange={(value) => {
                   setCloseToTray(value);
                   setSaved(false);
                 }}
                 aria-label="关闭窗口后继续下载"
-                className="relative h-6 w-11 shrink-0 rounded-full border border-[color:var(--border-default)] bg-[color:var(--bg-surface-hover)] transition-colors focus-visible:outline-2 focus-visible:outline-offset-[6px] focus-visible:outline-[color:var(--accent)] data-[state=checked]:border-[color:var(--accent)] data-[state=checked]:bg-[color:var(--accent)]"
-              >
-                <Switch.Thumb className="block h-4 w-4 translate-x-1 rounded-full bg-[color:var(--text-primary)] shadow-sm transition-transform data-[state=checked]:translate-x-6" />
-              </Switch.Root>
+                className="relative h-6 w-11 shrink-0 rounded-full border border-[color:var(--border-default)] bg-[color:var(--bg-surface-hover)] p-1 [--toggle-travel:20px] focus-visible:outline-2 focus-visible:outline-offset-[6px] focus-visible:outline-[color:var(--accent)] data-[state=checked]:border-[color:var(--accent)] data-[state=checked]:bg-[color:var(--accent)]"
+                thumbClassName="block h-4 w-4 rounded-full bg-[color:var(--text-primary)] shadow-sm"
+              />
               <Button
                 variant="primary"
                 size="sm"
@@ -242,7 +240,7 @@ export function DesktopDownloadSettings() {
                 </p>
               </div>
             </div>
-            <Switch.Root
+            <MotionSwitch
               checked={lanAccess}
               onCheckedChange={(value) => {
                 setLanAccess(value);
@@ -250,10 +248,9 @@ export function DesktopDownloadSettings() {
                 setSaved(false);
               }}
               aria-label="允许局域网设备访问"
-              className="relative h-6 w-11 shrink-0 rounded-full border border-[color:var(--border-default)] bg-[color:var(--bg-surface-hover)] transition-colors after:absolute after:inset-x-0 after:-inset-y-2.5 after:content-[''] focus-visible:outline-2 focus-visible:outline-offset-[6px] focus-visible:outline-[color:var(--accent)] data-[state=checked]:border-[color:var(--accent)] data-[state=checked]:bg-[color:var(--accent)]"
-            >
-              <Switch.Thumb className="block h-4 w-4 translate-x-1 rounded-full bg-[color:var(--text-primary)] shadow-sm transition-transform data-[state=checked]:translate-x-6" />
-            </Switch.Root>
+              className="relative h-6 w-11 shrink-0 rounded-full border border-[color:var(--border-default)] bg-[color:var(--bg-surface-hover)] p-1 [--toggle-travel:20px] after:absolute after:inset-x-0 after:-inset-y-2.5 after:content-[''] focus-visible:outline-2 focus-visible:outline-offset-[6px] focus-visible:outline-[color:var(--accent)] data-[state=checked]:border-[color:var(--accent)] data-[state=checked]:bg-[color:var(--accent)]"
+              thumbClassName="block h-4 w-4 rounded-full bg-[color:var(--text-primary)] shadow-sm"
+            />
           </div>
 
           {settings.lanAccess && (

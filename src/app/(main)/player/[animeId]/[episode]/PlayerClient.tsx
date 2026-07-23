@@ -29,7 +29,7 @@ import {
   Volume2,
   VolumeX,
 } from "lucide-react";
-import { Button, IconSwap } from "@/components/ui";
+import { Button, IconSwap, MotionSwitch } from "@/components/ui";
 import { BackButton } from "@/components/features/BackButton";
 import { showToast } from "@/components/features/ToastHost";
 import { cn } from "@/lib/cn";
@@ -1367,24 +1367,18 @@ export function PlayerClient({
                   <div className="space-y-3">
                     <div className="flex items-center justify-between gap-3 rounded-[6px] bg-white/[0.035] px-3 py-2">
                       <span className="text-white/68">自动连播</span>
-                      <button
-                        type="button"
-                        onClick={() => setAutoPlayEnabled((value) => !value)}
+                      <MotionSwitch
+                        checked={autoPlayEnabled}
+                        onCheckedChange={setAutoPlayEnabled}
                         className={cn(
-                          "h-5 w-9 rounded-full p-0.5 transition-colors",
+                          "h-5 w-9 rounded-full p-0.5 [--toggle-travel:16px]",
                           autoPlayEnabled
                             ? "bg-[color:var(--accent)]"
                             : "bg-white/16",
                         )}
-                        aria-pressed={autoPlayEnabled}
-                      >
-                        <span
-                          className={cn(
-                            "block h-4 w-4 rounded-full bg-white transition-transform",
-                            autoPlayEnabled && "translate-x-4",
-                          )}
-                        />
-                      </button>
+                        thumbClassName="block h-4 w-4 rounded-full bg-white"
+                        aria-label="自动连播"
+                      />
                     </div>
 
                     <div>

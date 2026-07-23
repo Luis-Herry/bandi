@@ -223,6 +223,36 @@
   --acc-collapse: var(--duration-fast);
   --acc-chevron: var(--duration-fast);
   --acc-ease: var(--ease-smooth-out);
+  --toast-open: var(--duration-medium);
+  --toast-close: var(--duration-fast);
+  --toast-distance: 16px;
+  --toast-blur: var(--blur-small);
+  --toast-scale: var(--scale-medium);
+  --toast-ease: var(--ease-smooth-out);
+  --like-color: var(--accent);
+  --like-fill: var(--duration-quick);
+  --like-pop: var(--duration-medium);
+  --like-pop-ease: cubic-bezier(0.34, 1.96, 0.64, 1);
+  --like-particle-dur: 600ms;
+  --like-particle-dist: 20px;
+  --like-particle-size: 2.5px;
+  --like-ease: var(--ease-smooth-out);
+  --learn-shift: 2px;
+  --learn-spread: 8deg;
+  --learn-in: var(--duration-medium);
+  --learn-out: var(--duration-medium);
+  --learn-ease: var(--ease-smooth-out);
+  --reel-dur: 1400ms;
+  --reel-cell: 30px;
+  --reel-spin-blur: 3px;
+  --reel-stagger: 90ms;
+  --reel-ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --toggle-dur: var(--duration-medium);
+  --toggle-travel: 14.66px;
+  --toggle-ov1: 1px;
+  --toggle-ov2: 0px;
+  --toggle-track: var(--duration-quick);
+  --toggle-ease: cubic-bezier(0.34, 1.35, 0.64, 1);
   --glow-delay: 50ms;
   --glow-peak-at: 0.15;
   --glow-opacity: 0.85;
@@ -1804,6 +1834,131 @@ select:not([data-no-focus-ring]):focus-visible,
   transform: scaleY(-1);
 }
 
+.t-toast {
+  opacity: 0;
+  transform: translateY(var(--toast-distance)) scale(var(--toast-scale));
+  filter: blur(var(--toast-blur));
+  will-change: transform, opacity, filter;
+  transition:
+    opacity var(--toast-close) var(--toast-ease),
+    transform var(--toast-close) var(--toast-ease),
+    filter var(--toast-close) var(--toast-ease);
+}
+.t-toast.is-open {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  filter: blur(0);
+  transition:
+    opacity var(--toast-open) var(--toast-ease),
+    transform var(--toast-open) var(--toast-ease),
+    filter var(--toast-open) var(--toast-ease);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .t-toast { transition: none !important; }
+}
+
+.t-like-heart { color: currentColor; transition: color var(--like-fill) var(--like-ease); }
+.t-like-heart path {
+  fill: transparent; stroke: currentColor;
+  transition: fill var(--like-fill) var(--like-ease), stroke var(--like-fill) var(--like-ease);
+}
+.t-like[data-liked="true"] .t-like-heart { color: var(--like-color); }
+.t-like[data-liked="true"] .t-like-heart path { fill: currentColor; }
+/* Pop scale lives on an HTML wrapper, never the <svg> itself:
+   transforming an inline SVG makes Chromium rasterise it at 1×
+   (pixelated on hi-DPI). Wrapping keeps the vector crisp. */
+.t-like[data-liked="true"] .t-like-icon { animation: t-like-pop var(--like-pop) var(--like-pop-ease); }
+@keyframes t-like-pop { 0% { transform: scale(1); } 30% { transform: scale(0.82); } 100% { transform: scale(1); } }
+
+/* Particle burst — 8 dots flung along per-particle vectors. */
+.t-like-particles { position: absolute; left: 50%; top: 50%; width: 0; height: 0; pointer-events: none; color: var(--like-color); }
+.t-like-particles i {
+  position: absolute;
+  left: calc(var(--like-particle-size) * var(--psize, 1) / -2);
+  top: calc(var(--like-particle-size) * var(--psize, 1) / -2);
+  width: calc(var(--like-particle-size) * var(--psize, 1));
+  height: calc(var(--like-particle-size) * var(--psize, 1));
+  border-radius: 50%; background: currentColor; opacity: 0;
+}
+@keyframes t-like-burst {
+  0%   { opacity: 0; transform: translate(0, 0) scale(0.4); }
+  20%  { opacity: 1; transform: translate(calc(var(--px) * 0.25), calc(var(--py) * 0.25)) scale(1); }
+  100% { opacity: 0; transform: translate(var(--px), var(--py)) scale(var(--p-end-scale, 0.6)); }
+}
+.t-like.is-bursting .t-like-particles i {
+  animation: t-like-burst var(--pdur, var(--like-particle-dur)) ease-out var(--pdelay, 0ms) forwards;
+}
+
+/* Existing subscriptions stay filled without replaying a confirmation on page load. */
+.t-like:not(.is-like-animating)[data-liked="true"] .t-like-icon {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .t-like-icon, .t-like-particles i { animation: none !important; }
+}
+
+.t-learn-chevron {
+  display: inline-flex;
+  transform: translateX(0);
+  transition: transform var(--learn-out) var(--learn-ease);
+}
+.t-learn-arm {
+  transform-box: view-box;
+  transform-origin: 10px 8px;
+  vector-effect: non-scaling-stroke;
+  transition: transform var(--learn-out) var(--learn-ease);
+}
+.t-learn:hover .t-learn-chevron { transform: translateX(var(--learn-shift)); transition-duration: var(--learn-in); }
+.t-learn:hover .t-learn-arm { transition-duration: var(--learn-in); }
+.t-learn:hover .t-learn-arm-top { transform: rotate(var(--learn-spread)); }
+.t-learn:hover .t-learn-arm-bot { transform: rotate(calc(var(--learn-spread) * -1)); }
+
+@media (prefers-reduced-motion: reduce) {
+  .t-learn-chevron, .t-learn-arm { transition: none !important; }
+}
+
+.t-reel { display: inline-flex; align-items: center; height: var(--reel-cell); font-variant-numeric: tabular-nums; }
+.t-reel-col {
+  position: relative; height: var(--reel-cell); overflow: hidden;
+  /* Soft-fade the window edges instead of hard-cropping. */
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 22%, #000 78%, transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0%, #000 22%, #000 78%, transparent 100%);
+}
+.t-reel-strip { display: flex; flex-direction: column; will-change: transform, filter; }
+.t-reel-digit { height: var(--reel-cell); display: flex; align-items: center; justify-content: center; }
+/* JS drives the tween: strip.style.transition =
+     'transform var(--reel-dur) var(--reel-ease) ' + (col*var(--reel-stagger)) + 'ms';
+   and decays each column's feGaussianBlur stdDeviation from
+   var(--reel-spin-blur) to 0 over its own window. */
+
+@media (prefers-reduced-motion: reduce) {
+  .t-reel-strip { transition: none !important; filter: none !important; }
+}
+
+.t-toggle { transition: background var(--toggle-track) var(--toggle-ease); }
+.t-toggle-thumb { translate: 0 0; will-change: translate; }
+.t-toggle[data-on="true"] .t-toggle-thumb { translate: var(--toggle-travel) 0; }
+.t-toggle.is-init[data-on="true"] .t-toggle-thumb { animation: t-toggle-on var(--toggle-dur) var(--toggle-ease) both; }
+.t-toggle.is-init[data-on="false"] .t-toggle-thumb { animation: t-toggle-off var(--toggle-dur) var(--toggle-ease) both; }
+@keyframes t-toggle-on {
+  0% { translate: 0 0; }
+  55% { translate: calc(var(--toggle-travel) + var(--toggle-ov1)) 0; }
+  80% { translate: calc(var(--toggle-travel) - var(--toggle-ov2)) 0; }
+  100% { translate: var(--toggle-travel) 0; }
+}
+@keyframes t-toggle-off {
+  0% { translate: var(--toggle-travel) 0; }
+  55% { translate: calc(0px - var(--toggle-ov1)) 0; }
+  80% { translate: var(--toggle-ov2) 0; }
+  100% { translate: 0 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .t-toggle-thumb { animation: none !important; }
+}
+
 @keyframes player-live-dot-breathe {
   0%,
   100% {
@@ -1985,17 +2140,6 @@ select:not([data-no-focus-ring]):focus-visible,
   transition-delay: var(--tt-delay);
   transition-duration: var(--tt-in-dur);
   transition-timing-function: var(--tt-in-ease);
-}
-
-@keyframes toast-slide-in {
-  from {
-    opacity: 0;
-    transform: translateX(16px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
 }
 
 /* ===================================================================

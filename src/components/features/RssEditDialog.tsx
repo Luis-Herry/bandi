@@ -2,8 +2,12 @@
 
 import { useState, type ReactNode } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
-import * as Switch from "@radix-ui/react-switch";
-import { Button, ShimmerText, TextField } from "@/components/ui";
+import {
+  Button,
+  MotionSwitch,
+  ShimmerText,
+  TextField,
+} from "@/components/ui";
 import type { RssFilters } from "@/db/schema";
 import { cn } from "@/lib/cn";
 
@@ -112,20 +116,19 @@ export function RssEditDialog({ trigger, initial, onSave }: RssEditDialogProps) 
                   关闭后不会被定时任务自动检查
                 </p>
               </div>
-              <Switch.Root
+              <MotionSwitch
                 checked={draft.isActive}
                 onCheckedChange={(v) =>
                   setDraft((d) => ({ ...d, isActive: v }))
                 }
                 className={cn(
-                  "relative w-10 h-6 rounded-full transition-colors",
+                  "relative h-6 w-10 rounded-full p-1 [--toggle-travel:16px]",
                   "data-[state=checked]:bg-[color:var(--accent)]",
                   "data-[state=unchecked]:bg-[color:var(--bg-surface-hover)]",
                   "border border-[color:var(--border-default)]",
                 )}
-              >
-                <Switch.Thumb className="block w-4 h-4 bg-[color:var(--text-primary)] rounded-full transition-transform translate-x-1 data-[state=checked]:translate-x-5" />
-              </Switch.Root>
+                thumbClassName="block h-4 w-4 rounded-full bg-[color:var(--text-primary)]"
+              />
             </div>
           </div>
 

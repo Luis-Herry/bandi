@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { BarChart3, CalendarDays, CheckCircle2, Clock } from "lucide-react";
-import { GlassPanel, NumberPop } from "@/components/ui";
+import { GlassPanel, NumberPop, SpinningCounter } from "@/components/ui";
 import { AnimeCover } from "@/components/features/AnimeCover";
 import { StatsBarChart } from "@/components/features/StatsBarChart";
 import { PageHeader } from "@/components/features/PageHeader";
@@ -198,7 +198,7 @@ function MetricCard({
           data-tabular
           className="truncate text-[28px] font-bold leading-none tracking-tight text-[color:var(--text-primary)] sm:text-[30px]"
         >
-          <NumberPop value={value} dirY={-1} />
+          <SpinningCounter value={value} />
         </span>
         <span className="text-[12px] text-[color:var(--text-muted)]">
           {suffix}

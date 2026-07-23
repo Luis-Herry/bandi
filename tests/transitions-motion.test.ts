@@ -26,16 +26,52 @@ const pageHeaderSource = readFileSync(
   "src/components/features/PageHeader.tsx",
   "utf8",
 );
+const toastHostSource = readFileSync(
+  "src/components/features/ToastHost.tsx",
+  "utf8",
+);
+const motionSwitchSource = readFileSync(
+  "src/components/ui/MotionSwitch.tsx",
+  "utf8",
+);
+const spinningCounterSource = readFileSync(
+  "src/components/ui/SpinningCounter.tsx",
+  "utf8",
+);
+const subscriptionSource = readFileSync(
+  "src/components/features/AnimeSubscriptionButton.tsx",
+  "utf8",
+);
+const switchConsumerSources = [
+  readFileSync("src/components/features/DesktopOnboarding.tsx", "utf8"),
+  readFileSync("src/components/features/DesktopDownloadSettings.tsx", "utf8"),
+  readFileSync("src/components/features/MatchRuleDialog.tsx", "utf8"),
+  readFileSync("src/components/features/RssEditDialog.tsx", "utf8"),
+  readFileSync(
+    "src/app/(main)/player/[animeId]/[episode]/PlayerClient.tsx",
+    "utf8",
+  ),
+].join("\n");
 
 test("transition utilities expose the selected motion recipes", () => {
   assert.match(globalsSource, /--resize-dur/);
   assert.match(globalsSource, /--page-slide-dur/);
   assert.match(globalsSource, /--shimmer-dur/);
   assert.match(globalsSource, /--stagger-dur/);
+  assert.match(globalsSource, /--toast-open/);
+  assert.match(globalsSource, /--like-pop/);
+  assert.match(globalsSource, /--learn-shift/);
+  assert.match(globalsSource, /--reel-dur/);
+  assert.match(globalsSource, /--toggle-dur/);
   assert.match(globalsSource, /@keyframes t-shimmer/);
   assert.match(globalsSource, /\.t-resize/);
   assert.match(globalsSource, /\.t-page-slide/);
   assert.match(globalsSource, /\.t-shimmer::before/);
+  assert.match(globalsSource, /\.t-toast\.is-open/);
+  assert.match(globalsSource, /\.t-like\[data-liked="true"\]/);
+  assert.match(globalsSource, /\.t-learn:hover \.t-learn-chevron/);
+  assert.match(globalsSource, /\.t-reel-strip/);
+  assert.match(globalsSource, /\.t-toggle-thumb/);
   assert.match(globalsSource, /\.t-badge\s*\{[^}]*display:\s*inline-flex/);
   assert.match(globalsSource, /\.t-badge\s*\{[^}]*height:\s*16px/);
   assert.match(globalsSource, /\.t-badge\s*\{[^}]*line-height:\s*1/);
@@ -46,9 +82,52 @@ test("transition utilities expose the selected motion recipes", () => {
   );
   assert.match(uiExportsSource, /export \{ ShimmerText \}/);
   assert.match(uiExportsSource, /export \{ ResizePanel \}/);
+  assert.match(uiExportsSource, /export \{ SpinningCounter \}/);
+  assert.match(uiExportsSource, /export \{ MotionSwitch/);
   assert.match(
     globalsSource,
     /\.desktop-titlebar-window-button\s*\{[^}]*var\(--duration-quick\)[^}]*var\(--ease-default\)/s,
+  );
+});
+
+test("toast remains mounted for its exit transition", () => {
+  assert.match(toastHostSource, /className=\{cn\(\s*"t-toast"/);
+  assert.match(toastHostSource, /open && "is-open"/);
+  assert.match(toastHostSource, /readToastCloseDuration\(\)/);
+  assert.match(toastHostSource, /TOAST_VISIBLE_MS \+ readToastCloseDuration\(\)/);
+  assert.doesNotMatch(toastHostSource, /toast-slide-in/);
+  assert.doesNotMatch(globalsSource, /@keyframes toast-slide-in/);
+});
+
+test("settings and player switches share the spring toggle recipe", () => {
+  assert.match(motionSwitchSource, /data-on=\{checked \? "true" : "false"\}/);
+  assert.match(motionSwitchSource, /initialized && "is-init"/);
+  assert.equal(
+    (switchConsumerSources.match(/<MotionSwitch/g) ?? []).length,
+    6,
+  );
+  assert.doesNotMatch(switchConsumerSources, /<Switch\.Root/);
+  assert.doesNotMatch(switchConsumerSources, /<Switch\.Thumb/);
+});
+
+test("subscription and static links use restrained confirmation motion", () => {
+  assert.match(subscriptionSource, /className="t-like-heart"/);
+  assert.match(subscriptionSource, /data-liked="true"/);
+  assert.match(subscriptionSource, /likeAnimating && "is-like-animating"/);
+  assert.doesNotMatch(subscriptionSource, /t-like-particles/);
+  assert.equal((homeSource.match(/className="t-learn /g) ?? []).length, 2);
+  assert.match(homeSource, /t-learn-arm-top/);
+  assert.match(homeSource, /t-learn-arm-bot/);
+});
+
+test("annual KPI cards use spinning counters with vertical SVG blur", () => {
+  assert.match(spinningCounterSource, /<feGaussianBlur/);
+  assert.match(spinningCounterSource, /--reel-spin-blur/);
+  assert.match(spinningCounterSource, /stdDeviation", `0 \$\{amount/);
+  assert.match(statsSource, /<SpinningCounter value=\{value\} \/>/);
+  assert.match(
+    statsSource,
+    /<NumberPop value=\{report\.overview\.activeDays\} dirY=\{-1\} \/>/,
   );
 });
 
